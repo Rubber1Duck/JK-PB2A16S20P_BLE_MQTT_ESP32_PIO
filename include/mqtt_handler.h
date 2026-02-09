@@ -14,6 +14,9 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/semphr.h>
+#ifdef USE_TLS
+#include <WiFiClientSecure.h>
+#endif
 
 void setState(String key, String value, bool publish);
 void mqtt_loop();
@@ -26,5 +29,6 @@ extern String mqttname;
 extern String mqtt_main_topic;
 extern PubSubClient mqtt_client;
 extern SemaphoreHandle_t mqttMutex;
+extern SemaphoreHandle_t serialMutex;
 
 #endif // MQTT_HANDLER_H

@@ -13,13 +13,15 @@ const int   daylightOffset_sec = DLOFFSET;
 void setup() {
 #ifdef SERIAL_OUT
     Serial.begin(115200);
+    // Serial-Mutex früh erstellen für thread-safe Debug-Ausgaben
+    extern SemaphoreHandle_t serialMutex;
+    serialMutex = xSemaphoreCreateMutex();
 #endif
     init_settings();
 
     DEBUG_PRINTLN("");
     DEBUG_PRINTLN("");
-    DEBUG_PRINT("JK-BMS Listener V ");
-    DEBUG_PRINTLN(VERSION);
+    DEBUG_PRINTLN(String("JK-BMS Listener V ") + VERSION);
     DEBUG_PRINTLN("Starting");
 
 #ifdef USELED
@@ -30,6 +32,9 @@ void setup() {
 
     // WIFI Setup
     init_wifi();
+#ifdef USE_TLS
+    secure_wifi_client.setCACert(root_ca_cert);
+#endif
 
 #ifdef NTPSERVER
     // NTP Setup

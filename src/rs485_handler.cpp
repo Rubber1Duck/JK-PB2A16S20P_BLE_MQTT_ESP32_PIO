@@ -62,14 +62,16 @@ void rs485_loop() {
             memcpy(freshArray, buffer, receivedLength);
 
             // Process the fresh array
-            DEBUG_PRINT("Received data: ");
+            String hexData = "Received data: ";
             for (int i = 0; i < receivedLength; i++) {
-                DEBUG_PRINT(freshArray[i], HEX);
+                char hexBuf[4];
+                snprintf(hexBuf, sizeof(hexBuf), "%02X", freshArray[i]);
+                hexData += hexBuf;
                 if (i < receivedLength - 1) {
-                    DEBUG_PRINT(",");
+                    hexData += ",";
                 }
             }
-            DEBUG_PRINTLN();
+            DEBUG_PRINTLN(hexData);
         }
 
         // Reset the buffer

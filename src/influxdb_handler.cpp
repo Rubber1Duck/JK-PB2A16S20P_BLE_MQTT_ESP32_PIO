@@ -22,11 +22,11 @@ void init_influxdb() {
 
     // Check server connection
     if (influx_client.validateConnection()) {
-        DEBUG_PRINT("Connected to InfluxDB: ");
-        DEBUG_PRINTLN(influx_client.getServerUrl());
+        String connMsg = String("Connected to InfluxDB: ") + influx_client.getServerUrl();
+        DEBUG_PRINTLN(connMsg);
     } else {
-        DEBUG_PRINT("InfluxDB connection failed: ");
-        DEBUG_PRINTLN(influx_client.getLastErrorMessage());
+        String failMsg = String("InfluxDB connection failed: ") + influx_client.getLastErrorMessage();
+        DEBUG_PRINTLN(failMsg);
     }
 }
 

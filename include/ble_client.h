@@ -6,6 +6,7 @@
 #include <NimBLEDevice.h>
 #include <vector>
 #include <mutex>
+#include <algorithm> // Notwendig für std::min
 #include "config.h"
 #include "settings.h"
 #include "mqtt_handler.h"

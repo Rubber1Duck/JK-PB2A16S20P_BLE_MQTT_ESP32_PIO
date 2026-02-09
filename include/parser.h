@@ -7,6 +7,7 @@
 #include "mqtt_handler.h"
 #include <map>
 #include "arduino_base64.hpp"
+#include "time.h"
 
 #ifdef USE_INFLUXDB
 #include <InfluxDbClient.h>
@@ -17,6 +18,9 @@ extern InfluxDBClient influx_client;
 void readDeviceDataRecord(void* message, const char *devicename);
 void readCellDataRecord(void* message, const char *devicename);
 void readConfigDataRecord(void* message, const char *devicename);
+
+void safePublish(const String &topic, const String &payload);
+void safePublish(const String &topic, const char* payload);
 
 extern bool blocked_for_parsing;
 

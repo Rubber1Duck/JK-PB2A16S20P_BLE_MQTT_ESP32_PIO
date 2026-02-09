@@ -13,3 +13,7 @@
 #include "influxdb_handler.h"
 #endif
 
+#ifdef USE_TLS
+extern WiFiClientSecure secure_wifi_client;
+extern const char *root_ca_cert PROGMEM;
+#endif
