@@ -2,6 +2,7 @@
 #define ZD_DATA_STRUCT_H
 #include <Arduino.h>
 #include "arduino_base64.hpp"
+#include <bitset>
 
 // Struktur für die Zellendaten (LiveDaten) (CellData; FrameType 0x02)
 struct CellData
@@ -170,9 +171,9 @@ struct CellData
       dtostrf(CellVol[i] * 0.001, 6, 3, CellVol_fmt[i]);
     }
     // CellSta, CellWireResSta und AlarmBitMask in lesbare Bitmask-Strings umwandeln
-    snprintf(CellSta_fmt, sizeof(CellSta_fmt), "%032b", CellSta);
-    snprintf(CellWireResSta_fmt, sizeof(CellWireResSta_fmt), "%032b", CellWireResSta);
-    snprintf(AlarmBitMask_fmt, sizeof(AlarmBitMask_fmt), "%032b", AlarmBitMask);
+    snprintf(CellSta_fmt, sizeof(CellSta_fmt), std::bitset<32>(CellSta).to_string().c_str());
+    snprintf(CellWireResSta_fmt, sizeof(CellWireResSta_fmt), std::bitset<32>(CellWireResSta).to_string().c_str());
+    snprintf(AlarmBitMask_fmt, sizeof(AlarmBitMask_fmt), std::bitset<32>(AlarmBitMask).to_string().c_str());
     // CellVolAve und CellVdifMax von mV in V umrechnen und mit 3 Dezimalstellen formatieren
     dtostrf(CellVolAve * 0.001, 5, 3, CellVolAve_fmt);
 #if DIFFV_DIVIDER == 1
@@ -259,7 +260,7 @@ struct CellData
     snprintf(TimeUVPR_fmt, sizeof(TimeUVPR_fmt), "%d", TimeUVPR);
     snprintf(TimeOVPR_fmt, sizeof(TimeOVPR_fmt), "%d", TimeOVPR);
     // TempSensorAbsentMask interpretieren
-    snprintf(TempSensorAbsentMask_fmt, sizeof(TempSensorAbsentMask_fmt), "%08b", TempSensorAbsentMask);
+    snprintf(TempSensorAbsentMask_fmt, sizeof(TempSensorAbsentMask_fmt), std::bitset<8>(TempSensorAbsentMask).to_string().c_str());
     snprintf(TempSensorAbsent_fmt, sizeof(TempSensorAbsent_fmt), "%d", TempSensorAbsentMask);
     for (int i = 0; i < 6; ++i)
     {
