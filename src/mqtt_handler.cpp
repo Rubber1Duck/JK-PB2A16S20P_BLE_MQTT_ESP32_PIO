@@ -254,7 +254,6 @@ boolean mqtt_reconnect()
     return mqtt_client.connected();
 }
 
-uint32_t last_MQTT_client_loop_start = 0;
 // MQTT Check
 void mqtt_loop()
 {
@@ -271,7 +270,6 @@ void mqtt_loop()
                 lastReconnectAttempt = 0;
                 DEBUG_PRINTLN("MQTT Reconnected.");
                 mqtt_client.loop();
-                last_MQTT_client_loop_start = millis();
             }
             else
             {
@@ -282,9 +280,7 @@ void mqtt_loop()
     }
     else
     {
-        DEBUG_PRINTLN("run mqtt_client.loop(). Last MQTT client loop bevor: " + String((millis() - last_MQTT_client_loop_start)) + " ms ago.");
         mqtt_client.loop();
-        last_MQTT_client_loop_start = millis();
     }
 }
 
