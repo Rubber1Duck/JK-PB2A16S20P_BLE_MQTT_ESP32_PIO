@@ -4,8 +4,6 @@
 #include <mutex>
 #include <Arduino.h>
 #include <NimBLEDevice.h>
-#include <vector>
-#include <mutex>
 #include <algorithm> // Notwendig für std::min
 #include "config.h"
 #include "settings.h"
@@ -24,9 +22,7 @@
 #define INITIAL_SEND_INTERVAL 5000UL   // Define the interval for the initial send (5 seconds)
 #define RSSI_INTERVAL 60000UL
 
-
 void ble_setup();
 void ble_loop();
 
 #endif // BLE_CLIENT_H
-

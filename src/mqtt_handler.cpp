@@ -26,14 +26,20 @@ byte willQoS = 0;
 boolean willRetain = true;
 uint32_t reconnect_attempts = 0;
 
-// Define the mutex
-SemaphoreHandle_t mqttMutex;
-SemaphoreHandle_t serialMutex = NULL;  // Wird in main.cpp oder mqtt_init() erstellt
-
 // Define the map to store key-value pairs
 std::map<String, String> stateMap;
 
-String formatUptime(time_t uptime) {
+// Define toMqttQueue mutex
+std::mutex mqttQueueMutex;
+
+// Pre-computed MQTT topics to avoid repeated allocations
+String topic_debug_active;
+String topic_debug_active_full;
+String topic_publish_delay;
+String topic_min_pub_time;
+
+String formatUptime(time_t uptime)
+{
     int days = uptime / 86400;
     int hours = (uptime % 86400) / 3600;
     int minutes = (uptime % 3600) / 60;
@@ -44,140 +50,160 @@ String formatUptime(time_t uptime) {
     return String(buffer);
 }
 
-void setState(String key, String value, bool publish) {
-    stateMap[key] = value;
-    if (publish && mqtt_client.connected()) {
-        String fullTopic = mqttname + "/status/" + key;
-        TickType_t timeout = pdMS_TO_TICKS(5000);  // 5s Timeout statt portMAX_DELAY
-        if (xSemaphoreTake(mqttMutex, timeout) == pdTRUE) {
-            bool success = mqtt_client.publish(fullTopic.c_str(), value.c_str());
-            xSemaphoreGive(mqttMutex);
-            if (!success) {
-                String failMsg = "MQTT publish failed: " + fullTopic;
-                DEBUG_PRINTLN(failMsg);
-            }
-        } else {
-            String timeoutMsg = "MQTT mutex timeout: " + fullTopic;
-            DEBUG_PRINTLN(timeoutMsg);
-        }
+void toMqttQueue(String topic, String payload)
+{
+    std::lock_guard<std::mutex> lock(mqttQueueMutex);
+    if (mqtt_client.state() != MQTT_CONNECTED || !isWifiConnected)
+    {
+        return; // Wait until MQTT is connected before pushing topics to publish queue
+    }
+    PublishMessage queue_in;
+    strncpy(queue_in.topic, topic.c_str(), sizeof(queue_in.topic) - 1);
+    queue_in.topic[sizeof(queue_in.topic) - 1] = '\0';
+    strncpy(queue_in.payload, payload.c_str(), sizeof(queue_in.payload) - 1);
+    queue_in.payload[sizeof(queue_in.payload) - 1] = '\0';
+    if (xQueueSend(publishQueue, &queue_in, 0) != pdTRUE)
+    {
+        String failMsg = "Failed to send message to queue: " + String(topic);
+        DEBUG_PRINTLN(failMsg);
     }
 }
 
-void publishStates() {
-    if (!mqtt_client.connected()) {
-        return;  // Early return wenn nicht verbunden
+void setState(String key, String value, bool publish)
+{
+    stateMap[key] = value;
+    if (publish)
+    {
+        String fullTopic = mqttname + "/status/" + key;
+        toMqttQueue(fullTopic.c_str(), value.c_str());
     }
-    
-    TickType_t timeout = pdMS_TO_TICKS(5000);  // 5s Timeout
-    for (const auto &kv : stateMap) {
+}
+
+void publishStates()
+{
+    for (const auto &kv : stateMap)
+    {
         String fullTopic = mqttname + "/status/" + kv.first;
         String payload = kv.second;
-        if (xSemaphoreTake(mqttMutex, timeout) == pdTRUE) {
-            bool success = mqtt_client.publish(fullTopic.c_str(), payload.c_str());
-            xSemaphoreGive(mqttMutex);
-            if (!success) {
-                String failMsg = "MQTT publish failed: " + fullTopic;
-                DEBUG_PRINTLN(failMsg);
-            }
-        } else {
-            DEBUG_PRINTLN("MQTT mutex timeout in publishStates");
-            break;  // Bei Timeout abbrechen
-        }
-        vTaskDelay(50 / portTICK_PERIOD_MS);
+        toMqttQueue(fullTopic.c_str(), payload.c_str());
     }
+    vTaskDelay(25 / portTICK_PERIOD_MS);
 }
 
-void publishStatesTask(void *pvParameters) {
-    while (true) {
-        // Watchdog-Feed
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-
-        time_t now = time(nullptr);
-        time_t bootTime = now - esp_timer_get_time() / 1000000;
-        setState("uptime", formatUptime(now - bootTime), false);
-
-        if (mqtt_client.connected()) {
-            publishStates();
-        }
-        
-        // Warte min_publish_time Sekunden, aber in kleineren Schritten
-        uint32_t total_delay = min_publish_time * 1000;
-        uint32_t chunk_delay = 1000;  // 1 Sekunde Chunks
-        for (uint32_t i = 0; i < total_delay; i += chunk_delay) {
+void publishStatesTask(void *pvParameters)
+{
+    while (true)
+    {
+        setState("uptime", formatUptime(esp_timer_get_time() / 1000000), false);
+        publishStates();
+        // Warte min_pub_time Sekunden, aber in kleineren Schritten
+        uint32_t total_delay = min_pub_time * 1000;
+        uint32_t chunk_delay = 1000; // 1 Sekunde Chunks
+        for (uint32_t i = 0; i < total_delay; i += chunk_delay)
+        {
             vTaskDelay(chunk_delay / portTICK_PERIOD_MS);
         }
     }
 }
 
-void handleMQTTSettingsMessage(const char *topic, const char *command, byte *payload, unsigned int length, bool &flag) {
-    // Find the last occurrence of '/'
-    const char *lastSlash = strrchr(topic, '/');
-    if (lastSlash != nullptr) {
-        // Move past the last '/'
-        const char *lastPart = lastSlash + 1;
-        // Compare the last part of the topic with the command
-        if (strcmp(lastPart, command) == 0) {
-            // Check if the payload is numeric
-            bool isNumeric = true;
-            for (unsigned int i = 0; i < length; i++) {
-                if (!isdigit(payload[i])) {
-                    isNumeric = false;
-                    break;
-                }
-            }
+// handle Subscriptions - optimized version
+void MQTTCallback(char *topic, byte *payload, unsigned int length)
+{
+    // Early return pattern - check each topic and return immediately after handling
 
-            // If the payload is numeric, convert it to uint16_t and call write_setting
-            if (isNumeric) {
-                // Ensure the payload is null-terminated
-                char payloadStr[length + 1];
-                memcpy(payloadStr, payload, length);
-                payloadStr[length] = '\0';
+    // Check debugging_active
+    if (strcmp(topic, topic_debug_active.c_str()) == 0)
+    {
+        String cmd = String((char *)payload, length);
+        debug_flg = (cmd == "true");
+        write_setting("debug_flg", debug_flg);
+        return;
+    }
 
-                uint16_t value = atoi(payloadStr);
-                String convMsg = String("Converted value: ") + value;
-                DEBUG_PRINTLN(convMsg);
-                write_setting(command, value);
-            } else {
-                mqtt_client.publish(String(topic).c_str(), String(0).c_str());
+    // Check debugging_active_full
+    if (strcmp(topic, topic_debug_active_full.c_str()) == 0)
+    {
+        String cmd = String((char *)payload, length);
+        debug_flg_full = (cmd == "true");
+        write_setting("debug_flg_full", debug_flg_full);
+        return;
+    }
+
+    // Check publish_delay
+    if (strcmp(topic, topic_publish_delay.c_str()) == 0)
+    {
+        char payloadStr[length + 1];
+        memcpy(payloadStr, payload, length);
+        payloadStr[length] = '\0';
+
+        bool isNumeric = true;
+        for (unsigned int i = 0; i < length; i++)
+        {
+            if (!isdigit(payload[i]))
+            {
+                isNumeric = false;
+                break;
             }
         }
+
+        if (isNumeric)
+        {
+            uint16_t value = atoi(payloadStr);
+            write_setting("publish_delay", value);
+        }
+        else
+        {
+            toMqttQueue(topic, "5"); // Default to 5 seconds if invalid
+        }
+        return;
     }
-}
 
-void handleMQTTMessage(const char *topic, const char *command, byte *payload, unsigned int length, bool &flag, bool setting = false) {
+    // Check min_publish_time
+    if (strcmp(topic, topic_min_pub_time.c_str()) == 0)
+    {
+        char payloadStr[length + 1];
+        memcpy(payloadStr, payload, length);
+        payloadStr[length] = '\0';
 
-    if (setting) {
-        return handleMQTTSettingsMessage(topic, command, payload, length, flag);
+        bool isNumeric = true;
+        for (unsigned int i = 0; i < length; i++)
+        {
+            if (!isdigit(payload[i]))
+            {
+                isNumeric = false;
+                break;
+            }
+        }
+
+        if (isNumeric)
+        {
+            uint16_t value = atoi(payloadStr);
+            write_setting("min_pub_time", value);
+        }
+        else
+        {
+            toMqttQueue(topic, "300"); // Default to 300 seconds if invalid
+        }
+        return;
     }
-
-    if (strcmp(topic, command) == 0) {
-        String Command = String((char *)payload, length);
-        flag = (Command == "true");
-        write_setting("debug_flg", debug_flg);
-        write_setting("debug_flg_full_log", debug_flg_full_log);
-    }
-}
-
-// handle Subscriptions
-void MQTTCallback(char *topic, byte *payload, unsigned int length) {
-    handleMQTTMessage(topic, (mqttname + "/parameter/debugging_active").c_str(), payload, length, debug_flg);
-    handleMQTTMessage(topic, (mqttname + "/parameter/debugging_active_full").c_str(), payload, length, debug_flg_full_log);
-
-    handleMQTTMessage(topic, String("publish_delay").c_str(), payload, length, debug_flg_full_log, true);
-    handleMQTTMessage(topic, String("min_publish_time").c_str(), payload, length, debug_flg_full_log, true);
 }
 
 #ifdef USE_TLS
 WiFiClientSecure secure_wifi_client;
 PubSubClient mqtt_client(mqtt_server, mqtt_tls_port, MQTTCallback, secure_wifi_client);
-
 #else
 WiFiClient wifi_client;
 PubSubClient mqtt_client(mqtt_server, mqtt_port, MQTTCallback, wifi_client);
 #endif
 
 // Reconnect to MQTT broker
-boolean mqtt_reconnect() {
+boolean mqtt_reconnect()
+{
+    while (!isWifiConnected)
+    {
+        DEBUG_PRINTLN("Waiting for WiFi connection before attempting MQTT reconnect...");
+        vTaskDelay(200 / portTICK_PERIOD_MS);
+    }
     mqtt_buffer_maxed = mqtt_client.setBufferSize(MQTT_BUFFER_SIZE);
     reconnect_attempts++;
 
@@ -189,32 +215,35 @@ boolean mqtt_reconnect() {
 #endif
 
     DEBUG_PRINTLN("Attempting MQTT connection... " + random_client_id + " (Attempt " + String(reconnect_attempts) + ")");
-
     // Attempt to reconnect to the MQTT broker
-    if (mqtt_client.connect(random_client_id.c_str(), mqtt_username, mqtt_password, willTopic.c_str(), willQoS, willRetain, willMessage.c_str(),true)) {
+    if (mqtt_client.connect(random_client_id.c_str(), mqtt_username, mqtt_password, willTopic.c_str(), willQoS, willRetain, willMessage.c_str(), true))
+    {
 
         int ErrorCnt = 0;
         String debug_flg_status = debug_flg ? "true" : "false";
-        mqtt_client.publish((mqttname + "/parameter/debugging_active").c_str(), debug_flg_status.c_str()) || ErrorCnt++;
-        mqtt_client.subscribe((mqttname + "/parameter/debugging_active").c_str()) || ErrorCnt++; // debug_flg
+        mqtt_client.publish(topic_debug_active.c_str(), debug_flg_status.c_str()) || ErrorCnt++;
+        mqtt_client.subscribe(topic_debug_active.c_str()) || ErrorCnt++; // debug_flg
 
-        String debug_flg_full_log_status = debug_flg_full_log ? "true" : "false";
-        mqtt_client.publish((mqttname + "/parameter/debugging_active_full").c_str(), debug_flg_full_log_status.c_str()) || ErrorCnt++;
-        mqtt_client.subscribe((mqttname + "/parameter/debugging_active_full").c_str()) || ErrorCnt++; // debug_flg_full_log
+        String debug_flg_full_log_status = debug_flg_full ? "true" : "false";
+        mqtt_client.publish(topic_debug_active_full.c_str(), debug_flg_full_log_status.c_str()) || ErrorCnt++;
+        mqtt_client.subscribe(topic_debug_active_full.c_str()) || ErrorCnt++; // debug_flg_full
 
-        mqtt_client.publish((mqttname + "/parameter/publish_delay").c_str(), String(publish_delay).c_str()) || ErrorCnt++;
-        mqtt_client.subscribe((mqttname + "/parameter/publish_delay").c_str()) || ErrorCnt++; // debug_flg_full_log
+        mqtt_client.publish(topic_publish_delay.c_str(), String(publish_delay).c_str()) || ErrorCnt++;
+        mqtt_client.subscribe(topic_publish_delay.c_str()) || ErrorCnt++; // publish_delay
 
-        mqtt_client.publish((mqttname + "/parameter/min_publish_time").c_str(), String(min_publish_time).c_str()) || ErrorCnt++;
-        mqtt_client.subscribe((mqttname + "/parameter/min_publish_time").c_str()) || ErrorCnt++; // min_publish_time
+        mqtt_client.publish(topic_min_pub_time.c_str(), String(min_pub_time).c_str()) || ErrorCnt++;
+        mqtt_client.subscribe(topic_min_pub_time.c_str()) || ErrorCnt++; // min_pub_time
 
-        if ( ErrorCnt > 0) {
+        if (ErrorCnt > 0)
+        {
             String errorMsg = "Connected to broker but initial publish or subscriptions failed, error count: " + String(ErrorCnt);
             DEBUG_PRINTLN(errorMsg);
             mqtt_client.disconnect();
             DEBUG_PRINTLN("Disconnected from broker.");
             return false;
-        } else {
+        }
+        else
+        {
             DEBUG_PRINTLN("Connected to broker, initial publish and subscriptions successful.");
         }
 #ifdef USELED
@@ -225,38 +254,50 @@ boolean mqtt_reconnect() {
     return mqtt_client.connected();
 }
 
+uint32_t last_MQTT_client_loop_start = 0;
 // MQTT Check
-void mqtt_loop() {
-    if (!mqtt_client.connected()) {
-        DEBUG_PRINTLN("MQTT mqtt_client not connected, attempting to reconnect... (Attempt " + String(reconnect_attempts) + ")");
+void mqtt_loop()
+{
+    if (!mqtt_client.connected())
+    {
+        DEBUG_PRINTLN("MQTT client not connected, attempting to reconnect... (Attempt " + String(reconnect_attempts) + ")");
         unsigned long now = millis();
-        if (now - lastReconnectAttempt > RECONNECT_DELAY) { // 5 seconds delay
+        if (now - lastReconnectAttempt > RECONNECT_DELAY)
+        { // 5 seconds delay
 
             lastReconnectAttempt = now;
-            if (mqtt_reconnect()) {
+            if (mqtt_reconnect())
+            {
                 lastReconnectAttempt = 0;
                 DEBUG_PRINTLN("MQTT Reconnected.");
                 mqtt_client.loop();
-            } else {
+                last_MQTT_client_loop_start = millis();
+            }
+            else
+            {
                 DEBUG_PRINTLN("MQTT Reconnect failed.");
                 // lastReconnectAttempt = 0;
             }
         }
-    } else {
+    }
+    else
+    {
+        DEBUG_PRINTLN("run mqtt_client.loop(). Last MQTT client loop bevor: " + String((millis() - last_MQTT_client_loop_start)) + " ms ago.");
         mqtt_client.loop();
+        last_MQTT_client_loop_start = millis();
     }
 }
 
-void mqtt_init() {
-    DEBUG_PRINTLN("Connecting MQTT ...");
+void mqtt_init()
+{
+    // Initialize pre-computed topic strings once
+    topic_debug_active = mqttname + "/parameter/debugging_active";
+    topic_debug_active_full = mqttname + "/parameter/debugging_active_full";
+    topic_publish_delay = mqttname + "/parameter/publish_delay";
+    topic_min_pub_time = mqttname + "/parameter/min_publish_time";
 
-    // Initialize the mutexes
-    mqttMutex = xSemaphoreCreateMutex();
-    if (serialMutex == NULL) {
-        serialMutex = xSemaphoreCreateMutex();  // Falls noch nicht in main.cpp erstellt
-    }
-
-    if (mqtt_reconnect()) {
+    if (mqtt_reconnect())
+    {
         DEBUG_PRINTLN("MQTT Connected.");
         // Create the task to call publishStates() every min_publish_time seconds
         // Stack erhöht von 2048 auf 4096 für Stabilität
@@ -266,7 +307,7 @@ void mqtt_init() {
         setState("ipaddress", WiFi.localIP().toString(), true);
         setState("ble_connection", "startup", true);
         setState("status", "online", true);
-
-    } else
+    }
+    else
         DEBUG_PRINTLN("MQTT Connect failed.");
 }

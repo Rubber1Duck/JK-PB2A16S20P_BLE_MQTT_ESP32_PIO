@@ -5,7 +5,8 @@
 #ifdef USELED
 #define LED_PIN USELED
 
-enum LedState {
+enum LedState
+{
     LED_OFF,
     LED_ON,
     LED_BLINK_SLOW,
@@ -16,6 +17,6 @@ enum LedState {
 
 void init_led();
 void set_led(LedState state);
-#endif //USELED
+#endif // USELED
 
 #endif // LED_CONTROL_H

@@ -8,7 +8,8 @@ InfluxDBClient influx_client;
 const char *influx_devicename = DEVICENAME; // JK-B2A24S20P JK-B2A24S15P
 String influx_prefix = influx_devicename + String("_");
 
-void init_influxdb() {
+void init_influxdb()
+{
     DEBUG_PRINTLN("Init InfluxDB client");
     // Set up the client
     influx_client.setInsecure(true); // Set to true if you are using a self-signed certificate
@@ -21,24 +22,36 @@ void init_influxdb() {
     timeSync(TZ_INFO, "pool.ntp.org", "time.nis.gov");
 
     // Check server connection
-    if (influx_client.validateConnection()) {
+    if (influx_client.validateConnection())
+    {
         String connMsg = String("Connected to InfluxDB: ") + influx_client.getServerUrl();
         DEBUG_PRINTLN(connMsg);
-    } else {
+    }
+    else
+    {
         String failMsg = String("InfluxDB connection failed: ") + influx_client.getLastErrorMessage();
         DEBUG_PRINTLN(failMsg);
     }
 }
 
-void publishToInfluxDB(const String &topic, int value) {
+void publishToInfluxDB(const String &topic, int value)
+{
     String valueStr = String(value);
     Point point(influx_prefix + topic);
-    point.addField("value", value);
+    point.addField("value", valueStr);
     influx_client.writePoint(point);
 }
 
-void publishToInfluxDB(const String &topic, float value) {
+void publishToInfluxDB(const String &topic, float value)
+{
     String valueStr = String(value, 3); // Default to 3 decimal places for floats
+    Point point(influx_prefix + topic);
+    point.addField("value", valueStr);
+    influx_client.writePoint(point);
+}
+
+void publishToInfluxDB(const String &topic, const char *value)
+{
     Point point(influx_prefix + topic);
     point.addField("value", value);
     influx_client.writePoint(point);

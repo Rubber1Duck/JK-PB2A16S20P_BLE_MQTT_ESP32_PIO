@@ -21,15 +21,16 @@ NimBLEClient *pClient;
 NimBLERemoteCharacteristic *pRemoteCharacteristic;
 
 // messages
-byte getdeviceInfo[20] =    {0xaa, 0x55, 0x90, 0xeb, 0x97, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11}; // Device Infos
-byte getInfo[20] =          {0xaa, 0x55, 0x90, 0xeb, 0x96, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10}; // Cell Data
+byte getdeviceInfo[20] = {0xaa, 0x55, 0x90, 0xeb, 0x97, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11}; // Device Infos
+byte getInfo[20] = {0xaa, 0x55, 0x90, 0xeb, 0x96, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10};       // Cell Data
 
 // Buffer
 std::mutex bufferMutex;
 uint8_t ble_buffer[BUFFER_SIZE];
 int ble_buffer_index = 0;
 const uint8_t start_sequence[4] = {0x55, 0xaa, 0xeb, 0x90};
-const uint8_t pos_of_FrameType = 4; // position of FrameType in the message
+const uint8_t pos_of_FrameType = 4;       // position of FrameType in the message
+boolean all_notifications_blocked = true; // Flag to track if all notifications are currently blocked
 
 // Time variables
 unsigned long last_received_notification = 0;
@@ -45,11 +46,13 @@ QueueHandle_t bleQueue;
 #endif
 
 // forks into message parser by message type
-void parser(void *message) {
+void parser(void *message)
+{
     uint8_t *msg = static_cast<uint8_t *>(message);
     uint8_t type = msg[4]; // 4. Byte decides the message type
 
-    switch (type) {
+    switch (type)
+    {
     case 0x01:
         readConfigDataRecord(message, devicename);
         break;
@@ -65,26 +68,30 @@ void parser(void *message) {
     }
 }
 
-class MyClientCallback : public NimBLEClientCallbacks {
-    void onConnect(NimBLEClient *pclient) {
+class MyClientCallback : public NimBLEClientCallbacks
+{
+    void onConnect(NimBLEClient *pclient)
+    {
         DEBUG_PRINTLN("BLE Connected");
         ble_connected = true;
     }
 
-    void onDisconnect(NimBLEClient *pclient) {
+    void onDisconnect(NimBLEClient *pclient)
+    {
         DEBUG_PRINTLN("BLE Disconnected. Restarting...");
         ble_connected = false;
         ESP.restart();
     }
 };
 
-class MyAdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks {
-    void onResult(NimBLEAdvertisedDevice *advertisedDevice) {
-        String deviceInfo = "BLE Advertised Device found: " + String(advertisedDevice->toString().c_str());
-        DEBUG_PRINTLN(deviceInfo);
+class MyAdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks
+{
+    void onResult(NimBLEAdvertisedDevice *advertisedDevice)
+    {
 
         // We have found a device, let us now see if it contains the service we are looking for.
-        if (advertisedDevice->haveServiceUUID() && advertisedDevice->isAdvertisingService(NimBLEUUID(serviceUUID)) && advertisedDevice->getName() == devicename) {
+        if (advertisedDevice->haveServiceUUID() && advertisedDevice->isAdvertisingService(NimBLEUUID(serviceUUID)) && advertisedDevice->getName() == devicename)
+        {
             String serverMsg = "Found our server " + String(devicename);
             DEBUG_PRINTLN(serverMsg);
             pBLEScan->stop();
@@ -99,11 +106,14 @@ class MyAdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks {
 static MyClientCallback clientCallback;
 static MyAdvertisedDeviceCallbacks deviceCallback;
 
-bool CRC_Check(uint8_t *data, size_t length) {
-    if (length < 2) return false; // Not enough data for CRC
+bool CRC_Check(uint8_t *data, size_t length)
+{
+    if (length < 2)
+        return false; // Not enough data for CRC
 
     uint16_t calculated_crc = 0;
-    for (size_t i = 0; i < length - 1; i++) {
+    for (size_t i = 0; i < length - 1; i++)
+    {
         calculated_crc += data[i];
     }
     calculated_crc &= 0xFF; // Keep only the lowest byte
@@ -112,36 +122,53 @@ bool CRC_Check(uint8_t *data, size_t length) {
     return calculated_crc == received_crc;
 }
 
-void notifyCallback(NimBLERemoteCharacteristic *pRemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify) {
-    
+void notifyCallback(NimBLERemoteCharacteristic *pRemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
+{
     std::lock_guard<std::mutex> lock(bufferMutex);
-    
+    if (all_notifications_blocked)
+    {
+        return; // Ignore all notifications if the flag is set
+    }
+    // DEBUG_PRINTLN("Notification received. Length: " + String(length) + " bytes");
+    // DEBUG_PRINT("Data: ");
+    // for (size_t i = 0; i < length; i++) {
+    //     if (pData[i] < 16) {
+    //         DEBUG_PRINT("0"); // Leading zero for single-digit hex values
+    //     }
+    //     DEBUG_PRINT(String(pData[i], HEX) + " ");
+    // }
+    // DEBUG_PRINTLN("");
+
     last_received_notification = millis(); // Zeitstempel aktualisieren
 
-    if (!capturing && length >= sizeof(start_sequence) && memcmp(pData, start_sequence, sizeof(start_sequence)) == 0) {
-        //DEBUG_PRINTLN("Start sequence detected! Message type: " + String(pData[pos_of_FrameType], HEX));
+    if (!capturing && length >= sizeof(start_sequence) && memcmp(pData, start_sequence, sizeof(start_sequence)) == 0)
+    {
+        // DEBUG_PRINTLN("Start sequence detected! Message type: " + String(pData[pos_of_FrameType], HEX));
         memcpy(ble_buffer, pData, length); // copy notification to buffer
         ble_buffer_index = length;
         capturing = true; // from now on, data will be stored in buffer
-    } else if (capturing) {
+    }
+    else if (capturing)
+    {
         // write byte to buffer
         size_t bytes_to_copy = std::min(length, static_cast<size_t>(BUFFER_SIZE - ble_buffer_index));
         memcpy(ble_buffer + ble_buffer_index, pData, bytes_to_copy);
         ble_buffer_index += bytes_to_copy;
 
-        // if 300 bytes received and CRC_Check OK then call parser
-        if (ble_buffer_index >= BUFFER_SIZE && CRC_Check(ble_buffer, BUFFER_SIZE)) {
+        // if 300 bytes received and CRC_Check OK call parser
+        if (ble_buffer_index >= BUFFER_SIZE && CRC_Check(ble_buffer, BUFFER_SIZE))
+        {
             std::vector<uint8_t> message(ble_buffer, ble_buffer + BUFFER_SIZE);
             ble_buffer_index = 0;
             capturing = false; // waiting for next start sequence
             last_data_received_time = millis();
-            //DEBUG_PRINTLN("Complete message received and CRC check passed!");
-            
-            // .. and call parser
-            //DEBUG_PRINTLN("Calling parser");
+
+            // .. and call parser or send message to queue for parser task
+
 #ifdef DUALCORE
             // Add message to queue
-            if (xQueueSend(bleQueue, message.data(), portMAX_DELAY) != pdTRUE) {
+            if (xQueueSend(bleQueue, message.data(), 0) != pdTRUE)
+            {
                 DEBUG_PRINTLN("Failed to send message to queue");
             }
 #else
@@ -151,14 +178,14 @@ void notifyCallback(NimBLERemoteCharacteristic *pRemoteCharacteristic, uint8_t *
     }
 }
 
-bool connectToBLEServer() {
-    String connMsg = "Forming a connection to " + String(myDevice->getAddress().toString().c_str());
-    DEBUG_PRINTLN(connMsg);
+bool connectToBLEServer()
+{
 
     pClient->setClientCallbacks(&clientCallback);
-    
+
     // Connect to the remote BLE Server.
-    if (pClient->connect(myDevice)) {
+    if (pClient->connect(myDevice))
+    {
 
         String macAddr = String(myDevice->getAddress().toString().c_str());
         String rssiVal = String(myDevice->getRSSI());
@@ -169,7 +196,8 @@ bool connectToBLEServer() {
 
         // Obtain a reference to the service we are after in the remote BLE server.
         NimBLERemoteService *pRemoteService = pClient->getService(NimBLEUUID(serviceUUID));
-        if (pRemoteService == nullptr) {
+        if (pRemoteService == nullptr)
+        {
             String serviceMsg = "Failed to find our service UUID: " + String(serviceUUID.toString().c_str());
             DEBUG_PRINTLN(serviceMsg);
             pClient->disconnect();
@@ -179,7 +207,8 @@ bool connectToBLEServer() {
 
         // Obtain a reference to the characteristic in the service of the remote BLE server.
         pRemoteCharacteristic = pRemoteService->getCharacteristic(NimBLEUUID(charUUID));
-        if (pRemoteCharacteristic == nullptr) {
+        if (pRemoteCharacteristic == nullptr)
+        {
             String charMsg = "Failed to find our characteristic UUID: " + String(charUUID.toString().c_str());
             DEBUG_PRINTLN(charMsg);
             pClient->disconnect();
@@ -188,7 +217,8 @@ bool connectToBLEServer() {
         DEBUG_PRINTLN(" - Found our characteristic");
 
         // Set the notification callback
-        if (pRemoteCharacteristic->canNotify()) {
+        if (pRemoteCharacteristic->canNotify())
+        {
             pRemoteCharacteristic->subscribe(true, notifyCallback);
             DEBUG_PRINTLN("Subscribed to notifications");
         }
@@ -197,7 +227,7 @@ bool connectToBLEServer() {
         pRemoteCharacteristic->writeValue(getdeviceInfo, 20);
         initial_send_done = false;
         last_sending_time = millis();
-        DEBUG_PRINTLN("Sending device Info");
+        DEBUG_PRINTLN("Sending \"getdeviceInfo\" to the BLE device...");
 
         setState("ble_connection", "connected", true);
 
@@ -207,92 +237,117 @@ bool connectToBLEServer() {
 #endif
 
         return true;
-    } else {
+    }
+    else
+    {
         DEBUG_PRINTLN(" - Failed to connect to server");
         setState("ble_connection", "failed", true);
         return false;
     }
 }
 
-void ble_loop() {
+void ble_loop()
+{
     // BLE not connected
-    if (!ble_connected && !do_connect && (millis() - last_ble_scan_time) > SCAN_REPEAT_TIME) {
+    if (!ble_connected && !do_connect && (millis() - last_ble_scan_time) > SCAN_REPEAT_TIME)
+    {
         String scanMsg = "BLE -> Scanning ... " + String(count_ble_scans);
         DEBUG_PRINTLN(scanMsg);
 
         setState("ble_connection", String("scanning " + String(count_ble_scans)).c_str(), true);
 
         last_ble_scan_time = millis();
-        if (pBLEScan != nullptr) {
+        if (pBLEScan != nullptr)
+        {
             pBLEScan->start(5, false);
 
 #ifdef USELED
             // Send LED_BLINK_FAST state to the LED task
             set_led(LedState::LED_BLINK_FAST);
 #endif
-
-        } else {
+        }
+        else
+        {
             DEBUG_PRINTLN("Error: pBLEScan is NULL");
         }
         count_ble_scans++;
     }
 
     // BLE connected but no new data since 60 seconds
-    if (!do_connect && ble_connected && (millis() >= (last_data_received_time + TIMEOUT_NO_DATA)) && last_data_received_time != 0) {
+    if (!do_connect && ble_connected && (millis() >= (last_data_received_time + TIMEOUT_NO_DATA)) && last_data_received_time != 0)
+    {
         ble_connected = false;
         delay(200);
         setState("ble_connection", "terminated", true);
         DEBUG_PRINTLN("BLE-Disconnect/terminated");
         last_data_received_time = millis();
-        if (pClient != nullptr) {
+        if (pClient != nullptr)
+        {
             pClient->disconnect();
-        } else {
+        }
+        else
+        {
             DEBUG_PRINTLN("Error: pClient is NULL");
         }
     }
 
     // ESP restart after REBOOT_AFTER_BLE_RETRY BLE Scans without success
-    if (count_ble_scans > REBOOT_AFTER_BLE_RETRY) {
+    if (count_ble_scans > REBOOT_AFTER_BLE_RETRY)
+    {
         setState("ble_connection", "rebooting", true);
         DEBUG_PRINTLN("BLE not receiving new Data from BMS... and no BLE reconnection possible, Reboot ESP...");
         ESP.restart();
     }
 
     // Attempt to connect if a device is found
-    if (do_connect) {
+    if (do_connect)
+    {
         unsigned long currentMillis = millis();
-        if (currentMillis - last_ble_connection_attempt_time >= BLE_RECONNECT) {
+        if (currentMillis - last_ble_connection_attempt_time >= BLE_RECONNECT)
+        {
             last_ble_connection_attempt_time = currentMillis;
-            if (connectToBLEServer()) {
+            if (connectToBLEServer())
+            {
                 DEBUG_PRINTLN("We are now connected to the BLE Server.");
                 do_connect = false;
-            } else {
+            }
+            else
+            {
                 DEBUG_PRINTLN("Failed to connect to the BLE Server.");
             }
         }
     }
 
-    if (ble_connected) {
+    if (ble_connected)
+    {
         // request cell data 5 seconds after request for device data
 
-        if (!initial_send_done) {
+        if (!initial_send_done)
+        {
             // Initial send after 5 seconds
-            if ((millis() - last_sending_time) >= INITIAL_SEND_INTERVAL) {
+            if ((millis() - last_sending_time) >= INITIAL_SEND_INTERVAL)
+            {
+                DEBUG_PRINTLN("Start the show, unblock notifications ...");
+                all_notifications_blocked = false; // Unblock notifications
                 DEBUG_PRINTLN("Send getInfo (initial)");
                 pRemoteCharacteristic->writeValue(getInfo, 20);
                 last_sending_time = millis(); // Update the last sending time to the current time
                 initial_send_done = true;     // Set the flag to indicate the initial send is done
             }
-        } else {
+        }
+        else
+        {
             // Subsequent sends every hour
-            if ((millis() - last_sending_time) >= REPEAT_SEND_INTERVAL) {
+            if ((millis() - last_sending_time) >= REPEAT_SEND_INTERVAL)
+            {
                 DEBUG_PRINTLN("Send getInfo (hourly)");
                 pRemoteCharacteristic->writeValue(getInfo, 20);
                 last_sending_time = millis(); // Update the last sending time to the current time
             }
         }
-        
-        if (last_rssi_time == 0 || (millis() - last_rssi_time) >= RSSI_INTERVAL) {
+
+        if (last_rssi_time == 0 || (millis() - last_rssi_time) >= RSSI_INTERVAL)
+        {
             last_rssi_time = millis();
             setState("ble_device_rssi", String(myDevice->getRSSI()).c_str(), true);
         }
@@ -301,7 +356,8 @@ void ble_loop() {
 
 #ifdef DUALCORE
 // Define the BLE client task
-void bleClientTask(void *pvParameters) {
+void bleClientTask(void *pvParameters)
+{
     NimBLEDevice::init("");
     pClient = NimBLEDevice::createClient();
     pClient->setClientCallbacks(&clientCallback);
@@ -312,44 +368,49 @@ void bleClientTask(void *pvParameters) {
     pBLEScan->setInterval(50);
     pBLEScan->setWindow(40);
     pBLEScan->setActiveScan(true);
-    
 
     String scanForMsg = "Scan for our Server " + String(devicename);
     DEBUG_PRINTLN(scanForMsg);
 
     // Keep the task running
-    while (true) {
+    while (true)
+    {
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
 
 // Define the parser task
-void parserTask(void *pvParameters) {
+void parserTask(void *pvParameters)
+{
     uint8_t message[BUFFER_SIZE];
 
-    while (true) {
+    while (true)
+    {
         // Receive data from the queue
-        if (xQueueReceive(bleQueue, &message, portMAX_DELAY) == pdTRUE) {
+        if (xQueueReceive(bleQueue, &message, 0) == pdTRUE)
+        {
             // Call the parser function
             parser(message);
         }
+        vTaskDelay(25 / portTICK_PERIOD_MS); // Small delay to prevent task starvation
     }
 }
 #endif
 
-void ble_setup() {
+void ble_setup()
+{
 
 #ifdef DUALCORE
     // Create the queue
     bleQueue = xQueueCreate(20, sizeof(uint8_t[BUFFER_SIZE]));
-    DEBUG_PRINTLN("ble queue created");
+    DEBUG_PRINTLN("BLE queue created");
 
     // Create the BLE client task on core 1
-    xTaskCreate(bleClientTask, "BLE Client Task", 16384, NULL, 1, NULL);
-    DEBUG_PRINTLN("BLE Client Task created"); 
+    xTaskCreate(bleClientTask, "BLE Client Task", 8192, NULL, 1, NULL);
+    DEBUG_PRINTLN("BLE Client Task created");
 
     // Create the parser task on core 0
-    xTaskCreate(parserTask, "Parser Task", 16384, NULL, 1, NULL);
+    xTaskCreate(parserTask, "Parser Task", 8192, NULL, 1, NULL);
     DEBUG_PRINTLN("Parser Task created");
 
 #else
@@ -368,5 +429,4 @@ void ble_setup() {
     DEBUG_PRINTLN("Scan for our Server " + String(devicename));
 
 #endif
-
 }
