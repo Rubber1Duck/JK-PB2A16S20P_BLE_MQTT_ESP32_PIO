@@ -104,12 +104,9 @@ class MyClientCallback : public NimBLEClientCallbacks
 
     void onDisconnect(NimBLEClient *pclient, int reason)
     {
-        String reasonText = getDisconnectReasonText(reason);
-        setState("bleDscnectRson", reasonText, true);
-
-        if (isWifiConnected)
-        DEBUG_PRINTLN("BLE Disconnected. Reason: " + reasonText + ". Restarting...");
         ble_connected = false;
+        String reasonText = getDisconnectReasonText(reason);
+        DEBUG_PRINTLN("BLE Disconnected. Reason: " + reasonText + ". Restarting...");
         ESP.restart();
     }
 };
