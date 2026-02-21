@@ -15,8 +15,8 @@ const char *dns2 = DNS2;
 
 // Flag, um zu wissen, ob das WLAN bereit ist
 bool isWifiConnected = false;
-uint32_t lastRSSIUpdateTime = 0;
-const uint32_t RSSI_UPDATE_INTERVAL = 15000; // 15 Sekunden
+uint32_t WIFI_RSSI_Update_Time = 0;
+const uint32_t WIFI_RSSI_UPDATE_INTERVAL = 15000; // 15 Sekunden
 
 static const char *wifi_event_to_text(WiFiEvent_t event)
 {
@@ -114,15 +114,15 @@ void WiFiEvent(WiFiEvent_t event)
     switch (event)
     {
     case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-        DEBUG_PRINT("WLAN verbunden! IP-Adresse: ");
+        DEBUG_PRINT("IP-Adresse: ");
         DEBUG_PRINTLN(WiFi.localIP());
         setState("wifi_rssi", String(WiFi.RSSI()), false);
         isWifiConnected = true;
         break;
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+        isWifiConnected = false;
         DEBUG_PRINTLN("WLAN Verbindung verloren! Reconnect...");
         WiFi.reconnect(); // Versucht automatisch neu zu verbinden
-        isWifiConnected = false;
         break;
     default:
         break;
@@ -149,6 +149,8 @@ void init_wifi()
     WiFi.disconnect();               // ensure WiFi is disconnected
     WiFi.onEvent(WiFiEvent);         // Event Handler registrieren
     WiFi.setHostname(WIFI_DHCPNAME); // Hostname setzen (optional, aber hilfreich für die Identifikation im Netzwerk)
+    //WiFi.setSleep(false);          // WLAN Sleep-Modus deaktivieren (für stabilere Verbindungen) nicht möglich bei gleichzeitiger Nutzung von Bluetooth, siehe
+                                     // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_wifi.html#power-save
     WiFi.setAutoReconnect(true);     // Auto-Reconnect aktivieren (wichtig für Stabilität)
 #ifdef USE_WIFI_STATIC_IP
     WiFi.config(local_IP, local_GW, local_SubN, local1DNS, local2DNS); // set static IP configuration
@@ -156,8 +158,7 @@ void init_wifi()
     WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE); // use DHCP
 #endif
     WiFi.begin(ssid, password);
-    DEBUG_PRINTLN("Connecting to WiFi ..");
-
+    
     while (WiFi.status() != WL_CONNECTED)
     {
         delay(1000);
@@ -172,9 +173,9 @@ void init_wifi()
 void wifi_loop()
 {
     uint32_t currentTime = millis();
-    if (isWifiConnected && currentTime - lastRSSIUpdateTime >= RSSI_UPDATE_INTERVAL)
+    if (currentTime - WIFI_RSSI_Update_Time >=WIFI_RSSI_UPDATE_INTERVAL)
     {
         setState("wifi_rssi", String(WiFi.RSSI()), false);
-        lastRSSIUpdateTime = currentTime;
+        WIFI_RSSI_Update_Time = currentTime;
     }
 }

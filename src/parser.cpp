@@ -431,8 +431,11 @@ void readCellDataRecord(void *message, const char *devicename)
     // RTC Ticks
     publishIfChanged(cdOld[MQTT].RTCTicks, celldata.RTCTicks, celldata.RTCTicksToSeconds_fmt, base_data + "rtc_ticks");
 
-    // String finishCellMsg = getLocalTimeString() + ": Finished parsing Cell data. Frame: " + String(celldata.FrameCounter) + " (Processing time: " + String(millis() - start_time) + " ms)";
-    // DEBUG_PRINTLN(finishCellMsg);
+    if (debug_flg)
+    {
+        String finishCellMsg = getLocalTimeString() + ": Finished parsing Cell data. Frame: " + String(celldata.FrameCounter) + " (Processing time: " + String(millis() - start_time) + " ms)";
+        DEBUG_PRINTLN(finishCellMsg);
+    }
 }
 
 ConfigData configdata;

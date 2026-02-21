@@ -68,6 +68,32 @@ void parser(void *message)
     }
 }
 
+// Convert BLE disconnect reason code to readable text
+String getDisconnectReasonText(int reason)
+{
+    switch (reason)
+    {
+    case 0x08:
+        return "Connection Timeout (0x08)";
+    case 0x13:
+        return "Remote User Terminated Connection (0x13)";
+    case 0x14:
+        return "Remote Device Terminated due to Low Resources (0x14)";
+    case 0x15:
+        return "Remote Device Terminated due to Power Off (0x15)";
+    case 0x16:
+        return "Connection Terminated by Local Host (0x16)";
+    case 0x22:
+        return "LMP Response Timeout (0x22)";
+    case 0x3D:
+        return "Connection Failed to be Established (0x3D)";
+    case 0x3E:
+        return "LMP Response Timeout (0x3E)";
+    default:
+        return "Unknown Reason (" + String(reason, HEX) + ")";
+    }
+}
+
 class MyClientCallback : public NimBLEClientCallbacks
 {
     void onConnect(NimBLEClient *pclient)
@@ -76,9 +102,13 @@ class MyClientCallback : public NimBLEClientCallbacks
         ble_connected = true;
     }
 
-    void onDisconnect(NimBLEClient *pclient)
+    void onDisconnect(NimBLEClient *pclient, int reason)
     {
-        DEBUG_PRINTLN("BLE Disconnected. Restarting...");
+        String reasonText = getDisconnectReasonText(reason);
+        setState("bleDscnectRson", reasonText, true);
+
+        if (isWifiConnected)
+        DEBUG_PRINTLN("BLE Disconnected. Reason: " + reasonText + ". Restarting...");
         ble_connected = false;
         ESP.restart();
     }

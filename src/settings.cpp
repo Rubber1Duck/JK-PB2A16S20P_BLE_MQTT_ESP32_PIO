@@ -3,7 +3,7 @@
 Preferences prefs;
 
 // Global variables to hold the settings values.
-// As of limitations of the Preferences the key length is limited to 15 characters, so we have to use short names for the settings keys.
+// As of limitations of the preferences libary the key length is limited to 15 characters, so we have to use short names for the settings keys.
 //       123456789012345
 uint16_t publish_delay;
 uint16_t min_pub_time;

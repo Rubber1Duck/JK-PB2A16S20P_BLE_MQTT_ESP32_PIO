@@ -94,6 +94,7 @@ void publishStatesTask(void *pvParameters)
 {
     while (true)
     {
+        // update uptime before publishing states
         setState("uptime", formatUptime(esp_timer_get_time() / 1000000), false);
         publishStates();
         // Warte min_pub_time Sekunden, aber in kleineren Schritten
@@ -105,6 +106,21 @@ void publishStatesTask(void *pvParameters)
         }
     }
 }
+
+// Callback function header; The callback function header needs to
+//  be declared before the PubSubClient constructor and the
+//  actual callback defined afterwards.
+//  This ensures the client reference in the callback function
+//  is valid. (see pubsubclient example "mqtt_publish_in_callback")
+void MQTTCallback(char *topic, byte *payload, unsigned int length);
+
+#ifdef USE_TLS
+WiFiClientSecure secure_wifi_client;
+PubSubClient mqtt_client(mqtt_server, mqtt_tls_port, MQTTCallback, secure_wifi_client);
+#else
+WiFiClient wifi_client;
+PubSubClient mqtt_client(mqtt_server, mqtt_port, MQTTCallback, wifi_client);
+#endif
 
 // handle Subscriptions - optimized version
 void MQTTCallback(char *topic, byte *payload, unsigned int length)
@@ -188,14 +204,6 @@ void MQTTCallback(char *topic, byte *payload, unsigned int length)
     }
 }
 
-#ifdef USE_TLS
-WiFiClientSecure secure_wifi_client;
-PubSubClient mqtt_client(mqtt_server, mqtt_tls_port, MQTTCallback, secure_wifi_client);
-#else
-WiFiClient wifi_client;
-PubSubClient mqtt_client(mqtt_server, mqtt_port, MQTTCallback, wifi_client);
-#endif
-
 // Reconnect to MQTT broker
 boolean mqtt_reconnect()
 {
@@ -269,12 +277,6 @@ void mqtt_loop()
             {
                 lastReconnectAttempt = 0;
                 DEBUG_PRINTLN("MQTT Reconnected.");
-                mqtt_client.loop();
-            }
-            else
-            {
-                DEBUG_PRINTLN("MQTT Reconnect failed.");
-                // lastReconnectAttempt = 0;
             }
         }
     }
@@ -295,15 +297,18 @@ void mqtt_init()
     if (mqtt_reconnect())
     {
         DEBUG_PRINTLN("MQTT Connected.");
+        setState("version", VERSION, false);
+        setState("ipaddress", WiFi.localIP().toString(), false);
+        setState("ble_connection", "startup", false);
+        setState("status", "online", false);
+        
         // Create the task to call publishStates() every min_publish_time seconds
         // Stack erhöht von 2048 auf 4096 für Stabilität
         xTaskCreate(publishStatesTask, "Publish States Task", 4096, NULL, 1, NULL);
 
-        setState("version", VERSION, true);
-        setState("ipaddress", WiFi.localIP().toString(), true);
-        setState("ble_connection", "startup", true);
-        setState("status", "online", true);
     }
     else
+    {
         DEBUG_PRINTLN("MQTT Connect failed.");
+    }
 }
