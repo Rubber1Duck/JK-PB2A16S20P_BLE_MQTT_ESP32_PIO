@@ -11,5 +11,6 @@ void publish_init();
 QueueHandle_t publishQueue;
 
 extern PubSubClient mqtt_client;
+extern void setState(String key, String value, bool publish);
 
 #endif // PUBLISH_H

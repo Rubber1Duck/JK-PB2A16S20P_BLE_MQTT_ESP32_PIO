@@ -69,8 +69,9 @@ void ledTask(void *pvParameters)
     }
 }
 
-void init_led()
-{
+void init_led(){
+
+
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, LOW);
 

@@ -1,4 +1,3 @@
-#include "secrets.h"
 ////////////////////////////// Settings //////////////////////////////
 
 // if devicename is not defined in platformio.ini, use this default
@@ -18,8 +17,8 @@
 // WiFi credentials
 // #define USE_WIFI_STATIC_IP // uncomment to use static IP configuration instead of DHCP (see below for settings)
 
-#define SSID_NAME SECRET_WIFI_SSID
-#define SSID_PASSWORD SECRET_WIFI_PASSWORD
+#define SSID_NAME "your_wifi_ssid"
+#define SSID_PASSWORD "your_wifi_password"
 
 #ifdef USE_WIFI_STATIC_IP
 #define IP_ADDRESS "" // optional static IP address, leave empty for DHCP
@@ -33,8 +32,8 @@
 // #define USE_TLS // uncomment to enable TLS support for MQTT
 
 #define MQTT_SERVER "" // ip or dns name of your MQTT broker
-#define MQTT_USERNAME SECRET_MQTT_USERNAME
-#define MQTT_PASSWORD SECRET_MQTT_PASSWORD
+#define MQTT_USERNAME "your_mqtt_username"
+#define MQTT_PASSWORD "your_mqtt_password"
 #ifndef USE_TLS
 #define MQTT_PORT 1883
 #else // USE_TLS
@@ -89,16 +88,19 @@
 // Uncomment only if you have problems connecting to the broker
 // #define USE_RANDOM_CLIENT_ID
 
-// reboot after BLE scans without success
-#define REBOOT_AFTER_BLE_RETRY 20
-
-// only publish every this seconds (0 -> publish every change immediately)
-#define PUBLISH_DELAY 0
+// only publish every this seconds (0 -> publish every change immediately) default: 5s.
+// 0 is possible but thats 4 DataFrames per second and the device might not be able to keep up with the load of publishing too many messages!
+// Lower values as 5s might cause issues with MQTT broker or network congestion,
+// especially if you have a lot of data points enabled.
+// All test are running with default value 5s, which is a good balance between timely updates and system stability.
+// If you want to publish more frequently, consider optimizing your MQTT broker and network setup,
+// or reducing the number of published data points to ensure stable operation.
+#define PUBLISH_DELAY 5
 
 // publish values also if they are not changed. 0 = off, n = seconds
 #define MIN_PUB_TIME 300
 
-// Differential voltage publishing
+// Differential voltage 
 #define DIFFV_DIVIDER 1000 // Set to 1000 to get differential cell voltage in V or to 1 for mV
 
 // NTP Configuration

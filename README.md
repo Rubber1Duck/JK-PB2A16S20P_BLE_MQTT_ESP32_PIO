@@ -27,6 +27,10 @@ Use VS-Code with [PlatformIO](https://platformio.org/install/ide?install=vscode)
 - Modify the platformio.ini for your needs. Especially set the `DEVICENAME` (e.g. `JK-PB2A16S20P-01`), which is the Bluetooth name **as shown by the JK-BMS smartphone app**. This overwrites the `DEVICENAME` specified in `/include/config.h`. This will allow you to build targets for multiple ESP32 boards
 - Specify COM ports in platformio.ini; may be deleted to enabled auto-detect (if you only have one ESP connected to your host)
 - Build and upload to your ESP32
+
+**Attention:**
+- because of using WIFI and BLE (witch is used over the same antenna on ESP32) a ESP32 with "good" quality is recommended
+- If you want to use MQTT with TLS a "normal" ESP32 is not suitable! Tests with an ESP32-S3-N16R8 were successful; the ESP run for several days with a TLS connection. No reboots or crashes occurred. ("Normal ESP32 the WIFI connection is very unstable!)
   
 **Attention:** Do note that you will not be able to connect to the BMS with your smartphone app while the ESP32 is communicating with your BMS.
 
@@ -39,10 +43,11 @@ Here is a list of currently evaluated BMS models along with the tested hard- and
 | JK-PB2A16S20P | 15A     | 15.37  | supported |
 | JK-PB2A16S15P | 15A     | 15.38  | supported |
 | JK-PB2A16SxxP | 15H     | 15.41  | supported |
-| JK-B2A8S20P   | 19H     | 19.26  | supported |
-| JK-PB2A16SxxP | 19      | *      | *not* supported (*) |
+| JK-B2A8S20P   | 19H     | 19.26  | supported (*)|
+| JK-PB2A16SxxP | 19      | *      | *not* supported (**) |
 
-(*) no data received at all, but this must rechecked! (normaly this should work with firmwar >=19.26)
+(*) for V19 BMS uncomment "//define V19" in config file
+(**) no data received at all, but this must rechecked! (normaly this should work with firmware >=19.26) (no PB2A16SxxP for testing availible)
 
 Hardware rev. 14 of the JK inverter BMS will most probably also work with a recent firmware installed.  
 **Note:** The most promising precondition to successfully use this project is probably by running a **recent firmware** on your BMS. You may check [Andy's homepage](https://off-grid-garage.com/battery-management-systems-bms/) for firmware updates for the JK inverter BMS series.

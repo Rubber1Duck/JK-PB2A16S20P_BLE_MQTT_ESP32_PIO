@@ -1,4 +1,6 @@
 #include "publish.h"
+uint8_t maxUsedQueueSize = 0;
+uint8_t oldMaxUsedQueueSize = 0;
 
 // Define the publish task
 void publishTask(void *pvParameters)
@@ -14,8 +16,14 @@ void publishTask(void *pvParameters)
         // Receive data from the queue
         if (xQueueReceive(publishQueue, &queue_out, 0) == pdTRUE)
         {
-            // DEBUG_PRINTLN("Queue size: " + String(uxQueueMessagesWaiting(publishQueue)));
-            // DEBUG_PRINTLN("Publishing to MQTT: " + String(queue_out.topic) + " -> " + String(queue_out.payload));
+            uint8_t currentQueueSize = uxQueueMessagesWaiting(publishQueue);
+            maxUsedQueueSize = max(maxUsedQueueSize, currentQueueSize); // to track max used queue size for debugging purposes, this musst be under 150
+            if (maxUsedQueueSize > oldMaxUsedQueueSize)
+            {
+                oldMaxUsedQueueSize = maxUsedQueueSize;
+                setState("maxpubqueue", String(maxUsedQueueSize), true);
+            }
+            
             //  Call the publish function
             bool success = mqtt_client.publish(queue_out.topic, queue_out.payload);
             if (!success)
@@ -24,17 +32,18 @@ void publishTask(void *pvParameters)
                 DEBUG_PRINTLN(failMsg);
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(30)); // Optional: Add a small delay to prevent task starvation
+        vTaskDelay(pdMS_TO_TICKS(50)); // Optional: Add a small delay to prevent task starvation
     }
 }
 
 void publish_init()
 {
     // Create the publishqueue
-    publishQueue = xQueueCreate(150u, sizeof(PublishMessage));
+    publishQueue = xQueueCreate(150u, sizeof(PublishMessage)); // Queue can hold 150 messages, adjust as needed
     if (publishQueue == NULL)
     {
-        DEBUG_PRINTLN("Failed to create publish queue");
+        DEBUG_PRINTLN("Failed to create publish queue"); //without this, the system cannot function properly, so we restart to try again
+        ESP.restart(); // Restart if queue creation fails
     }
     // Create the publish task
     xTaskCreate(publishTask, "Publish Task", 4096, NULL, 1, NULL);

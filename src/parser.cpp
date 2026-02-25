@@ -18,6 +18,72 @@ uint32_t battery_power_calculated[2] = {0};
 
 uint8_t counter_last = 0;
 
+char uart_protocol_number_str[][50]= {
+    "000-4G-GPS Remote module Common protocol",
+    "001-JK BMS RS485 Modbus V1.0",
+    "002-MIU U SERIES",
+    "003-China tower shared batterie cabinet V1.1",
+    "004-PACE_RS485_Modbus_V1.3",
+    "005-PYLON_low_volage_Protocol_RS485_V...",
+    "006-Growatt_BMS_RS485_Protocol_1xSxxP...",
+    "007-Voltronic_Inverter_and_BMS_485_com...",
+    "008-China tower shared batterie cabinet V.02",
+    "009-WOW_RS485_Modbus_V1.3",
+    "010-JK BMS LCD Protocol V2.0",
+    "011-UART1 User customization",
+    "012-UART2 User customization",
+    "013-(9600)JK BMS RS485 Modbus V1.0",
+    "014-(9600)PYLON_low_voltage_Protocol_R...",
+    "015-JK BMS PBxx SERIES LCD Protocol V1.0",
+    "016-JKBMS LIN BUS V1.0",
+    "017-RS485 Protocol 17",
+    "018-RS485 Protocol 18",
+    "019-RS485 Protocol 19",
+    "020-RS485 Protocol 20"};
+
+char can_protocol_number_str[][50]= {
+    "000-JK BMS CAN Protocol (250k) V2.0",
+    "001-Deye Low-voltage hybrid inverter CAN c...",
+    "002-PYLON-Low-voltage-V1.2",
+    "003-Growatt BMS CAN-Bus-protocol-low-vol...",
+    "004-Victron_CANbus_BMS_protocol_20170...",
+    "005-MEGAREVO_Hybrid_BMSCAN_Protocol...",
+    "006-JK BMS CAN Protocol (500k) V2.0",
+    "007-INVT BMS CAN Bus protocol V1.02",
+    "008-GoodWe LV BMS Protocol(EX/EM/S-B...",
+    "009-FSS-ConnectingBat-TI-en-10 | Version 1.0",
+    "010-MUST PV1800F-CAN communication P...",
+    "011-LuxpowerTek Battery CAN protocol V01",
+    "012-CAN BUS User customization",
+    "013-CAN BUS User customization2",
+    "014-CAN BUS Protocol 014",
+    "015-CAN BUS Protocol 015",
+    "016-CAN BUS Protocol 016",
+    "017-CAN BUS Protocol 017",
+    "018-CAN BUS Protocol 018",
+    "019-CAN BUS Protocol 019",
+    "020-CAN BUS Protocol 020"
+};
+
+char Trigger_values_str[][30] = {
+    "00-OFF",
+    "01-Low SOC",
+    "02-Battery Over Voltage",
+    "03-Battery Under Voltage",
+    "04-Battery Cell Over Voltage",
+    "05-Battery Cell Under Voltage",
+    "06-Charge Over Current",
+    "07-Discharge Over Current",
+    "08-Battery Over Temperature",
+    "09-MOSFET Over Temperature",
+    "10-System Alarm",
+    "11-Battery Low Temperature",
+    "12-Remote Control",
+    "13-Above SOC",
+    "14-MOSFET Abnormal"
+};
+
+
 // Map to store the last publish time for each topic
 std::map<String, uint32_t> lastPublishTimes;
 
@@ -103,10 +169,13 @@ void readDeviceDataRecord(void *message, const char *devicename)
 // Publish UART and CAN protocol numbers and enable status
 #ifdef PROTOCOL_NUMBERS_AND_ENABLE_STATUS
     toMqttQueue(str_base_topic + "uart1_protocol_number", String(devicedata.UART1MPRTOLNbr));
+    toMqttQueue(str_base_topic + "uart1_protocol_txt", uart_protocol_number_str[devicedata.UART1MPRTOLNbr]);
     toMqttQueue(str_base_topic + "uart1_protocol_enable", String(devicedata.UART1MPRTOLEnable));
     toMqttQueue(str_base_topic + "can_protocol_number", String(devicedata.CANMPRTOLNbr));
+    toMqttQueue(str_base_topic + "can_protocol_txt", can_protocol_number_str[devicedata.CANMPRTOLNbr]);
     toMqttQueue(str_base_topic + "uart_protocol_enable_0_15", String(devicedata.UARTMPRTOLEnable0_15));
     toMqttQueue(str_base_topic + "uart2_protocol_number", String(devicedata.UART2MPRTOLNbr));
+    toMqttQueue(str_base_topic + "uart2_protocol_txt", uart_protocol_number_str[devicedata.UART2MPRTOLNbr]);
     toMqttQueue(str_base_topic + "uart2_protocol_enable", String(devicedata.UART2MPRTOLEnable));
     toMqttQueue(str_base_topic + "uart_protocol_lib_version", String(devicedata.UARTMPTLVer));
 #endif
@@ -114,12 +183,15 @@ void readDeviceDataRecord(void *message, const char *devicename)
 // Publish trigger values for LCD buzzer and dry contacts
 #ifdef LCD_AND_DRY_TRIGGER_VALUES
     toMqttQueue(str_base_topic + "lcd_buzzer_trigger", String(devicedata.LCDBuzzerTrigger));
+    toMqttQueue(str_base_topic + "lcd_buzzer_trigger_txt", Trigger_values_str[devicedata.LCDBuzzerTrigger]);
     toMqttQueue(str_base_topic + "lcd_buzzer_trigger_value", String(devicedata.LCDBuzzerTriggerVal));
     toMqttQueue(str_base_topic + "lcd_buzzer_release_value", String(devicedata.LCDBuzzerReleaseVal));
     toMqttQueue(str_base_topic + "dry1_trigger", String(devicedata.DRY1Trigger));
+    toMqttQueue(str_base_topic + "dry1_trigger_txt", Trigger_values_str[devicedata.DRY1Trigger]);
     toMqttQueue(str_base_topic + "dry1_trigger_value", String(devicedata.DRY1TriggerVal));
     toMqttQueue(str_base_topic + "dry1_release_value", String(devicedata.DRY1ReleaseVal));
     toMqttQueue(str_base_topic + "dry2_trigger", String(devicedata.DRY2Trigger));
+    toMqttQueue(str_base_topic + "dry2_trigger_txt", Trigger_values_str[devicedata.DRY2Trigger]);
     toMqttQueue(str_base_topic + "dry2_trigger_value", String(devicedata.DRY2TriggerVal));
     toMqttQueue(str_base_topic + "dry2_release_value", String(devicedata.DRY2ReleaseVal));
     toMqttQueue(str_base_topic + "can_protocol_lib_version", String(devicedata.CANMPTLVer));
@@ -433,7 +505,8 @@ void readCellDataRecord(void *message, const char *devicename)
 
     if (debug_flg)
     {
-        String finishCellMsg = getLocalTimeString() + ": Finished parsing Cell data. Frame: " + String(celldata.FrameCounter) + " (Processing time: " + String(millis() - start_time) + " ms)";
+        uint32_t MinFreeHeap = ESP.getMinFreeHeap();
+        String finishCellMsg = getLocalTimeString() + ": Finished parsing Cell data. Frame: " + String(celldata.FrameCounter) + " (Processing time: " + String(millis() - start_time) + " ms, Min Free Heap: " + String(MinFreeHeap) + " bytes)";
         DEBUG_PRINTLN(finishCellMsg);
     }
 }

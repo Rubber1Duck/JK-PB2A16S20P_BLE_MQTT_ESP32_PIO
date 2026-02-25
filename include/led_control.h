@@ -1,6 +1,7 @@
 #ifndef LED_CONTROL_H
 #define LED_CONTROL_H
 #include <Arduino.h>
+#include "config.h"
 
 #ifdef USELED
 #define LED_PIN USELED

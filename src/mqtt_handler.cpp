@@ -1,6 +1,6 @@
 #include "mqtt_handler.h"
 
-constexpr unsigned long RECONNECT_DELAY = 5000;
+constexpr unsigned long RECONNECT_DELAY = 2000;
 unsigned long lastReconnectAttempt = 0;
 constexpr int MQTT_BUFFER_SIZE = 2048;
 
@@ -12,7 +12,7 @@ const char *mqtt_password = MQTT_PASSWORD;
 const char *mqtt_devicename = DEVICENAME;
 #ifdef USE_TLS
 const int mqtt_tls_port = MQTT_TLS_PORT;
-const char *root_ca_cert PROGMEM = MQTT_ROOT_CA_CERT;
+
 #else
 const int mqtt_port = MQTT_PORT;
 #endif
@@ -204,14 +204,11 @@ void MQTTCallback(char *topic, byte *payload, unsigned int length)
     }
 }
 
+uint32_t lastMQTTreconnectAttempt = 0;
+
 // Reconnect to MQTT broker
 boolean mqtt_reconnect()
 {
-    while (!isWifiConnected)
-    {
-        DEBUG_PRINTLN("Waiting for WiFi connection before attempting MQTT reconnect...");
-        vTaskDelay(200 / portTICK_PERIOD_MS);
-    }
     mqtt_buffer_maxed = mqtt_client.setBufferSize(MQTT_BUFFER_SIZE);
     reconnect_attempts++;
 
@@ -267,11 +264,19 @@ void mqtt_loop()
 {
     if (!mqtt_client.connected())
     {
-        DEBUG_PRINTLN("MQTT client not connected, attempting to reconnect... (Attempt " + String(reconnect_attempts) + ")");
+        if (!isWifiConnected)
+        {
+            DEBUG_PRINTLN("Waiting for WiFi connection before attempting MQTT reconnect...");
+            while (!isWifiConnected)
+            {
+                vTaskDelay(200 / portTICK_PERIOD_MS);
+            }
+        }
+    
         unsigned long now = millis();
         if (now - lastReconnectAttempt > RECONNECT_DELAY)
         { // 5 seconds delay
-
+            DEBUG_PRINTLN("MQTT client not connected, attempting to reconnect... (Attempt " + String(reconnect_attempts) + ")");
             lastReconnectAttempt = now;
             if (mqtt_reconnect())
             {
@@ -301,7 +306,7 @@ void mqtt_init()
         setState("ipaddress", WiFi.localIP().toString(), false);
         setState("ble_connection", "startup", false);
         setState("status", "online", false);
-        
+                
         // Create the task to call publishStates() every min_publish_time seconds
         // Stack erhöht von 2048 auf 4096 für Stabilität
         xTaskCreate(publishStatesTask, "Publish States Task", 4096, NULL, 1, NULL);

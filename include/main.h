@@ -10,7 +10,6 @@
 #include <time.h>
 #include <Preferences.h>
 #include <rom/rtc.h> // Erforderlich für detaillierte Reset-Infos
-#include <WebServer.h>
 
 #ifdef USE_INFLUXDB
 #include "influxdb_handler.h"
@@ -18,7 +17,6 @@
 
 #ifdef USE_TLS
 extern WiFiClientSecure secure_wifi_client;
-extern const char *root_ca_cert PROGMEM;
 #endif
 
 extern void publish_init();

@@ -176,6 +176,7 @@ void wifi_loop()
     if (currentTime - WIFI_RSSI_Update_Time >=WIFI_RSSI_UPDATE_INTERVAL)
     {
         setState("wifi_rssi", String(WiFi.RSSI()), false);
+        setState("MinFreeHeap", String(ESP.getMinFreeHeap()), false);
         WIFI_RSSI_Update_Time = currentTime;
     }
 }
