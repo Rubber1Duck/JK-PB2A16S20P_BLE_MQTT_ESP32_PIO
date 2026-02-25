@@ -5,8 +5,8 @@
 #include <bitset>
 
 // Struktur für die Zellendaten (LiveDaten) (CellData; FrameType 0x02)
-struct CellData {
-                                //  bytes Description                   Unit      Multiplier or format
+struct CellData
+{                               //  bytes Description                   Unit      Multiplier or format
   uint8_t Header[4];            //	4		  Header                        #
   uint8_t FrameType;            //	1		  Frame type                    #
   uint8_t FrameCounter;         //	1		  Frame counter                 #
@@ -162,10 +162,12 @@ struct CellData {
   char RTCTicksToSeconds_fmt[16];                                                                                    // Hilfsvariable für die Umrechnung der RTCTicks in Sekunden (1 tick = 1/32768 second) und Formatierung auf 3 Dezimalstellen eg. 123456.789 s
   char TimeEnterSleep_fmt[10];                                                                                       // Hilfsvariable für die Formatierung des TimeEnterSleep eg. 1234 s
   char PCLModuleSta_fmt[4];                                                                                          // Hilfsvariable für die Interpretation des PCLModuleSta (1: On; 0: Off)
-  void prepareOutValues() {
+  void prepareOutValues()
+  {
     // Aktualisiere die Hilfsvariablen basierend auf den gelesenen Daten
     // CellVoltages von mV in V umrechnen und mit 3 Dezimalstellen formatieren
-    for (int i = 0; i < 32; ++i) {
+    for (int i = 0; i < 32; ++i)
+    {
       dtostrf(CellVol[i] * 0.001, 6, 3, CellVol_fmt[i]);
     }
     // CellSta, CellWireResSta und AlarmBitMask in lesbare Bitmask-Strings umwandeln
@@ -183,7 +185,8 @@ struct CellData {
     snprintf(MaxVolCellNbr_fmt, sizeof(MaxVolCellNbr_fmt), "%d", MaxVolCellNbr);
     snprintf(MinVolCellNbr_fmt, sizeof(MinVolCellNbr_fmt), "%d", MinVolCellNbr);
     // CellWireRes von mΩ in Ω umrechnen und mit 3 Dezimalstellen formatieren
-    for (int i = 0; i < 32; ++i) {
+    for (int i = 0; i < 32; ++i)
+    {
       dtostrf(CellWireRes[i] * 0.001, 6, 3, CellWireRes_fmt[i]);
     }
     // TempMos von 0.1℃ in ℃ umrechnen und mit 1 Dezimalstelle formatieren
@@ -200,19 +203,23 @@ struct CellData {
     // AlarmRaw als Dezimalzahl formatieren
     snprintf(Alarm_raw_fmt, sizeof(Alarm_raw_fmt), "%u", AlarmBitMask);
     // Alarme einzeln interpretieren
-    for (int i = 0; i < 24; ++i) {
+    for (int i = 0; i < 24; ++i)
+    {
       strncpy(AlarmsValue_fmt[i], ((AlarmBitMask & (1 << i)) ? "Fault" : "Normal"), sizeof(AlarmsValue_fmt[i]));
     }
     // BalanCurrent von mA in A umrechnen und mit 3 Dezimalstellen formatieren
     dtostrf(BalanCurrent * 0.001, 7, 3, BalanCurrent_fmt);
     // BalanSta interpretieren (2: Discharge; 1: Charge; 0: Off)
-    if (BalanSta == 2) {
+    if (BalanSta == 2)
+    {
       strncpy(BalanSta_fmt, "Discharge", sizeof(BalanSta_fmt));
     }
-    else if (BalanSta == 1) {
+    else if (BalanSta == 1)
+    {
       strncpy(BalanSta_fmt, "Charge", sizeof(BalanSta_fmt));
     }
-    else {
+    else
+    {
       strncpy(BalanSta_fmt, "Off", sizeof(BalanSta_fmt));
     }
     // SOCStateOfcharge formatieren
@@ -255,7 +262,8 @@ struct CellData {
     // TempSensorAbsentMask interpretieren
     snprintf(TempSensorAbsentMask_fmt, sizeof(TempSensorAbsentMask_fmt), std::bitset<8>(TempSensorAbsentMask).to_string().c_str());
     snprintf(TempSensorAbsent_fmt, sizeof(TempSensorAbsent_fmt), "%d", TempSensorAbsentMask);
-    for (int i = 0; i < 6; ++i) {
+    for (int i = 0; i < 6; ++i)
+    {
       strncpy(TempSensAbsentValues_fmt[i], (TempSensorAbsentMask & (1 << i)) ? "Normal" : "Missing", sizeof(TempSensAbsentValues_fmt[i]));
     }
     // Heating interpretieren (1: On; 0: Off)
@@ -291,8 +299,8 @@ struct CellData {
 } __attribute__((packed)); // Verhindert Padding und sorgt dafür, dass die Struktur genau so im Speicher liegt wie definiert;
 
 // CellDataOld to store the old values for comparison and change detection, it has the same structure as CellData but without the helper fields and the Base64 encoded message
-struct CellDataOld {
-                                        //  bytes Description                   Unit      Multiplier or format
+struct CellDataOld
+{                                       //  bytes Description                   Unit      Multiplier or format
   uint16_t CellVol[32];                 //	64	  Cell voltages                 mV        0.001 multiplier
   uint32_t CellSta;                     //	4		  Enabled cells bitmask         BITMASK   BIT0: Cell1, BIT1: Cell2, ..., BIT31: Cell32
   uint16_t CellVolAve;                  //	2		  Average cell voltage          mV        0.001 multiplier

@@ -10,6 +10,7 @@
 #include <time.h>
 #include <Preferences.h>
 #include <rom/rtc.h> // Erforderlich für detaillierte Reset-Infos
+#include <WebServer.h>
 
 #ifdef USE_INFLUXDB
 #include "influxdb_handler.h"
