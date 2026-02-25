@@ -18,7 +18,7 @@ uint32_t battery_power_calculated[2] = {0};
 
 uint8_t counter_last = 0;
 
-char uart_protocol_number_str[][50]= {
+char uart_protocol_number_str[][50] = {
     "000-4G-GPS Remote module Common protocol",
     "001-JK BMS RS485 Modbus V1.0",
     "002-MIU U SERIES",
@@ -41,7 +41,7 @@ char uart_protocol_number_str[][50]= {
     "019-RS485 Protocol 19",
     "020-RS485 Protocol 20"};
 
-char can_protocol_number_str[][50]= {
+char can_protocol_number_str[][50] = {
     "000-JK BMS CAN Protocol (250k) V2.0",
     "001-Deye Low-voltage hybrid inverter CAN c...",
     "002-PYLON-Low-voltage-V1.2",
@@ -88,15 +88,13 @@ char Trigger_values_str[][30] = {
 std::map<String, uint32_t> lastPublishTimes;
 
 template <typename T>
-void publishIfChanged(T &currentValue, T newValue, const char *publishValue, const String &topic)
-{
+void publishIfChanged(T &currentValue, T newValue, const char *publishValue, const String &topic) {
 
     uint32_t currentTime = millis();
     uint32_t lastPublishTimeTopic = lastPublishTimes[topic];
 
     // Check if the value has changed or MIN_PUB_TIME is greater than 0 and the time has passed since the last publish
-    if (currentValue != newValue || (min_pub_time > 0 && (currentTime - lastPublishTimeTopic) >= (static_cast<uint32_t>(min_pub_time) * 1000UL)))
-    {
+    if (currentValue != newValue || (min_pub_time > 0 && (currentTime - lastPublishTimeTopic) >= (static_cast<uint32_t>(min_pub_time) * 1000UL))) {
         toMqttQueue(topic.c_str(), publishValue);
         currentValue = newValue;
         lastPublishTimes[topic] = currentTime; // Update the last publish time for the topic
@@ -106,19 +104,16 @@ void publishIfChanged(T &currentValue, T newValue, const char *publishValue, con
 template <typename T>
 void publishIfChangedInflux(T &currentValue, T newValue, const char *publishValue, const String &topic)
 {
-    if (currentValue != newValue)
-    {
+    if (currentValue != newValue) {
         publishToInfluxDB(topic, publishValue);
         currentValue = newValue;
     }
 }
 #endif
 
-String getLocalTimeString()
-{
+String getLocalTimeString() {
     struct tm timeinfo;
-    if (!getLocalTime(&timeinfo))
-    {
+    if (!getLocalTime(&timeinfo)) {
         return "[NO TIME]";
     }
     char timeBuffer[32];
@@ -128,11 +123,8 @@ String getLocalTimeString()
 
 DeviceData devicedata;
 
-void readDeviceDataRecord(void *message, const char *devicename)
-{
+void readDeviceDataRecord(void *message, const char *devicename) {
 
-    // Startzeit für die Verarbeitung des Datensatzes
-    // uint32_t start_time = millis();
     memcpy(&devicedata, message, 300); // Kopiere 300 Bytes in die Struktur
 
     String str_base_topic = mqtt_main_topic + devicename + "/device/";
@@ -200,16 +192,12 @@ void readDeviceDataRecord(void *message, const char *devicename)
     // Publish RCV Time and RFV Time
     toMqttQueue(str_base_topic + "rcv_time", String((float)devicedata.RCVTime * 0.1, 1)); // Assuming RCVTime is in 0.1h units
     toMqttQueue(str_base_topic + "rfv_time", String((float)devicedata.RFVTime * 0.1, 1)); // Assuming RFVTime is in 0.1h units
-
-    // String finishMsg = getLocalTimeString() + ": Finished parsing Device data, should now be available/updated in MQTT topics." + " (Processing time: " + String(millis() - start_time) + " ms)";
-    // DEBUG_PRINTLN(finishMsg);
 }
 
 CellData celldata;
 CellDataOld cdOld[2]; // Array to store old values for MQTT and INFLUX, used for comparison and change detection
 
-void readCellDataRecord(void *message, const char *devicename)
-{
+void readCellDataRecord(void *message, const char *devicename) {
     uint32_t start_time = millis();
 
     float deltaT = (start_time - lastDataReceivedTime) / 1000.0; // time in seconds
@@ -220,12 +208,10 @@ void readCellDataRecord(void *message, const char *devicename)
     float_t current = current_raw * 0.001;
 
     // Integration of charge/discharge current
-    if (current > 0)
-    {
+    if (current > 0) {
         Q_charged += current * deltaT;
     }
-    else
-    {
+    else {
         Q_discharged += (-current) * deltaT;
     }
     // to mAh
@@ -236,10 +222,7 @@ void readCellDataRecord(void *message, const char *devicename)
     dtostrf(Q_charged_mAh, 0, 3, Q_charged_mAh_str);
     dtostrf(Q_discharged_mAh, 0, 3, Q_discharged_mAh_str);
 
-    if (!first_run && (publish_delay > 0 && (start_time - lastPublishTimeCellData) < (publish_delay * 1000)))
-    {
-        // String finishCellMsg = getLocalTimeString() + ": Finished parsing Cell data(short version). Frame: " + String(receivedBytes_cell[pos_of_Counter]) + " (Processing time: " + String(millis() - start_time) + " ms)";
-        // DEBUG_PRINTLN(finishCellMsg);
+    if (!first_run && (publish_delay > 0 && (start_time - lastPublishTimeCellData) < (publish_delay * 1000))) {
         return;
     }
     first_run = false;
@@ -259,18 +242,15 @@ void readCellDataRecord(void *message, const char *devicename)
     publishIfChanged(Q_charged_mAh_old[MQTT], Q_charged_mAh, Q_charged_mAh_str, base_data + "battery_charged_mAh");
     publishIfChanged(Q_discharged_mAh_old[MQTT], Q_discharged_mAh, Q_discharged_mAh_str, base_data + "battery_discharged_mAh");
 
-    if (debug_flg_full)
-    {
+    if (debug_flg_full) {
         char message_base64[base64::encodeLength(300)];                   // Buffer für die Base64-kodierte Nachricht
         uint8_t *rawDataPtr = (uint8_t *)&celldata;                       // Zeiger auf die Rohdaten der Struktur
         base64::encode((const uint8_t *)rawDataPtr, 300, message_base64); // Base64-kodieren der Rohdaten);
         toMqttQueue(base_debug + "rawdata", message_base64);
         toMqttQueue(base_debug + "enabled", "true");
     }
-    else
-    {
-        if (debug_flg)
-        {
+    else {
+        if (debug_flg) {
             toMqttQueue(base_debug + "rawdata", "not published");
             toMqttQueue(base_debug + "enabled", "false");
         }
@@ -278,11 +258,9 @@ void readCellDataRecord(void *message, const char *devicename)
 
     // Cell Voltages
     char topic_buffer[128];
-    for (uint8_t i = 0; i < 32; i++)
-    {
+    for (uint8_t i = 0; i < 32; i++) {
         snprintf(topic_buffer, sizeof(topic_buffer), "%s%02d", (base_data + "cells/voltage/cell_v_").c_str(), i + 1);
-        if (celldata.CellVol[i] != 0)
-        {
+        if (celldata.CellVol[i] != 0) {
             publishIfChanged(cdOld[MQTT].CellVol[i], celldata.CellVol[i], celldata.CellVol_fmt[i], topic_buffer);
 #ifdef INFLUX_CELLS_VOLTAGE
             publishToInfluxDB("cell_" + String(i + 1), celldata.CellVol[i]);
@@ -291,8 +269,7 @@ void readCellDataRecord(void *message, const char *devicename)
     }
 
     // CellSta as bitmask
-    if (debug_flg)
-    {
+    if (debug_flg) {
         publishIfChanged(cdOld[MQTT].CellSta, celldata.CellSta, celldata.CellSta_fmt, base_data + "cells_used");
     }
 
@@ -309,11 +286,9 @@ void readCellDataRecord(void *message, const char *devicename)
     publishIfChanged(cdOld[MQTT].MinVolCellNbr, celldata.MinVolCellNbr, celldata.MinVolCellNbr_fmt, base_data + "cells/voltage/low_voltage_cell");
 
     // Cell resistances
-    for (uint8_t i = 0; i < 32; i++)
-    {
+    for (uint8_t i = 0; i < 32; i++) {
         snprintf(topic_buffer, sizeof(topic_buffer), "%s%02d", (base_data + "cells/resistance/cell_r_").c_str(), i + 1);
-        if (celldata.CellWireRes[i] != 0)
-        {
+        if (celldata.CellWireRes[i] != 0) {
             publishIfChanged(cdOld[MQTT].CellWireRes[i], celldata.CellWireRes[i], celldata.CellWireRes_fmt[i], topic_buffer);
         }
     }
@@ -325,8 +300,7 @@ void readCellDataRecord(void *message, const char *devicename)
 #endif
 
     // Cell Wire Resistance Status as bitmask
-    if (debug_flg)
-    {
+    if (debug_flg) {
         publishIfChanged(cdOld[MQTT].CellWireResSta, celldata.CellWireResSta, celldata.CellWireResSta_fmt, base_data + "cell_resistance_alert");
     }
 
@@ -372,12 +346,10 @@ void readCellDataRecord(void *message, const char *devicename)
     // Alarms as raw dezimal, bitmask and resolved alarms according to BMS RS485 ModbusV1.1 2024.02 Page 10
     publishIfChanged(cdOld[MQTT].AlarmBitMask, celldata.AlarmBitMask, celldata.Alarm_raw_fmt, base_data + "alarms/alarm_raw");
 
-    if (debug_flg)
-    {
+    if (debug_flg) {
         publishIfChanged(cdOld[MQTT].AlarmBitMask, celldata.AlarmBitMask, celldata.AlarmBitMask_fmt, base_data + "alarms/alarms_mask");
     }
-    for (int i = 0; i < 24; ++i)
-    {
+    for (int i = 0; i < 24; ++i) {
         publishIfChanged(cdOld[MQTT].AlarmBitMask, celldata.AlarmBitMask, celldata.AlarmsValue_fmt[i], base_data + "alarms/" + String(celldata.AlarmsTopics[i]));
     }
 
@@ -447,12 +419,10 @@ void readCellDataRecord(void *message, const char *devicename)
 
     // Temperature Sensor Absent Mask as raw dezimal, bitmask and resolved according to BMS RS485 ModbusV1.1 2024.02 Page 11
     publishIfChanged(cdOld[MQTT].TempSensorAbsentMask, celldata.TempSensorAbsentMask, celldata.TempSensorAbsent_fmt, base_data + "temperatures/temp_sensor_absent");
-    if (debug_flg)
-    {
+    if (debug_flg) {
         publishIfChanged(cdOld[MQTT].TempSensorAbsentMask, celldata.TempSensorAbsentMask, celldata.TempSensorAbsentMask_fmt, base_data + "temperatures/temp_sensor_absent_mask");
     }
-    for (int i = 0; i < 6; ++i)
-    {
+    for (int i = 0; i < 6; ++i) {
         publishIfChanged(cdOld[MQTT].TempSensorAbsentMask, celldata.TempSensorAbsentMask, celldata.TempSensAbsentValues_fmt[i], base_data + "temperatures/" + String(celldata.TempSensorsAbsentTopics[i]));
     }
 
@@ -475,12 +445,10 @@ void readCellDataRecord(void *message, const char *devicename)
 #endif
 
     // Batterie Temp Sensor4
-    if (celldata.TempBat4 > 1200 || celldata.TempBat4 < -400)
-    { // if the value is out of range, it could be that the sensor is not present or not working, so we publish a separate topic for this
+    if (celldata.TempBat4 > 1200 || celldata.TempBat4 < -400) { // if the value is out of range, it could be that the sensor is not present or not working
         publishIfChanged(cdOld[MQTT].TempBat4, celldata.TempBat4, "out of range", base_data + "temperatures/temp_sensor4");
     }
-    else
-    {
+    else {
         publishIfChanged(cdOld[MQTT].TempBat4, celldata.TempBat4, celldata.TempBat4_fmt, base_data + "temperatures/temp_sensor4");
 #ifdef INFLUX_TEMP_SENSOR_4
         publishIfChangedInflux(cdOld[INFLUX].TempBat4, celldata.TempBat4, celldata.TempBat4_fmt, "temp_sensor4");
@@ -488,12 +456,10 @@ void readCellDataRecord(void *message, const char *devicename)
     }
 
     // Batterie Temp Sensor5
-    if (celldata.TempBat5 > 1200 || celldata.TempBat5 < -400)
-    { // if the value is out of range, it could be that the sensor is not present or not working, so we publish a separate topic for this
+    if (celldata.TempBat5 > 1200 || celldata.TempBat5 < -400) { // if the value is out of range, it could be that the sensor is not present or not working
         publishIfChanged(cdOld[MQTT].TempBat5, celldata.TempBat5, "out of range", base_data + "temperatures/temp_sensor5");
     }
-    else
-    {
+    else {
         publishIfChanged(cdOld[MQTT].TempBat5, celldata.TempBat5, celldata.TempBat5_fmt, base_data + "temperatures/temp_sensor5");
 #ifdef INFLUX_TEMP_SENSOR_5
         publishIfChangedInflux(cdOld[INFLUX].TempBat5, celldata.TempBat5, celldata.TempBat5_fmt, "temp_sensor5");
@@ -503,8 +469,7 @@ void readCellDataRecord(void *message, const char *devicename)
     // RTC Ticks
     publishIfChanged(cdOld[MQTT].RTCTicks, celldata.RTCTicks, celldata.RTCTicksToSeconds_fmt, base_data + "rtc_ticks");
 
-    if (debug_flg)
-    {
+    if (debug_flg) {
         uint32_t MinFreeHeap = ESP.getMinFreeHeap();
         String finishCellMsg = getLocalTimeString() + ": Finished parsing Cell data. Frame: " + String(celldata.FrameCounter) + " (Processing time: " + String(millis() - start_time) + " ms, Min Free Heap: " + String(MinFreeHeap) + " bytes)";
         DEBUG_PRINTLN(finishCellMsg);
@@ -513,14 +478,10 @@ void readCellDataRecord(void *message, const char *devicename)
 
 ConfigData configdata;
 
-void readConfigDataRecord(void *message, const char *devicename)
-{
-    // Startzeit für die Verarbeitung des Datensatzes
-    // uint32_t start_time = millis();
-
+void readConfigDataRecord(void *message, const char *devicename) {
     // Kopiere die empfangenen Bytes in die DeviceData-Struktur
     memcpy(&configdata, message, 300); // Kopiere 300 Bytes in die Struktur
-    configdata.update_switches();
+    configdata.update_switches(); // Update the switch values based on the bitmask
 
     // MQTT-Themenbasis
     String str_base_topic = mqtt_main_topic + devicename + "/config/";
@@ -624,7 +585,4 @@ void readConfigDataRecord(void *message, const char *devicename)
     toMqttQueue(str_base_topic + "tmp_heating_stop", String(configdata.TmpHeatingStop));
     // TIMSmartSleep
     toMqttQueue(str_base_topic + "time_smart_sleep", String(configdata.TimSmartSleep));
-
-    // String finishConfigMsg = getLocalTimeString() + ": Finished parsing Config data." + " (Processing time: " + String(millis() - start_time) + " ms)";
-    // DEBUG_PRINTLN(finishConfigMsg);
 }

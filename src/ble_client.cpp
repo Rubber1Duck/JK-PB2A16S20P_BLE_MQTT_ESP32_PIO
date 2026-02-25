@@ -124,7 +124,7 @@ bool CRC_Check(uint8_t *data, size_t length) {
         return false; // Not enough data for CRC
 
     uint16_t calculated_crc = 0;
-    for (size_t i = 0; i < length - 1; i++){
+    for (size_t i = 0; i < length - 1; i++) {
         calculated_crc += data[i];
     }
     calculated_crc &= 0xFF; // Keep only the lowest byte
@@ -162,7 +162,7 @@ void notifyCB(NimBLERemoteCharacteristic *pRemoteCharacteristic, uint8_t *pData,
         ble_buffer_index += bytes_to_copy;
 
         // if 300 bytes received and CRC_Check OK call parser
-        if (ble_buffer_index >= BUFFER_SIZE && CRC_Check(ble_buffer, BUFFER_SIZE)){
+        if (ble_buffer_index >= BUFFER_SIZE && CRC_Check(ble_buffer, BUFFER_SIZE)) {
             std::vector<uint8_t> message(ble_buffer, ble_buffer + BUFFER_SIZE);
             ble_buffer_index = 0;
             capturing = false; // waiting for next start sequence
@@ -195,7 +195,8 @@ bool connectToBLEServer() {
                 return false;
             }
             DEBUG_PRINTF("Reconnected client\n");
-        } else {
+        }
+        else {
             /**
              *  We don't already have a client that knows this device,
              *  check for a client that is disconnected that we can use.
@@ -259,7 +260,8 @@ bool connectToBLEServer() {
             }
             DEBUG_PRINTLN("Subscribed to notifications");
         }
-    } else {
+    }
+    else {
         DEBUG_PRINTLN("Failed to find our service UUID: " + String(serviceUUID.toString().c_str()));
         pClient->disconnect();
     }
@@ -269,7 +271,8 @@ bool connectToBLEServer() {
             DEBUG_PRINTLN("Sent \"getdeviceInfo\" to the BLE device");
             initial_send_done = false;    // Reset the initial send flag for the new connection
             last_sending_time = millis(); // Update the last sending time to the current time
-        } else {
+        }
+        else {
             DEBUG_PRINTLN("Failed to send \"getdeviceInfo\" to the BLE device");
             pClient->disconnect();
             return false;
@@ -293,7 +296,8 @@ void ble_loop() {
         doConnect = false;
         if (connectToBLEServer()) {
             DEBUG_PRINTLN("We are now connected to the BLE Server.");
-        } else {
+        }
+        else {
             DEBUG_PRINTLN("Failed to connect to the BLE Server.");
         }
     }
@@ -308,13 +312,15 @@ void ble_loop() {
                 DEBUG_PRINTLN("Send getInfo (initial)");
                 if (pRemoteCharacteristic->writeValue(getInfo, 20)) {
                     DEBUG_PRINTLN("Sent \"getInfo\" to the BLE device");
-                } else {
+                }
+                else {
                     DEBUG_PRINTLN("Failed to send \"getInfo\" to the BLE device");
                 }
                 last_sending_time = millis(); // Update the last sending time to the current time
                 initial_send_done = true;     // Set the flag to indicate the initial send is done
             }
-        } else {
+        }
+        else {
             // Subsequent sends every hour
             if ((millis() - last_sending_time) >= REPEAT_SEND_INTERVAL) {
                 DEBUG_PRINTLN("Send getInfo (hourly)");

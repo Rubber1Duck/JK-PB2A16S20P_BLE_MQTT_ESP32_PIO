@@ -3,8 +3,7 @@
 #include <Arduino.h>
 
 // Struktur für die Konfigurationsdaten (ConfigData; FrameType 0x03)
-struct ConfigData
-{
+struct ConfigData {
   uint8_t Header[4];               // 4     Header                        #
   uint8_t FrameType;               // 1     Frame type                    #
   uint8_t FrameCounter;            // 1     Frame counter                 #
@@ -84,8 +83,7 @@ struct ConfigData
   char DisablePCLModule[4];   // 4, wegen "On"/"Off", Länge von 3 + 1 für Nullterminierung
   char TimedStoredData[4];    // 4, wegen "On"/"Off", Länge von 3 + 1 für Nullterminierung
   char ChargingFloatMode[4];  // 4, wegen "On"/"Off", Länge von 3 + 1 für Nullterminierung
-  void update_switches()
-  {
+  void update_switches() {
     snprintf(BatChargeEN_fmt, sizeof(BatChargeEN_fmt), "%s", (BatChargeEN[0] & 0x0001) ? "On" : "Off");
     snprintf(BatDisChargeEN_fmt, sizeof(BatDisChargeEN_fmt), "%s", (BatDisChargeEN[0] & 0x0001) ? "On" : "Off");
     snprintf(BalanEN_fmt, sizeof(BalanEN_fmt), "%s", (BalanEN[0] & 0x0001) ? "On" : "Off");
@@ -100,7 +98,6 @@ struct ConfigData
     snprintf(TimedStoredData, sizeof(TimedStoredData), "%s", (SwitchesBits & 0x0100) ? "On" : "Off");
     snprintf(ChargingFloatMode, sizeof(ChargingFloatMode), "%s", (SwitchesBits & 0x0200) ? "On" : "Off");
   }
-
 } __attribute__((packed)); // Verhindert Padding und sorgt dafür, dass die Struktur genau so im Speicher liegt wie definiert;
 
 #endif // CD_DATA_STRUCT_H

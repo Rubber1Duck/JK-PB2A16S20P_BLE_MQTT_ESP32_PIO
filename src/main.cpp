@@ -29,18 +29,19 @@ void setup() {
     // 2. Pointer für PSRAM vorbereiten
     char* root_ca_cert_psram = nullptr;
     // Prüfen, ob PSRAM verfügbar ist
-    if(psramFound()){
+    if(psramFound()) {
         size_t cert_len = strlen(cert_flash) + 1;
         // Speicher explizit im PSRAM anfordern
         root_ca_cert_psram = (char*) ps_malloc(cert_len);
-        if (root_ca_cert_psram != nullptr)
-        {
+        if (root_ca_cert_psram != nullptr) {
             memcpy(root_ca_cert_psram, cert_flash, cert_len);
             DEBUG_PRINTLN("Zertifikat erfolgreich in PSRAM kopiert.");
-        } else {
+        }
+        else {
             DEBUG_PRINTLN("Fehler: Kein Speicher im PSRAM verfügbar.");
         }
-    } else {
+    }
+    else {
         DEBUG_PRINTLN("PSRAM nicht gefunden, Zertifikat bleibt im Flash.");
     }
     const char* root_ca_cert = root_ca_cert_psram ? root_ca_cert_psram : cert_flash;

@@ -2,15 +2,13 @@
 #define DATA_STRUCT_DD_H
 #include <Arduino.h>
 
-struct publishItem
-{
+struct publishItem {
   char topic[128];  // Adjust the size as needed
   char payload[33]; // Adjust the size as needed (longest string should be a 32 bit value in binary format as string (00000000000000000000000000000000), which is 32 characters plus null terminator)
 };
 
 // Struktur für die Gerätedaten (DeviceData; FrameType 0x01)
-struct DeviceData
-{
+struct DeviceData {
   uint8_t Header[4];             // 4     Header                        #
   uint8_t FrameType;             // 1     Frame type                    #
   uint8_t FrameCounter;          // 1     Frame counter                 #
@@ -61,8 +59,7 @@ struct DeviceData
   // Note: The structure is packed to ensure there is no padding between the fields, which allows us to directly copy the received byte array into this structure.
   // We will also add helper functions to convert the runtime and other relevant fields into human-readable
   // formats when needed.
-  String getOddRunTimeStr()
-  {
+  String getOddRunTimeStr() {
     char OddRunTimeStr[64];
     uint32_t seconds = OddRunTime % 60;
     uint32_t minutes = (OddRunTime / 60) % 60;
