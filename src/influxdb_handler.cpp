@@ -22,23 +22,30 @@ void init_influxdb() {
 
     // Check server connection
     if (influx_client.validateConnection()) {
-        DEBUG_PRINT("Connected to InfluxDB: ");
-        DEBUG_PRINTLN(influx_client.getServerUrl());
-    } else {
-        DEBUG_PRINT("InfluxDB connection failed: ");
-        DEBUG_PRINTLN(influx_client.getLastErrorMessage());
+        String connMsg = String("Connected to InfluxDB: ") + influx_client.getServerUrl();
+        DEBUG_PRINTLN(connMsg);
+    }
+    else {
+        String failMsg = String("InfluxDB connection failed: ") + influx_client.getLastErrorMessage();
+        DEBUG_PRINTLN(failMsg);
     }
 }
 
 void publishToInfluxDB(const String &topic, int value) {
     String valueStr = String(value);
     Point point(influx_prefix + topic);
-    point.addField("value", value);
+    point.addField("value", valueStr);
     influx_client.writePoint(point);
 }
 
 void publishToInfluxDB(const String &topic, float value) {
     String valueStr = String(value, 3); // Default to 3 decimal places for floats
+    Point point(influx_prefix + topic);
+    point.addField("value", valueStr);
+    influx_client.writePoint(point);
+}
+
+void publishToInfluxDB(const String &topic, const char *value) {
     Point point(influx_prefix + topic);
     point.addField("value", value);
     influx_client.writePoint(point);

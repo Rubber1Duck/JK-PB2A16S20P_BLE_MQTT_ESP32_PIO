@@ -3,1262 +3,586 @@
 #define INFLUX 1
 #define MQTT 0
 
-unsigned long lastPublishTime = 0;
-unsigned long lastDataReceivedTime = 0;
+uint32_t lastPublishTimeCellData = 0;
+uint32_t lastDataReceivedTime = 0;
 bool first_run = true;
+const uint8_t pos_of_Counter = 5; // position of FrameCounter in the message
 
 // variables for charge/discharge / day calculation
 float Q_charged = 0;    // charge in As
 float Q_discharged = 0; // discharge in As
 
-float Q_charged_mAh_old[2] = {0.0};
-float Q_discharged_mAh_old[2] = {0.0};
+float Q_charged_mAh_old[2] = {0};
+float Q_discharged_mAh_old[2] = {0};
+uint32_t battery_power_calculated[2] = {0};
 
 uint8_t counter_last = 0;
-uint32_t cells_used = 0;
 
-float volts_old[30][2] = {
-    {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}};
+char uart_protocol_number_str[][50] = {
+    "000-4G-GPS Remote module Common protocol",
+    "001-JK BMS RS485 Modbus V1.0",
+    "002-MIU U SERIES",
+    "003-China tower shared batterie cabinet V1.1",
+    "004-PACE_RS485_Modbus_V1.3",
+    "005-PYLON_low_volage_Protocol_RS485_V...",
+    "006-Growatt_BMS_RS485_Protocol_1xSxxP...",
+    "007-Voltronic_Inverter_and_BMS_485_com...",
+    "008-China tower shared batterie cabinet V.02",
+    "009-WOW_RS485_Modbus_V1.3",
+    "010-JK BMS LCD Protocol V2.0",
+    "011-UART1 User customization",
+    "012-UART2 User customization",
+    "013-(9600)JK BMS RS485 Modbus V1.0",
+    "014-(9600)PYLON_low_voltage_Protocol_R...",
+    "015-JK BMS PBxx SERIES LCD Protocol V1.0",
+    "016-JKBMS LIN BUS V1.0",
+    "017-RS485 Protocol 17",
+    "018-RS485 Protocol 18",
+    "019-RS485 Protocol 19",
+    "020-RS485 Protocol 20"};
 
-float cell_avg_voltage[2] = {0.0};
-float cell_diff_voltage[2] = {0.0};
-byte high_voltage_cell[2] = {255, 255};
-byte low_voltage_cell[2] = {255, 255};
+char can_protocol_number_str[][50] = {
+    "000-JK BMS CAN Protocol (250k) V2.0",
+    "001-Deye Low-voltage hybrid inverter CAN c...",
+    "002-PYLON-Low-voltage-V1.2",
+    "003-Growatt BMS CAN-Bus-protocol-low-vol...",
+    "004-Victron_CANbus_BMS_protocol_20170...",
+    "005-MEGAREVO_Hybrid_BMSCAN_Protocol...",
+    "006-JK BMS CAN Protocol (500k) V2.0",
+    "007-INVT BMS CAN Bus protocol V1.02",
+    "008-GoodWe LV BMS Protocol(EX/EM/S-B...",
+    "009-FSS-ConnectingBat-TI-en-10 | Version 1.0",
+    "010-MUST PV1800F-CAN communication P...",
+    "011-LuxpowerTek Battery CAN protocol V01",
+    "012-CAN BUS User customization",
+    "013-CAN BUS User customization2",
+    "014-CAN BUS Protocol 014",
+    "015-CAN BUS Protocol 015",
+    "016-CAN BUS Protocol 016",
+    "017-CAN BUS Protocol 017",
+    "018-CAN BUS Protocol 018",
+    "019-CAN BUS Protocol 019",
+    "020-CAN BUS Protocol 020"
+};
 
-float cellResistance_old[30][2] = {
-    {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}};
+char Trigger_values_str[][30] = {
+    "00-OFF",
+    "01-Low SOC",
+    "02-Battery Over Voltage",
+    "03-Battery Under Voltage",
+    "04-Battery Cell Over Voltage",
+    "05-Battery Cell Under Voltage",
+    "06-Charge Over Current",
+    "07-Discharge Over Current",
+    "08-Battery Over Temperature",
+    "09-MOSFET Over Temperature",
+    "10-System Alarm",
+    "11-Battery Low Temperature",
+    "12-Remote Control",
+    "13-Above SOC",
+    "14-MOSFET Abnormal"
+};
 
-float temp_mosfet[2] = {0.0};
-float cell_resistance_alert[2] = {255, 255};
-float battery_voltage[2] = {0, 0};
-float battery_power[2] = {0, 0};
-float battery_charge_current[2] = {0, 0};
-float battery_power_calculated[2] = {0, 0};
-float temp_sensor1[2] = {0, 0};
-float temp_sensor2[2] = {0, 0};
-float temp_sensor3[2] = {0, 0};
-float temp_sensor4[2] = {0, 0};
-float temp_sensor5[2] = {0, 0};
-uint32_t alarm_raw[2] = {0xFFFFFFFF, 0xFFFFFFFF};
-uint32_t alarms_mask[2] = {0xFFFFFFFF, 0xFFFFFFFF};
-
-String alarmStrings[24] = {
-    "AlarmWireRes",
-    "AlarmMosOTP",
-    "AlarmCellQuantity",
-    "AlarmCurSensorErr",
-    "AlarmCellOVP",
-    "AlarmBatOVP",
-    "AlarmChOCP",
-    "AlarmChSCP",
-    "AlarmChOTP",
-    "AlarmChUTP",
-    "AlarmCPUAuxCommuErr",
-    "AlarmCellUVP",
-    "AlarmBatUVP",
-    "AlarmDchOCP",
-    "AlarmDchSCP",
-    "AlarmDchOTP",
-    "AlarmChargeMOS",
-    "AlarmDischargeMOS",
-    "GPSDisconneted",
-    "ModifyPWDInTime",
-    "DischargeOnFailed",
-    "BatteryOverTempAlarm",
-    "TemperatureSensorAnomaly",
-    "PLCModuleAnomaly"};
-
-int16_t balance_current[2] = {10000, 10000};
-byte balancing_action[2] = {255, 255};
-uint8_t battery_soc[2] = {0, 0};
-float battery_capacity_remaining[2] = {0, 0};
-float battery_capacity_total[2] = {0, 0};
-uint32_t battery_cycle_count[2] = {0, 0};
-float battery_cycle_capacity_total[2] = {0, 0};
-byte battery_soh[2] = {0, 0};
-byte battery_precharge_status[2] = {255, 255};
-uint16_t battery_user_alarm1[2] = {0xFFFF, 0xFFFF};
-uint16_t battery_user_alarm2[2] = {0xFFFF, 0xFFFF};
-byte charging_mosfet_status[2] = {255, 255};
-byte discharging_mosfet_status[2] = {255, 255};
-byte precharging_status[2] = {255, 255};
-uint16_t timeDcOCPR[2] = {0xFFFF, 0xFFFF};
-uint16_t timeDcSCPR[2] = {0xFFFF, 0xFFFF};
-uint16_t timeCOCPR[2] = {0xFFFF, 0xFFFF};
-uint16_t timeCSCPR[2] = {0xFFFF, 0xFFFF};
-uint16_t timeUVPR[2] = {0xFFFF, 0xFFFF};
-uint16_t timeOVPR[2] = {0xFFFF, 0xFFFF};
-byte temp_sensor_absent_mask = 0x00;
-
-String temp_sensors_absent[6] = {
-    "MOSTempSensorAbsent",
-    "BATTempSensor1Absent",
-    "BATTempSensor2Absent",
-    "BATTempSensor3Absent",
-    "BATTempSensor4Absent",
-    "BATTempSensor5Absent"};
-
-byte battery_heating[2] = {0xFF, 0xFF};
-
-float heat_current[2] = {0xFFFF, 0xFFFF};
-float bat_vol[2] = {0xFFFF, 0xFFFF};
-float bat_vol_correct[2] = {0.0, 0.0};
-float vol_discharg_cur[2] = {0xFFFF, 0xFFFF};
-float vol_charg_cur[2] = {0xFFFF, 0xFFFF};
-u_int32_t sys_run_ticks[2] = {0x0, 0x0};
-byte charger_plugged[2] = {0xFF, 0xFF};
-uint16_t bat_dis_cur_correct[2] = {0xFFFF, 0xFFFF};
-uint16_t time_emergency[2] = {0xFFFF, 0xFFFF};
-uint32_t rtc_ticks[2] = {0x0, 0x0};
-uint32_t time_enter_sleep[2] = {0x0, 0x0};
-byte pcl_module_status[2] = {0xFF, 0xFF};
 
 // Map to store the last publish time for each topic
-std::map<String, unsigned long> lastPublishTimes;
+std::map<String, uint32_t> lastPublishTimes;
 
 template <typename T>
-void publishIfChanged(T &currentValue, T newValue, const String &topic, int decimals = -1) {
+void publishIfChanged(T &currentValue, T newValue, const char *publishValue, const String &topic) {
 
-    unsigned long currentTime = millis();
-    unsigned long lastPublishTime = lastPublishTimes[topic];
+    uint32_t currentTime = millis();
+    uint32_t lastPublishTimeTopic = lastPublishTimes[topic];
 
-    // Check if the value has changed or MIN_PUBLISH_TIME is greater than 0 and the time has passed since the last publish
-    if (currentValue != newValue || (min_publish_time > 0 && (currentTime - lastPublishTime) >= (static_cast<unsigned long>(min_publish_time) * 1000UL))) {
-        if (debug_flg) {
-            DEBUG_PRINT(topic + ": ");
-            if (decimals >= 0)
-                DEBUG_PRINTLN(newValue, decimals);
-
-            else
-                DEBUG_PRINTLN(newValue);
-        }
-        String valueStr = (decimals >= 0) ? String(newValue, decimals) : String(newValue);
-        if (xSemaphoreTake(mqttMutex, portMAX_DELAY) == pdTRUE) {
-            mqtt_client.publish(topic.c_str(), valueStr.c_str());
-            xSemaphoreGive(mqttMutex);
-        }
+    // Check if the value has changed or MIN_PUB_TIME is greater than 0 and the time has passed since the last publish
+    if (currentValue != newValue || (min_pub_time > 0 && (currentTime - lastPublishTimeTopic) >= (static_cast<uint32_t>(min_pub_time) * 1000UL))) {
+        toMqttQueue(topic.c_str(), publishValue);
         currentValue = newValue;
         lastPublishTimes[topic] = currentTime; // Update the last publish time for the topic
     }
 }
 #ifdef USE_INFLUXDB
 template <typename T>
-void publishIfChangedInflux(T &currentValue, T newValue, const String &topic, int decimals) {
+void publishIfChangedInflux(T &currentValue, T newValue, const char *publishValue, const String &topic)
+{
     if (currentValue != newValue) {
-        DEBUG_PRINT(topic + ": ");
-        if (decimals >= 0) {
-            DEBUG_PRINTLN(newValue, decimals);
-            publishToInfluxDB(topic, newValue);
-        } else {
-            DEBUG_PRINTLN(newValue);
-            publishToInfluxDB(topic, newValue);
-        }
+        publishToInfluxDB(topic, publishValue);
         currentValue = newValue;
     }
 }
 #endif
 
-String toBinaryString(uint32_t value, int bits) {
-    String binaryString = "";
-    for (int i = bits - 1; i >= 0; i--)
-        binaryString += ((value >> i) & 1) ? '1' : '0';
-    return binaryString;
+String getLocalTimeString() {
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) {
+        return "[NO TIME]";
+    }
+    char timeBuffer[32];
+    strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%dT%H:%M:%S", &timeinfo);
+    return String(timeBuffer);
 }
+
+DeviceData devicedata;
 
 void readDeviceDataRecord(void *message, const char *devicename) {
-    uint8_t *receivedBytes_device = static_cast<uint8_t *>(message);
 
-    String str_base_topic = mqtt_main_topic + devicename;
+    memcpy(&devicedata, message, 300); // Kopiere 300 Bytes in die Struktur
 
-    DEBUG_PRINTLN("Parse DeviceDataRecord");
+    String str_base_topic = mqtt_main_topic + devicename + "/device/";
 
-    size_t index = 5; // Skip the first 5 bytes
-    uint8_t counter = receivedBytes_device[index++];
-    // DEBUG_PRINT("counter: ");
-    // DEBUG_PRINTLN(counter);
+    // Publish the FrameCounter to MQTT
+    toMqttQueue(str_base_topic + "read_count", String(devicedata.FrameCounter));
 
-    String str_value = String(counter);
-    mqtt_client.publish((str_base_topic + "/device/read_count").c_str(), str_value.c_str());
+    // Publish Manufacturer Device ID
+    toMqttQueue(str_base_topic + "vendor_id", devicedata.ManufacturerDeviceID);
 
-    // Read vendorID
-    char vendorID[50];
-    size_t vendorIDIndex = 0;
-    while (index < 300 && receivedBytes_device[index] != 0x0)
-        vendorID[vendorIDIndex++] = receivedBytes_device[index++];
+    // Publish Hardware Version and Software Version
+    toMqttQueue(str_base_topic + "hw_revision", devicedata.HardwareVersion);
+    toMqttQueue(str_base_topic + "sw_version", devicedata.SoftwareVersion);
 
-    vendorID[vendorIDIndex] = '\0';
-    // DEBUG_PRINT("vendorID: ");
-    // DEBUG_PRINTLN(vendorID);
+    // Publish Uptime in seconds and in human-readable format (days, hours, minutes, seconds)
+    toMqttQueue(str_base_topic + "uptime", String(devicedata.OddRunTime));
+    toMqttQueue(str_base_topic + "uptime_fmt", devicedata.getOddRunTimeStr());
 
-    str_value = String(vendorID);
-    mqtt_client.publish((str_base_topic + "/device/vendor_id").c_str(), str_value.c_str());
+    // Publish Power On Times
+    toMqttQueue(str_base_topic + "power_up_times", String(devicedata.PwrOnTimes));
 
-    // Skip the 0x0
-    while (index < 300 && receivedBytes_device[index] == 0x0)
-        index++;
+    // Publish Device Name, Passcode, Manufacturing Date, Serial Number, User Data, Setup Passcode and User Data 2
+    toMqttQueue(str_base_topic + "device_name", devicedata.DeviceName);
+    toMqttQueue(str_base_topic + "device_passwd", devicedata.DevicePasscode);
+    toMqttQueue(str_base_topic + "manufacturing_date", devicedata.ManufacturingDate);
+    toMqttQueue(str_base_topic + "serial_number", devicedata.SerialNumber);
+#ifndef V19
+    toMqttQueue(str_base_topic + "passcode", devicedata.Passcode);
+#endif
+    toMqttQueue(str_base_topic + "user_data", devicedata.UserData);
+    toMqttQueue(str_base_topic + "setup_passcode", devicedata.SetupPasscode);
+    toMqttQueue(str_base_topic + "user_data2", devicedata.UserData2);
 
-    // Read hardwareVersion
-    char hardwareVersion[50];
-    size_t hardwareVersionIndex = 0;
-    while (index < 300 && receivedBytes_device[index] != 0x0)
-        hardwareVersion[hardwareVersionIndex++] = receivedBytes_device[index++];
+// Publish UART and CAN protocol numbers and enable status
+#ifdef PROTOCOL_NUMBERS_AND_ENABLE_STATUS
+    toMqttQueue(str_base_topic + "uart1_protocol_number", String(devicedata.UART1MPRTOLNbr));
+    toMqttQueue(str_base_topic + "uart1_protocol_txt", uart_protocol_number_str[devicedata.UART1MPRTOLNbr]);
+    toMqttQueue(str_base_topic + "uart1_protocol_enable", String(devicedata.UART1MPRTOLEnable));
+    toMqttQueue(str_base_topic + "can_protocol_number", String(devicedata.CANMPRTOLNbr));
+    toMqttQueue(str_base_topic + "can_protocol_txt", can_protocol_number_str[devicedata.CANMPRTOLNbr]);
+    toMqttQueue(str_base_topic + "uart_protocol_enable_0_15", String(devicedata.UARTMPRTOLEnable0_15));
+    toMqttQueue(str_base_topic + "uart2_protocol_number", String(devicedata.UART2MPRTOLNbr));
+    toMqttQueue(str_base_topic + "uart2_protocol_txt", uart_protocol_number_str[devicedata.UART2MPRTOLNbr]);
+    toMqttQueue(str_base_topic + "uart2_protocol_enable", String(devicedata.UART2MPRTOLEnable));
+    toMqttQueue(str_base_topic + "uart_protocol_lib_version", String(devicedata.UARTMPTLVer));
+#endif
 
-    hardwareVersion[hardwareVersionIndex] = '\0';
-    // DEBUG_PRINT("hardwareVersion: ");
-    // DEBUG_PRINTLN(hardwareVersion);
-    str_value = String(hardwareVersion);
-    mqtt_client.publish((str_base_topic + "/device/hw_revision").c_str(), str_value.c_str());
+// Publish trigger values for LCD buzzer and dry contacts
+#ifdef LCD_AND_DRY_TRIGGER_VALUES
+    toMqttQueue(str_base_topic + "lcd_buzzer_trigger", String(devicedata.LCDBuzzerTrigger));
+    toMqttQueue(str_base_topic + "lcd_buzzer_trigger_txt", Trigger_values_str[devicedata.LCDBuzzerTrigger]);
+    toMqttQueue(str_base_topic + "lcd_buzzer_trigger_value", String(devicedata.LCDBuzzerTriggerVal));
+    toMqttQueue(str_base_topic + "lcd_buzzer_release_value", String(devicedata.LCDBuzzerReleaseVal));
+    toMqttQueue(str_base_topic + "dry1_trigger", String(devicedata.DRY1Trigger));
+    toMqttQueue(str_base_topic + "dry1_trigger_txt", Trigger_values_str[devicedata.DRY1Trigger]);
+    toMqttQueue(str_base_topic + "dry1_trigger_value", String(devicedata.DRY1TriggerVal));
+    toMqttQueue(str_base_topic + "dry1_release_value", String(devicedata.DRY1ReleaseVal));
+    toMqttQueue(str_base_topic + "dry2_trigger", String(devicedata.DRY2Trigger));
+    toMqttQueue(str_base_topic + "dry2_trigger_txt", Trigger_values_str[devicedata.DRY2Trigger]);
+    toMqttQueue(str_base_topic + "dry2_trigger_value", String(devicedata.DRY2TriggerVal));
+    toMqttQueue(str_base_topic + "dry2_release_value", String(devicedata.DRY2ReleaseVal));
+    toMqttQueue(str_base_topic + "can_protocol_lib_version", String(devicedata.CANMPTLVer));
+#endif
 
-    // Skip the 0x0
-    while (index < 300 && receivedBytes_device[index] == 0x0)
-        index++;
-
-    // Read softwareVersion
-    char softwareVersion[50];
-    size_t softwareVersionIndex = 0;
-    while (index < 300 && receivedBytes_device[index] != 0x0)
-        softwareVersion[softwareVersionIndex++] = receivedBytes_device[index++];
-
-    softwareVersion[softwareVersionIndex] = '\0';
-    // DEBUG_PRINT("softwareVersion: ");
-    // DEBUG_PRINTLN(softwareVersion);
-
-    str_value = String(softwareVersion);
-    mqtt_client.publish((str_base_topic + "/device/sw_version").c_str(), str_value.c_str());
-
-    // Skip the 0x0
-    while (index < 300 && receivedBytes_device[index] == 0x0)
-        index++;
-
-    // Read uptime
-    uint32_t uptime = 0;
-    size_t uptimePos = 0;
-    while (index < 300 && receivedBytes_device[index] != 0x0)
-        uptime += receivedBytes_device[index++] * pow(256, uptimePos++);
-
-    // DEBUG_PRINT("uptime: ");
-    // DEBUG_PRINTLN(uptime);
-
-    str_value = String(uptime);
-    mqtt_client.publish((str_base_topic + "/device/uptime").c_str(), str_value.c_str());
-
-    byte sec = uptime % 60;
-    uptime /= 60;
-    byte mi = uptime % 60;
-    uptime /= 60;
-    byte hr = uptime % 24;
-    byte days = uptime /= 24;
-    mqtt_client.publish((str_base_topic + "/device/uptime_fmt").c_str(), (String(days) + " days " + String(hr) + ":" + String(mi) + ":" + String(sec)).c_str());
-
-    // Skip the 0x0
-    while (index < 300 && receivedBytes_device[index] == 0x0)
-        index++;
-
-    // Read powerUpTimes
-    uint8_t powerUpTimes = receivedBytes_device[index++];
-    // DEBUG_PRINT("powerUpTimes: ");
-    // DEBUG_PRINTLN(powerUpTimes);
-
-    str_value = String(powerUpTimes);
-    mqtt_client.publish((str_base_topic + "/device/power_up_times").c_str(), str_value.c_str());
-
-    // Skip the 0x0
-    while (index < 300 && receivedBytes_device[index] == 0x0)
-        index++;
-
-    // Read deviceName
-    char deviceName[50];
-    size_t deviceNameIndex = 0;
-    while (index < 300 && receivedBytes_device[index] != 0x0)
-        deviceName[deviceNameIndex++] = receivedBytes_device[index++];
-
-    deviceName[deviceNameIndex] = '\0';
-    // DEBUG_PRINT("deviceName: ");
-    // DEBUG_PRINTLN(deviceName);
-
-    str_value = String(deviceName);
-    mqtt_client.publish((str_base_topic + "/device/device_name").c_str(), str_value.c_str());
-
-    // Skip the 0x0
-    while (index < 300 && receivedBytes_device[index] == 0x0)
-        index++;
-
-    // Read passCode
-    char passCode[50];
-    size_t passCodeIndex = 0;
-    while (index < 300 && receivedBytes_device[index] != 0x0)
-        passCode[passCodeIndex++] = receivedBytes_device[index++];
-
-    passCode[passCodeIndex] = '\0';
-    // DEBUG_PRINT("passCode: ");
-    // DEBUG_PRINTLN(passCode);
-
-    str_value = String(passCode);
-    mqtt_client.publish((str_base_topic + "/device/device_passwd").c_str(), str_value.c_str());
-
-    while (index < 300 && receivedBytes_device[index] == 0x0)
-        index++;
-
-    // Read manufacturingDate
-    char manufacturingDate[20];
-    size_t manufacturingDateIndex = 0;
-    while (index < 300 && receivedBytes_device[index] != 0x0)
-        manufacturingDate[manufacturingDateIndex++] = receivedBytes_device[index++];
-
-    manufacturingDate[manufacturingDateIndex] = '\0';
-    // DEBUG_PRINT("manufacturingDate: ");
-    // DEBUG_PRINTLN(manufacturingDate);
-
-    str_value = String(manufacturingDate);
-    mqtt_client.publish((str_base_topic + "/device/manufacturing_date").c_str(), str_value.c_str());
-
-    while (index < 300 && receivedBytes_device[index] == 0x0)
-        index++;
-
-    // Read serialNumber
-    char serialNumber[50];
-    size_t serialNumberIndex = 0;
-    while (index < 300 && receivedBytes_device[index] != 0x0)
-        serialNumber[serialNumberIndex++] = receivedBytes_device[index++];
-    serialNumber[serialNumberIndex] = '\0';
-    // DEBUG_PRINT("serialNumber: ");
-    // DEBUG_PRINTLN(serialNumber);
-
-    str_value = String(serialNumber);
-    mqtt_client.publish((str_base_topic + "/device/serial_number").c_str(), str_value.c_str());
-
-    while (index < 300 && receivedBytes_device[index] == 0x0)
-        index++;
-
-    // Read passCode2
-    char passCode2[50];
-    size_t passCode2Index = 0;
-    while (index < 300 && receivedBytes_device[index] != 0x0)
-        passCode2[passCode2Index++] = receivedBytes_device[index++];
-    passCode2[passCode2Index] = '\0';
-    // DEBUG_PRINT("passCode2: ");
-    // DEBUG_PRINTLN(passCode2);
-
-    str_value = String(passCode2);
-    mqtt_client.publish((str_base_topic + "/device/device_passwd2").c_str(), str_value.c_str());
-
-    while (index < 300 && receivedBytes_device[index] == 0x0)
-        index++;
-
-    // Read userData
-    char userData[50];
-    size_t userDataIndex = 0;
-    while (index < 300 && receivedBytes_device[index] != 0x0)
-        userData[userDataIndex++] = receivedBytes_device[index++];
-    userData[userDataIndex] = '\0';
-    // DEBUG_PRINT("userData: ");
-    // DEBUG_PRINTLN(userData);
-
-    str_value = String(userData);
-    mqtt_client.publish((str_base_topic + "/device/user_data").c_str(), str_value.c_str());
-
-    while (index < 300 && receivedBytes_device[index] == 0x0)
-        index++;
-
-    // Read setupPasscode
-    char setupPasscode[50];
-    size_t setupPasscodeIndex = 0;
-    while (index < 300 && receivedBytes_device[index] != 0x0)
-        setupPasscode[setupPasscodeIndex++] = receivedBytes_device[index++];
-    setupPasscode[setupPasscodeIndex] = '\0';
-    // DEBUG_PRINT("setupPasscode: ");
-    // DEBUG_PRINTLN(setupPasscode);
-
-    str_value = String(setupPasscode);
-    mqtt_client.publish((str_base_topic + "/device/setup_passcode").c_str(), str_value.c_str());
-
-    // blocked_for_parsing = false;
+    // Publish RCV Time and RFV Time
+    toMqttQueue(str_base_topic + "rcv_time", String((float)devicedata.RCVTime * 0.1, 1)); // Assuming RCVTime is in 0.1h units
+    toMqttQueue(str_base_topic + "rfv_time", String((float)devicedata.RFVTime * 0.1, 1)); // Assuming RFVTime is in 0.1h units
 }
 
+CellData celldata;
+CellDataOld cdOld[2]; // Array to store old values for MQTT and INFLUX, used for comparison and change detection
+
 void readCellDataRecord(void *message, const char *devicename) {
-    uint8_t *receivedBytes_cell = static_cast<uint8_t *>(message);
+    uint32_t start_time = millis();
 
-    String str_base_topic = mqtt_main_topic + devicename;
-
-    DEBUG_PRINTLN("Parse CellDataRecord");
-
-    unsigned long currentTime = millis();
-    // mqtt_client.publish((str_base_topic + "/debug/publish_delay").c_str(), String(publish_delay).c_str());
-
-    unsigned long timeDiff = currentTime - lastPublishTime;
-    // mqtt_client.publish((str_base_topic + "/debug/timeDiff").c_str(), String(timeDiff).c_str());
-
-    float deltaT = (currentTime - lastDataReceivedTime) / 1000.0; // time in seconds
-    lastDataReceivedTime = currentTime;
+    float deltaT = (start_time - lastDataReceivedTime) / 1000.0; // time in seconds
+    lastDataReceivedTime = start_time;
     // actual charge current
-    float_t curent = (receivedBytes_cell[158] | receivedBytes_cell[159] << 8 | receivedBytes_cell[160] << 16 | receivedBytes_cell[161] << 24) * 0.001;
+    int32_t current_raw;
+    memcpy(&current_raw, (uint8_t *)message + 158, sizeof(int32_t)); // assuming current is at byte offset 158
+    float_t current = current_raw * 0.001;
 
     // Integration of charge/discharge current
-    if (curent > 0) {
-        Q_charged += curent * deltaT;
-    } else {
-        Q_discharged += (-curent) * deltaT;
+    if (current > 0) {
+        Q_charged += current * deltaT;
+    }
+    else {
+        Q_discharged += (-current) * deltaT;
     }
     // to mAh
     float Q_charged_mAh = Q_charged / 3.6;
     float Q_discharged_mAh = Q_discharged / 3.6;
+    char Q_charged_mAh_str[32];
+    char Q_discharged_mAh_str[32];
+    dtostrf(Q_charged_mAh, 0, 3, Q_charged_mAh_str);
+    dtostrf(Q_discharged_mAh, 0, 3, Q_discharged_mAh_str);
 
-    if (!first_run && (publish_delay > 0 && (currentTime - lastPublishTime) < (publish_delay * 1000))) {
-        // mqtt_client.publish((str_base_topic + "/debug/indelay").c_str(), "true");
-        //  Do nothing if the delay has not passed
-        // blocked_for_parsing = false;
+    if (!first_run && (publish_delay > 0 && (start_time - lastPublishTimeCellData) < (publish_delay * 1000))) {
         return;
     }
     first_run = false;
+    memcpy(&celldata, message, 300); // Kopiere 300 Bytes in die Struktur
+    celldata.prepareOutValues();
+
+    // MQTT-Themenbasis
+    String base_data = mqtt_main_topic + devicename + "/data/";
+    String base_debug = mqtt_main_topic + devicename + "/debug/";
 
     // Update the last publish time
-    lastPublishTime = currentTime;
+    lastPublishTimeCellData = start_time;
 
-    size_t index = 5; // Skip the first 5 bytes
-    uint8_t counter = receivedBytes_cell[index++];
-    if (counter == counter_last)
-        return;
-    else
-        counter_last = counter;
+    // Publish Frame Counter
+    toMqttQueue(base_data + "readcount", String(celldata.FrameCounter));
+    // Publish charge and discharge in mAh with change detection with 3 decimal places
+    publishIfChanged(Q_charged_mAh_old[MQTT], Q_charged_mAh, Q_charged_mAh_str, base_data + "battery_charged_mAh");
+    publishIfChanged(Q_discharged_mAh_old[MQTT], Q_discharged_mAh, Q_discharged_mAh_str, base_data + "battery_discharged_mAh");
 
-    // DEBUG_PRINT("counter: ");
-    // DEBUG_PRINTLN(counter);
-
-    String str_topic;
-    String str_value;
-
-    str_topic = String(str_base_topic + "/data/readcount");
-    str_value = String(counter);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    publishIfChanged(Q_charged_mAh_old[MQTT], Q_charged_mAh, str_base_topic + "/data/battery_charged_mAh", 3);
-    publishIfChanged(Q_discharged_mAh_old[MQTT], Q_discharged_mAh, str_base_topic + "/data/battery_discharged_mAh", 3);
-
-    if (debug_flg_full_log) {
-        uint16_t inputLength = sizeof(receivedBytes_cell);
-        char output[base64::encodeLength(inputLength)];
-        base64::encode(receivedBytes_cell, inputLength, output);
-        str_topic = String(str_base_topic + "/debug/rawdata");
-        str_value = String(output);
-        mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-        mqtt_client.publish((str_base_topic + "/debug/enabled").c_str(), "true");
-    } else {
+    if (debug_flg_full) {
+        char message_base64[base64::encodeLength(300)];                   // Buffer für die Base64-kodierte Nachricht
+        uint8_t *rawDataPtr = (uint8_t *)&celldata;                       // Zeiger auf die Rohdaten der Struktur
+        base64::encode((const uint8_t *)rawDataPtr, 300, message_base64); // Base64-kodieren der Rohdaten);
+        toMqttQueue(base_debug + "rawdata", message_base64);
+        toMqttQueue(base_debug + "enabled", "true");
+    }
+    else {
         if (debug_flg) {
-            str_topic = String(str_base_topic + "/debug/rawdata");
-            str_value = "not published";
-            mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-            mqtt_client.publish((str_base_topic + "/debug/enabled").c_str(), "false");
+            toMqttQueue(base_debug + "rawdata", "not published");
+            toMqttQueue(base_debug + "enabled", "false");
         }
     }
 
-    // Read cell voltages
-    float volts[30];
-    for (int i = 0; i < 30; i++) {
-        uint16_t volt = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8);
-        volts[i] = volt * 0.001;
-    }
-
-    // DEBUG_PRINT("volts: ");
-    str_topic = String(str_base_topic + "/data/cells/voltage/cell_v_");
-    for (uint8_t i = 0; i < 30; i++) {
-        // DEBUG_PRINT(volts[i]);
-        // DEBUG_PRINT(" ");
-        if (volts[i] != volts_old[i][MQTT]) {
-            str_value = String(volts[i], 3);
-            String topic;
-            if (i < 9)
-                topic = str_topic + String("0") + String(i + 1);
-            else
-                topic = str_topic + String(i + 1);
-            if (volts[i] != 0) {
-                mqtt_client.publish(topic.c_str(), str_value.c_str());
+    // Cell Voltages
+    char topic_buffer[128];
+    for (uint8_t i = 0; i < 32; i++) {
+        snprintf(topic_buffer, sizeof(topic_buffer), "%s%02d", (base_data + "cells/voltage/cell_v_").c_str(), i + 1);
+        if (celldata.CellVol[i] != 0) {
+            publishIfChanged(cdOld[MQTT].CellVol[i], celldata.CellVol[i], celldata.CellVol_fmt[i], topic_buffer);
 #ifdef INFLUX_CELLS_VOLTAGE
-                publishToInfluxDB("cell_" + String(i + 1), volts[i]);
+            publishToInfluxDB("cell_" + String(i + 1), celldata.CellVol[i]);
 #endif
-            }
         }
-        volts_old[i][MQTT] = volts[i];
     }
-    // DEBUG_PRINTLN();
 
-    // ignore 4 bytes
-    index += 4;
-
-    // read the mask
-    uint32_t uint32_t_value = (receivedBytes_cell[index++] << 24) |
-                              (receivedBytes_cell[index++] << 16) |
-                              (receivedBytes_cell[index++] << 8) |
-                              (receivedBytes_cell[index++]);
-
+    // CellSta as bitmask
     if (debug_flg) {
-        if (uint32_t_value != cells_used || cells_used == 0) {
-            DEBUG_PRINT("mask: ");
-            String cellsUsedMaskStr = toBinaryString(uint32_t_value, 32);
-            DEBUG_PRINTLN(cellsUsedMaskStr);
+        publishIfChanged(cdOld[MQTT].CellSta, celldata.CellSta, celldata.CellSta_fmt, base_data + "cells_used");
+    }
 
-            str_topic = String(str_base_topic + "/data/cells_used");
-            mqtt_client.publish(str_topic.c_str(), cellsUsedMaskStr.c_str());
-            cells_used = uint32_t_value;
+    // Cell Average Voltage
+    publishIfChanged(cdOld[MQTT].CellVolAve, celldata.CellVolAve, celldata.CellVolAve_fmt, base_data + "cells/voltage/cell_avg_voltage");
+
+    // Cell Voltage Difference
+    publishIfChanged(cdOld[MQTT].CellVdifMax, celldata.CellVdifMax, celldata.CellVdifMax_fmt, base_data + "cells/voltage/cell_diff_voltage");
+
+    // High Voltage Cell
+    publishIfChanged(cdOld[MQTT].MaxVolCellNbr, celldata.MaxVolCellNbr, celldata.MaxVolCellNbr_fmt, base_data + "cells/voltage/high_voltage_cell");
+
+    // Low Voltage Cell
+    publishIfChanged(cdOld[MQTT].MinVolCellNbr, celldata.MinVolCellNbr, celldata.MinVolCellNbr_fmt, base_data + "cells/voltage/low_voltage_cell");
+
+    // Cell resistances
+    for (uint8_t i = 0; i < 32; i++) {
+        snprintf(topic_buffer, sizeof(topic_buffer), "%s%02d", (base_data + "cells/resistance/cell_r_").c_str(), i + 1);
+        if (celldata.CellWireRes[i] != 0) {
+            publishIfChanged(cdOld[MQTT].CellWireRes[i], celldata.CellWireRes[i], celldata.CellWireRes_fmt[i], topic_buffer);
         }
     }
 
-    // Read cell average voltage
-    float fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8) * 0.001;
-    publishIfChanged(cell_avg_voltage[MQTT], fl_value, str_base_topic + "/data/cells/voltage/cell_avg_voltage", 3);
-
-    // Read cell voltage difference
-#if DIFFV_DIVIDER == 1
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8)
-    publishIfChanged(cell_diff_voltage[MQTT], fl_value, str_base_topic + "/data/cells/voltage/cell_diff_voltage", 0);
-#else
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8) * 0.001;
-    publishIfChanged(cell_diff_voltage[MQTT], fl_value, str_base_topic + "/data/cells/voltage/cell_diff_voltage", 3);
-#endif
-
-    // high_voltage_cell
-    byte byte_value = receivedBytes_cell[index++];
-    publishIfChanged(high_voltage_cell[MQTT], byte_value, str_base_topic + "/data/cells/voltage/high_voltage_cell");
-
-    // low_voltage_cell
-    byte_value = receivedBytes_cell[index++];
-    publishIfChanged(low_voltage_cell[MQTT], byte_value, str_base_topic + "/data/cells/voltage/low_voltage_cell");
-
-    // Read cell resistances
-    float cellResistance[30];
-    for (int i = 0; i < 30; i++) {
-        uint16_t resistance = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8);
-        cellResistance[i] = resistance * 0.001;
-    }
-
-    DEBUG_PRINT("cellResistance: ");
-
-    str_topic = String(str_base_topic + "/data/cells/resistance/cell_r_");
-    for (uint8_t i = 0; i < 30; i++) {
-        // DEBUG_PRINT(cellResistance[i]);
-        // DEBUG_PRINT(" ");
-
-        if (cellResistance[i] != cellResistance_old[i][MQTT] || cellResistance_old[i][MQTT] == 0) {
-
-            str_value = String(cellResistance[i], 3);
-            String topic;
-            if (i < 9)
-                topic = str_topic + String("0") + String(i + 1);
-            else
-                topic = str_topic + String(i + 1);
-            if (cellResistance[i] != 0) {
-                mqtt_client.publish(topic.c_str(), str_value.c_str());
-            }
-            cellResistance_old[i][MQTT] = cellResistance[i];
-        }
-    }
-    // DEBUG_PRINTLN();
-
-    // ignore 4 bytes
-    index += 4;
-
-    // temp_mosfet
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8) * 0.1;
-    publishIfChanged(temp_mosfet[MQTT], fl_value, str_base_topic + "/data/temperatures/temp_mosfet");
+    // Temp MOSFET
+    publishIfChanged(cdOld[MQTT].TempMos, celldata.TempMos, celldata.TempMos_fmt, base_data + "temperatures/temp_mosfet");
 #ifdef INFLUX_TEMP_SENSOR_MOSFET
-    publishIfChangedInflux(temp_mosfet[INFLUX], fl_value, "temp_mosfet");
+    publishIfChangedInflux(cdOld[INFLUX].TempMos, celldata.TempMos, celldata.TempMos_fmt, "temp_mosfet");
 #endif
 
-    // read the mask
-    uint32_t_value = (receivedBytes_cell[index++] << 24) |
-                     (receivedBytes_cell[index++] << 16) |
-                     (receivedBytes_cell[index++] << 8) |
-                     (receivedBytes_cell[index++]);
-
+    // Cell Wire Resistance Status as bitmask
     if (debug_flg) {
-        if (uint32_t_value != cell_resistance_alert[MQTT] || cell_resistance_alert[MQTT] == 255) {
-            DEBUG_PRINT("resistanceAlertMask: ");
-            String resistanceAlertMaskStr = toBinaryString(uint32_t_value, 32);
-            DEBUG_PRINTLN(resistanceAlertMaskStr);
-            str_topic = String(str_base_topic + "/data/cell_resistance_alert");
-            mqtt_client.publish(str_topic.c_str(), resistanceAlertMaskStr.c_str());
-            cell_resistance_alert[MQTT] = uint32_t_value;
-        }
+        publishIfChanged(cdOld[MQTT].CellWireResSta, celldata.CellWireResSta, celldata.CellWireResSta_fmt, base_data + "cell_resistance_alert");
     }
 
-    // battery_voltage
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8 | receivedBytes_cell[index++] << 16 | receivedBytes_cell[index++] << 24) * 0.001;
-    publishIfChanged(battery_voltage[MQTT], fl_value, str_base_topic + "/data/battery_voltage");
+    // Battery Total Voltage
+    publishIfChanged(cdOld[MQTT].BatVol, celldata.BatVol, celldata.BatVol_fmt, base_data + "battery_voltage");
 #ifdef INFLUX_BATTERY_VOLTAGE
-    publishIfChangedInflux(battery_voltage[INFLUX], fl_value, "battery_voltage");
+    publishIfChangedInflux(cdOld[INFLUX].BatVol, celldata.BatVol, celldata.BatVol_fmt, "battery_voltage");
 #endif
 
-    // battery_power
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8 | receivedBytes_cell[index++] << 16 | receivedBytes_cell[index++] << 24) * 0.001;
-    publishIfChanged(battery_power[MQTT], fl_value, str_base_topic + "/data/battery_power");
-
-    // index 158
-    //  battery_charge_current
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8 | receivedBytes_cell[index++] << 16 | receivedBytes_cell[index++] << 24) * 0.001;
-    publishIfChanged(battery_charge_current[MQTT], fl_value, str_base_topic + "/data/battery_charge_current");
-#ifdef INFLUX_BATTERY_CURRENT
-    publishIfChangedInflux(battery_charge_current[INFLUX], fl_value, "battery_current");
-#endif
-
-    if (battery_charge_current[MQTT] < 0)
-        fl_value = 0 - battery_power[MQTT];
-    else
-        fl_value = battery_power[MQTT];
-
-    // this is to have the correct sign for the power (discharging "-" or charging)
-    publishIfChanged(battery_power_calculated[MQTT], fl_value, str_base_topic + "/data/battery_power_calculated");
+    // Battery Power
+    publishIfChanged(cdOld[MQTT].BatWatt, celldata.BatWatt, celldata.BatWatt_fmt, base_data + "battery_power");
 #ifdef INFLUX_BATTERY_POWER
-    publishIfChangedInflux(battery_power_calculated[INFLUX], fl_value, "battery_power");
+    publishIfChangedInflux(cdOld[INFLUX].BatWatt, celldata.BatWatt, celldata.BatWatt_fmt, "battery_power");
 #endif
 
-    // temp_sensor1
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8) * 0.1;
-    publishIfChanged(temp_sensor1[MQTT], fl_value, str_base_topic + "/data/temperatures/temp_sensor1");
+    // Battery Current
+    publishIfChanged(cdOld[MQTT].BatCurrent, celldata.BatCurrent, celldata.BatCurrent_fmt, base_data + "battery_current");
+#ifdef INFLUX_BATTERY_CURRENT
+    publishIfChangedInflux(cdOld[INFLUX].BatCurrent, celldata.BatCurrent, celldata.BatCurrent_fmt, "battery_current");
+#endif
+
+    // Signed Battery Power for MQTT and InfluxDB
+    // this is to have the correct sign for the power (discharging "-" or charging)
+    char signed_BatWatt_str[32];
+    dtostrf((celldata.BatCurrent < 0) ? (float)(0 - celldata.BatWatt * 0.001) : (float)celldata.BatWatt * 0.001, 0, 3, signed_BatWatt_str); // to have the correct sign for the power (discharging "-" or charging)
+    publishIfChanged(battery_power_calculated[MQTT], celldata.BatWatt, signed_BatWatt_str, base_data + "battery_power_calculated");
+#ifdef INFLUX_BATTERY_POWER
+    publishIfChangedInflux(battery_power_calculated[INFLUX], celldata.BatWatt, signed_BatWatt_str, "battery_power");
+#endif
+
+    // Batterie Temp Sensor 1
+    publishIfChanged(cdOld[MQTT].TempBat1, celldata.TempBat1, celldata.TempBat1_fmt, base_data + "temperatures/temp_sensor1");
 #ifdef INFLUX_TEMP_SENSOR_1
-    publishIfChangedInflux(temp_sensor1[INFLUX], fl_value, "temp_sensor1");
+    publishIfChangedInflux(cdOld[INFLUX].TempBat1, celldata.TempBat1, celldata.TempBat1_fmt, "temp_sensor1");
 #endif
 
-    // temp_sensor2
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8) * 0.1;
-    publishIfChanged(temp_sensor2[MQTT], fl_value, str_base_topic + "/data/temperatures/temp_sensor2");
+    // Batterie Temp Sensor 2
+    publishIfChanged(cdOld[MQTT].TempBat2, celldata.TempBat2, celldata.TempBat2_fmt, base_data + "temperatures/temp_sensor2");
 #ifdef INFLUX_TEMP_SENSOR_2
-    publishIfChangedInflux(temp_sensor2[INFLUX], fl_value, "temp_sensor2");
+    publishIfChangedInflux(cdOld[INFLUX].TempBat2, celldata.TempBat2, celldata.TempBat2_fmt, "temp_sensor2");
 #endif
 
-    uint32_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8 | receivedBytes_cell[index++] << 16 | receivedBytes_cell[index++] << 24);
-    publishIfChanged(alarm_raw[MQTT], uint32_t_value, str_base_topic + "/data/alarms/alarm_raw");
+    // Alarms as raw dezimal, bitmask and resolved alarms according to BMS RS485 ModbusV1.1 2024.02 Page 10
+    publishIfChanged(cdOld[MQTT].AlarmBitMask, celldata.AlarmBitMask, celldata.Alarm_raw_fmt, base_data + "alarms/alarm_raw");
 
-    if (uint32_t_value != alarms_mask[MQTT] || alarms_mask[MQTT] == 0xFFFFFFFF) {
-
-        if (debug_flg) {
-            DEBUG_PRINT("errorsMask: ");
-            String errorsMaskStr = toBinaryString(uint32_t_value, 32);
-            DEBUG_PRINTLN(errorsMaskStr);
-            str_topic = String(str_base_topic + "/data/alarms/alarms_mask");
-            mqtt_client.publish(str_topic.c_str(), errorsMaskStr.c_str());
-        }
-
-        // resolve alarms according to 极空BMS RS485 Modbus通用协议V1.1 2024.02 Page 10
-
-        // AlarmWireRes; 1：ON; 0：OFF;  BIT0
-        // AlarmMosOTP; 1：ON; 0：OFF;  BIT1
-        // AlarmCellQuantity; 1：ON; 0：OFF;  BIT2
-        // AlarmCurSensorErr; 1：ON; 0：OFF;  BIT3
-        // AlarmCellOVP; 1：ON; 0：OFF;  BIT4
-        // AlarmBatOVP; 1：ON; 0：OFF;  BIT5
-        // AlarmChOCP; 1：ON; 0：OFF;  BIT6
-        // AlarmChSCP; 1：ON; 0：OFF;  BIT7
-        // AlarmChOTP; 1：ON; 0：OFF;  BIT8
-        // AlarmChUTP; 1：ON; 0：OFF;  BIT9
-        // AlarmCPUAuxCommuErr; 1：ON; 0：OFF;  BIT10
-        // AlarmCellUVP; 1：ON; 0：OFF;  BIT11
-        // AlarmBatUVP; 1：ON; 0：OFF;  BIT12
-        // AlarmDchOCP; 1：ON; 0：OFF;  BIT13
-        // AlarmDchSCP; 1：ON; 0：OFF;  BIT14
-        // AlarmDchOTP; 1：ON; 0：OFF;  BIT15
-        // AlarmChargeMOS; 1：ON; 0：OFF;  BIT16
-        // AlarmDischargeMOS; 1：ON; 0：OFF;  BIT17
-        // GPSDisconneted; 1：ON; 0：OFF;  BIT18
-        // Modify PWD. in time; 1：ON; 0：OFF;  BIT19
-        // Discharge On Failed; 1：ON; 0：OFF;  BIT20
-        // Battery Over Temp Alarm; 1：ON; 0：OFF;  BIT21
-        // Temperature sensor anomaly; 1：ON; 0：OFF;  BIT22
-        // PLCModule anomaly; 1：ON; 0：OFF;  BIT23
-
-        for (int i = 0; i < 24; ++i) {
-            String status = (uint32_t_value & (1 << i)) ? "ON" : "OFF";
-            str_topic = str_base_topic + "/data/alarms/" + alarmStrings[i];
-            mqtt_client.publish(str_topic.c_str(), status.c_str());
-        }
-
-        alarms_mask[MQTT] = uint32_t_value;
+    if (debug_flg) {
+        publishIfChanged(cdOld[MQTT].AlarmBitMask, celldata.AlarmBitMask, celldata.AlarmBitMask_fmt, base_data + "alarms/alarms_mask");
+    }
+    for (int i = 0; i < 24; ++i) {
+        publishIfChanged(cdOld[MQTT].AlarmBitMask, celldata.AlarmBitMask, celldata.AlarmsValue_fmt[i], base_data + "alarms/" + String(celldata.AlarmsTopics[i]));
     }
 
-    int16_t int16_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8); // mA
-    publishIfChanged(balance_current[MQTT], int16_t_value, str_base_topic + "/data/balance_current");
+    // Balance Current
+    publishIfChanged(cdOld[MQTT].BalanCurrent, celldata.BalanCurrent, celldata.BalanCurrent_fmt, base_data + "balance_current");
 
-    byte_value = receivedBytes_cell[index++];
-    publishIfChanged(balancing_action[MQTT], byte_value, str_base_topic + "/data/balancing_action");
+    // Balance Status
+    publishIfChanged(cdOld[MQTT].BalanSta, celldata.BalanSta, celldata.BalanSta_fmt, base_data + "balance_status");
 
-    uint8_t uint8_t_value = receivedBytes_cell[index++];
-    publishIfChanged(battery_soc[MQTT], uint8_t_value, str_base_topic + "/data/battery_soc");
+    // State of Charge
+    publishIfChanged(cdOld[MQTT].SOCStateOfcharge, celldata.SOCStateOfcharge, celldata.SOCStateOfcharge_fmt, base_data + "battery_soc");
 #ifdef INFLUX_BATTERY_SOC
-    publishIfChangedInflux(battery_soc[INFLUX], uint8_t_value, "battery_soc");
+    publishIfChangedInflux(cdOld[INFLUX].SOCStateOfcharge, celldata.SOCStateOfcharge, celldata.SOCStateOfcharge_fmt, "battery_soc");
 #endif
 
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8 | receivedBytes_cell[index++] << 16 | receivedBytes_cell[index++] << 24) * 0.001;
-    publishIfChanged(battery_capacity_remaining[MQTT], fl_value, str_base_topic + "/data/battery_capacity_remaining");
+    // Battery Capacity Remaining
+    publishIfChanged(cdOld[MQTT].SOCCapRemain, celldata.SOCCapRemain, celldata.SOCCapRemain_fmt, base_data + "battery_capacity_remaining");
 
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8 | receivedBytes_cell[index++] << 16 | receivedBytes_cell[index++] << 24) * 0.001;
-    publishIfChanged(battery_capacity_total[MQTT], fl_value, str_base_topic + "/data/battery_capacity_total");
+    // Battery Capacity Total
+    publishIfChanged(cdOld[MQTT].SOCFullChargeCap, celldata.SOCFullChargeCap, celldata.SOCFullChargeCap_fmt, base_data + "battery_capacity_total");
 
-    uint32_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8 | receivedBytes_cell[index++] << 16 | receivedBytes_cell[index++] << 24);
-    publishIfChanged(battery_cycle_count[MQTT], uint32_t_value, str_base_topic + "/data/battery_cycle_count");
+    // Battery Cycle Count
+    publishIfChanged(cdOld[MQTT].SOCCycleCount, celldata.SOCCycleCount, celldata.SOCCycleCount_fmt, base_data + "battery_cycle_count");
 
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8 | receivedBytes_cell[index++] << 16 | receivedBytes_cell[index++] << 24) * 0.001;
-    publishIfChanged(battery_cycle_capacity_total[MQTT], fl_value, str_base_topic + "/data/battery_cycle_capacity_total");
+    // Battery Cycle Capacity Total
+    publishIfChanged(cdOld[MQTT].SOCCycleCap, celldata.SOCCycleCap, celldata.SOCCycleCap_fmt, base_data + "battery_cycle_capacity_total");
 
-    byte_value = receivedBytes_cell[index++];
-    publishIfChanged(battery_soh[MQTT], byte_value, str_base_topic + "/data/battery_soh");
+    // Battery SOH
+    publishIfChanged(cdOld[MQTT].SOCSOH, celldata.SOCSOH, celldata.SOCSOH_fmt, base_data + "battery_soh");
 
-    byte_value = receivedBytes_cell[index++];
-    publishIfChanged(battery_precharge_status[MQTT], byte_value, str_base_topic + "/data/battery_precharge_status");
+    // Battery Precharge Status
+    publishIfChanged(cdOld[MQTT].Precharge, celldata.Precharge, celldata.Precharge_fmt, base_data + "battery_precharge_status");
 
-    uint16_t uint16_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8);
-    publishIfChanged(battery_user_alarm1[MQTT], uint16_t_value, str_base_topic + "/data/battery_user_alarm1");
+    // Battery User Alarm 1
+    publishIfChanged(cdOld[MQTT].UserAlarm, celldata.UserAlarm, celldata.UserAlarm_fmt, base_data + "battery_user_alarm1");
 
-    uint32_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8 | receivedBytes_cell[index++] << 16 | receivedBytes_cell[index++] << 24);
-    // DEBUG_PRINT("totalRuntime: ");
-    // DEBUG_PRINTLN(uint32_t_value);
-    str_value = String(uint32_t_value);
-    str_topic = String(str_base_topic + "/data/battery_total_runtime");
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
+    // Battery Total Runtime in seconds and in human-readable format
+    publishIfChanged(cdOld[MQTT].RunTime, celldata.RunTime, celldata.RunTime_fmt, base_data + "battery_total_runtime_sec");
+    publishIfChanged(cdOld[MQTT].RunTime2, celldata.RunTime, celldata.RunTime_fmt_dhms, base_data + "battery_total_runtime_fmt");
 
-    byte sec = uint32_t_value % 60;
-    uint32_t_value /= 60;
-    byte mi = uint32_t_value % 60;
-    uint32_t_value /= 60;
-    byte hr = uint32_t_value % 24;
-    byte days = uint32_t_value /= 24;
-    // DEBUG_PRINTLN(String(days) + " days " + String(hr) + ":" + String(mi) + ":" + String(sec));
-    str_topic = String(str_base_topic + "/data/battery_total_runtime_fmt");
-    mqtt_client.publish(str_topic.c_str(), (String(days) + " days " + String(hr) + ":" + String(mi) + ":" + String(sec)).c_str());
+    // Charging MOSFET Status
+    publishIfChanged(cdOld[MQTT].Charge, celldata.Charge, celldata.Charge_fmt, base_data + "charging_mosfet_status");
 
-    // charging_mosfet_status
-    byte_value = receivedBytes_cell[index++];
-    publishIfChanged(charging_mosfet_status[MQTT], byte_value, str_base_topic + "/data/charging_mosfet_status");
+    // Discharging MOSFET Status
+    publishIfChanged(cdOld[MQTT].Discharge, celldata.Discharge, celldata.Discharge_fmt, base_data + "discharging_mosfet_status");
 
-    // discharging_mosfet_status
-    byte_value = receivedBytes_cell[index++];
-    publishIfChanged(discharging_mosfet_status[MQTT], byte_value, str_base_topic + "/data/discharging_mosfet_status");
+    // Battery User Alarm 2
+    publishIfChanged(cdOld[MQTT].UserAlarm2, celldata.UserAlarm2, celldata.UserAlarm2_fmt, base_data + "battery_user_alarm2");
 
-    // battery_user_alarm2
-    uint16_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8);
-    publishIfChanged(battery_user_alarm2[MQTT], uint16_t_value, str_base_topic + "/data/battery_user_alarm2");
+    // Time Discharge Over Current Protection Release (timeDcOCPR)
+    publishIfChanged(cdOld[MQTT].TimeDcOCPR, celldata.TimeDcOCPR, celldata.TimeDcOCPR_fmt, base_data + "timeDcOCPR");
 
-    // timeDcOCPR
-    uint16_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8);
-    publishIfChanged(timeDcOCPR[MQTT], uint16_t_value, str_base_topic + "/data/alarms/timeDcOCPR");
+    // Time Discharge Short Circuit Protection Release (timeDcSCPR)
+    publishIfChanged(cdOld[MQTT].TimeDcSCPR, celldata.TimeDcSCPR, celldata.TimeDcSCPR_fmt, base_data + "timeDcSCPR");
 
-    // timeDcSCPR
-    uint16_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8);
-    publishIfChanged(timeDcSCPR[MQTT], uint16_t_value, str_base_topic + "/data/alarms/timeDcSCPR");
+    // Time Charge Over Current Protection Release (timeCOCPR)
+    publishIfChanged(cdOld[MQTT].TimeCOCPR, celldata.TimeCOCPR, celldata.TimeCOCPR_fmt, base_data + "timeCOCPR");
 
-    // timeCOCPR
-    uint16_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8);
-    publishIfChanged(timeCOCPR[MQTT], uint16_t_value, str_base_topic + "/data/alarms/timeCOCPR");
+    // Time Charge Short Circuit Protection Release (timeCSCPR)
+    publishIfChanged(cdOld[MQTT].TimeCSCPR, celldata.TimeCSCPR, celldata.TimeCSCPR_fmt, base_data + "timeCSCPR");
 
-    // timeCSCPR
-    uint16_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8);
-    publishIfChanged(timeCSCPR[MQTT], uint16_t_value, str_base_topic + "/data/alarms/timeCSCPR");
+    // Time Under Voltage Protection Release (timeUVPR)
+    publishIfChanged(cdOld[MQTT].TimeUVPR, celldata.TimeUVPR, celldata.TimeUVPR_fmt, base_data + "timeUVPR");
 
-    // timeUVPR
-    uint16_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8);
-    publishIfChanged(timeUVPR[MQTT], uint16_t_value, str_base_topic + "/data/alarms/timeUVPR");
+    // Time Over Voltage Protection Release (timeOVPR)
+    publishIfChanged(cdOld[MQTT].TimeOVPR, celldata.TimeOVPR, celldata.TimeOVPR_fmt, base_data + "timeOVPR");
 
-    // timeOVPR
-    uint16_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8);
-    publishIfChanged(timeOVPR[MQTT], uint16_t_value, str_base_topic + "/data/alarms/timeOVPR");
-
-    byte_value = (receivedBytes_cell[index++]);
-    if (byte_value != temp_sensor_absent_mask || temp_sensor_absent_mask == 0x00) {
-        if (debug_flg) {
-            DEBUG_PRINT("temp_sensor_absent_mask: ");
-            DEBUG_PRINTLN(byte_value);
-            String temp_sensor_absent_mask_str = toBinaryString(byte_value, 8);
-            str_value = String(temp_sensor_absent_mask_str);
-            str_topic = String(str_base_topic + "/data/temperatures/temp_sensor_absent_mask");
-            mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-        }
-
-        // resolve temp sensor absent mask according to 极空BMS RS485 Modbus通用协议V1.1 2024.02 Page 11
-        // MOS TempSensorAbsent; 1：Normal; 0：Missing; BIT0
-        // BATTempSensor1Absent; 1：Normal; 0：Missing; BIT1
-        // BATTempSensor2Absent; 1：Normal; 0：Missing; BIT2
-        // BATTempSensor3Absent; 1：Normal; 0：Missing; BIT3
-        // BATTempSensor4Absent; 1：Normal; 0：Missing; BIT4
-        // BATTempSensor5Absent; 1：Normal; 0：Missing; BIT5
-
-        for (int i = 0; i < 6; ++i) {
-            String status = (byte_value & (1 << i)) ? "Normal" : "Missing";
-            String str_topic = str_base_topic + "/data/temperatures/" + temp_sensors_absent[i];
-            mqtt_client.publish(str_topic.c_str(), status.c_str());
-        }
-
-        temp_sensor_absent_mask = byte_value;
-    }
-
-    // battery_heating
-    byte_value = (receivedBytes_cell[index++]);
-    publishIfChanged(battery_heating[MQTT], byte_value, str_base_topic + "/data/temperatures/battery_heating");
-
-    // send current index to debug topic
+    // Temperature Sensor Absent Mask as raw dezimal, bitmask and resolved according to BMS RS485 ModbusV1.1 2024.02 Page 11
+    publishIfChanged(cdOld[MQTT].TempSensorAbsentMask, celldata.TempSensorAbsentMask, celldata.TempSensorAbsent_fmt, base_data + "temperatures/temp_sensor_absent");
     if (debug_flg) {
-        str_value = String(index);
-        str_topic = String(str_base_topic + "/debug/last_index_1");
-        mqtt_client.publish(str_topic.c_str(), str_value.c_str());
+        publishIfChanged(cdOld[MQTT].TempSensorAbsentMask, celldata.TempSensorAbsentMask, celldata.TempSensorAbsentMask_fmt, base_data + "temperatures/temp_sensor_absent_mask");
+    }
+    for (int i = 0; i < 6; ++i) {
+        publishIfChanged(cdOld[MQTT].TempSensorAbsentMask, celldata.TempSensorAbsentMask, celldata.TempSensAbsentValues_fmt[i], base_data + "temperatures/" + String(celldata.TempSensorsAbsentTopics[i]));
     }
 
-    // index 216
-    index += 2; // skip 2 reserved byte; see MODBUS V1.1; at adress 210 (216 for BLE) 
-    // from now on the suspect values are not so suspect anymore :-)
-    
-    // index 218
-    // suspect: time_emergency
-    uint16_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8);
-    if (debug_flg) {
-        DEBUG_PRINT("time_emergency: ");
-        DEBUG_PRINTLN(uint16_t_value);
-        publishIfChanged(time_emergency[MQTT], uint16_t_value, str_base_topic + "/data/sus/time_emergency");
-    }
+    // Battery Heating
+    publishIfChanged(cdOld[MQTT].Heating, celldata.Heating, celldata.Heating_fmt, base_data + "temperatures/battery_heating");
 
-    // index 220
-    // suspect:  Discharge current correction factor
-    uint16_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8);
-    if (debug_flg) {
-        DEBUG_PRINT("bat_dis_cur_correct: ");
-        DEBUG_PRINTLN(uint16_t_value);
-        publishIfChanged(bat_dis_cur_correct[MQTT], uint16_t_value, str_base_topic + "/data/sus/bat_dis_cur_correct");
-    }
+    // Time Emergency
+    publishIfChanged(cdOld[MQTT].TimeEmergency, celldata.TimeEmergency, celldata.TimeEmergency_fmt, base_data + "time_emergency");
 
-    // index 222
-    // suspect: Charging current sensor voltage
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8) * 0.001;
-    if (debug_flg) {
-        DEBUG_PRINT("vol_charg_cur: ");
-        DEBUG_PRINTLN(fl_value);
-        publishIfChanged(vol_charg_cur[MQTT], fl_value, str_base_topic + "/data/sus/vol_charg_cur");
-    }
+    // Heating Current
+    publishIfChanged(cdOld[MQTT].HeatCurrent, celldata.HeatCurrent, celldata.HeatCurrent_fmt, base_data + "heat_current");
 
-    // index 224
-    // suspect: Discharge current sensor voltage.
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8) * 0.001;
-    if (debug_flg) {
-        DEBUG_PRINT("vol_discharg_cur: ");
-        DEBUG_PRINTLN(fl_value);
-        publishIfChanged(vol_discharg_cur[MQTT], fl_value, str_base_topic + "/data/sus/vol_discharg_cur");
-    }
+    // System run ticks, unit: 0.1s, range: 0~4294967295
+    publishIfChanged(cdOld[MQTT].SysRunTicks, celldata.SysRunTicks, celldata.SysRunTicks_fmt, base_data + "sys_run_ticks");
 
-    // index 226
-    // suspect: Battery voltage correction factor; this defined as IEEE754 FLOAT format in MODBUS V1.1! see page 12 MODBUS adress 220 (BLE 226)
-    uint32_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8 | receivedBytes_cell[index++] << 16 | receivedBytes_cell[index++] << 24);
-    memcpy(&fl_value, &uint32_t_value, 4);
-    if (debug_flg) {
-        DEBUG_PRINT("bat_vol_correct: ");
-        DEBUG_PRINTLN(fl_value);
-        publishIfChanged(bat_vol_correct[MQTT], fl_value, str_base_topic + "/data/sus/bat_vol_correct", 3);
-    }
-
-    // index 230
-    index += 4; // skip 4 reserved bytes
-
-    // index 234
-    // suspect: Battery voltage
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8) * 0.01;
-    if (debug_flg) {
-        DEBUG_PRINT("bat_vol: ");
-        DEBUG_PRINTLN(fl_value);
-        publishIfChanged(bat_vol[MQTT], fl_value, str_base_topic + "/data/sus/bat_vol");
-    }
-
-    // index 236
-    // suspect: Heating current
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8) * 0.001;
-    if (debug_flg) {
-        DEBUG_PRINT("heat_current: ");
-        DEBUG_PRINTLN(fl_value);
-        publishIfChanged(heat_current[MQTT], fl_value, str_base_topic + "/data/sus/heat_current");
-    }
-
-    // index 238
-    //  skip 7 sus bytes
-    index += 7;
-
-    // index 245
-    byte_value = receivedBytes_cell[index++];
-    if (debug_flg) {
-        DEBUG_PRINT("charger_plugged: ");
-        DEBUG_PRINTLN(byte_value);
-        publishIfChanged(charger_plugged[MQTT], byte_value, str_base_topic + "/data/sus/charger_plugged");
-    }
-
-    // index 246
-    // 0x00F0 240 UINT32 4 R 系统节拍SysRunTicks 0.1S
-    uint32_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8 | receivedBytes_cell[index++] << 16 | receivedBytes_cell[index++] << 24);
-    if (debug_flg) {
-        DEBUG_PRINT("sys_run_ticks: ");
-        DEBUG_PRINTLN(uint32_t_value);
-        publishIfChanged(sys_run_ticks[MQTT], uint32_t_value, str_base_topic + "/data/sus/sys_run_ticks");
-    }
-
-    // index 250
-    index += 2; // skip 2 sus bytes
-
-    // index 252
-    index += 2; // skip 2 sus bytes
-
-    // index 254
-    // send current index to debug topic
-    if (debug_flg) {
-        str_value = String(index);
-        str_topic = String(str_base_topic + "/debug/last_index_2");
-        mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-    }
-
-    // temp_sensor3
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8) * 0.1;
-    publishIfChanged(temp_sensor3[MQTT], fl_value, str_base_topic + "/data/temperatures/temp_sensor3");
+    // Batterie Temp Sensor3
+    publishIfChanged(cdOld[MQTT].TempBat3, celldata.TempBat3, celldata.TempBat3_fmt, base_data + "temperatures/temp_sensor3");
 #ifdef INFLUX_TEMP_SENSOR_3
-    publishIfChangedInflux(temp_sensor3[INFLUX], fl_value, "temp_sensor3");
+    publishIfChangedInflux(cdOld[INFLUX].TempBat3, celldata.TempBat3, celldata.TempBat3_fmt, "temp_sensor3");
 #endif
 
-    // index 256
-    // temp_sensor4
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8) * 0.1;
-    publishIfChanged(temp_sensor4[MQTT], fl_value, str_base_topic + "/data/temperatures/temp_sensor4");
+    // Batterie Temp Sensor4
+    if (celldata.TempBat4 > 1200 || celldata.TempBat4 < -400) { // if the value is out of range, it could be that the sensor is not present or not working
+        publishIfChanged(cdOld[MQTT].TempBat4, celldata.TempBat4, "out of range", base_data + "temperatures/temp_sensor4");
+    }
+    else {
+        publishIfChanged(cdOld[MQTT].TempBat4, celldata.TempBat4, celldata.TempBat4_fmt, base_data + "temperatures/temp_sensor4");
 #ifdef INFLUX_TEMP_SENSOR_4
-    publishIfChangedInflux(temp_sensor4[INFLUX], fl_value, "temp_sensor4");
+        publishIfChangedInflux(cdOld[INFLUX].TempBat4, celldata.TempBat4, celldata.TempBat4_fmt, "temp_sensor4");
 #endif
+    }
 
-    // index 258
-    // temp_sensor5
-    fl_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8) * 0.1;
-    publishIfChanged(temp_sensor5[MQTT], fl_value, str_base_topic + "/data/temperatures/temp_sensor5");
+    // Batterie Temp Sensor5
+    if (celldata.TempBat5 > 1200 || celldata.TempBat5 < -400) { // if the value is out of range, it could be that the sensor is not present or not working
+        publishIfChanged(cdOld[MQTT].TempBat5, celldata.TempBat5, "out of range", base_data + "temperatures/temp_sensor5");
+    }
+    else {
+        publishIfChanged(cdOld[MQTT].TempBat5, celldata.TempBat5, celldata.TempBat5_fmt, base_data + "temperatures/temp_sensor5");
 #ifdef INFLUX_TEMP_SENSOR_5
-    publishIfChangedInflux(temp_sensor5[INFLUX], fl_value, "temp_sensor5");
+        publishIfChangedInflux(cdOld[INFLUX].TempBat5, celldata.TempBat5, celldata.TempBat5_fmt, "temp_sensor5");
 #endif
-
-    // index 260
-    index += 2; // skip 2 sus bytes
-
-    // index 262
-    // suspect: rtc_ticks
-    uint32_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8 | receivedBytes_cell[index++] << 16 | receivedBytes_cell[index++] << 24);
-    if (debug_flg) {
-        DEBUG_PRINT("rtc_ticks: ");
-        DEBUG_PRINTLN(uint32_t_value);
-        publishIfChanged(rtc_ticks[MQTT], uint32_t_value, str_base_topic + "/data/sus/rtc_ticks");
     }
 
-    // index 266
-    index += 4; // skip 4 sus bytes
+    // RTC Ticks
+    publishIfChanged(cdOld[MQTT].RTCTicks, celldata.RTCTicks, celldata.RTCTicksToSeconds_fmt, base_data + "rtc_ticks");
 
-    // index 270
-    // suspect: time_enter_sleep
-    uint32_t_value = (receivedBytes_cell[index++] | receivedBytes_cell[index++] << 8 | receivedBytes_cell[index++] << 16 | receivedBytes_cell[index++] << 24);
     if (debug_flg) {
-        DEBUG_PRINT("time_enter_sleep: ");
-        DEBUG_PRINTLN(uint32_t_value);
-        publishIfChanged(time_enter_sleep[MQTT], uint32_t_value, str_base_topic + "/data/sus/time_enter_sleep");
+        uint32_t MinFreeHeap = ESP.getMinFreeHeap();
+        String finishCellMsg = getLocalTimeString() + ": Finished parsing Cell data. Frame: " + String(celldata.FrameCounter) + " (Processing time: " + String(millis() - start_time) + " ms, Min Free Heap: " + String(MinFreeHeap) + " bytes)";
+        DEBUG_PRINTLN(finishCellMsg);
     }
-
-    // index 274
-    // suspect: PCLModuleSta Parallel current limiting module status 1: on; 0: off
-    byte_value = receivedBytes_cell[index++];
-    if (debug_flg) {
-        DEBUG_PRINT("pcl_module_status: ");
-        DEBUG_PRINTLN(byte_value);
-        publishIfChanged(pcl_module_status[MQTT], byte_value, str_base_topic + "/data/sus/pcl_module_status");
-    }
-
-    // index 275
-    DEBUG_PRINT("Index: ");
-    DEBUG_PRINTLN(index);
 }
 
+ConfigData configdata;
+
 void readConfigDataRecord(void *message, const char *devicename) {
-    uint8_t *data = static_cast<uint8_t *>(message);
-    DEBUG_PRINTLN("readConfigDataRecord");
+    // Kopiere die empfangenen Bytes in die DeviceData-Struktur
+    memcpy(&configdata, message, 300); // Kopiere 300 Bytes in die Struktur
+    configdata.update_switches(); // Update the switch values based on the bitmask
 
-    String str_base_topic = mqtt_main_topic + devicename;
-    String str_topic;
-    String str_value;
+    // MQTT-Themenbasis
+    String str_base_topic = mqtt_main_topic + devicename + "/config/";
 
-    str_topic = str_base_topic + "/config/device_id";
-    str_value = String(1);
-    // DEBUG_PRINTLN(str_topic + ": " + str_value);
-
-    size_t index = 4; // Skip the first 5 bytes
-    uint8_t uint8_t_value = data[index++];
-    // DEBUG_PRINT("message_type: ");
-    // DEBUG_PRINTLN(uint8_t_value);
-
-    uint8_t_value = data[index++];
-    // DEBUG_PRINT("count: ");
-    // DEBUG_PRINTLN(uint8_t_value);
-
-    float float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/vol_smart_sleep: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/vol_smart_sleep";
-    str_value = String(float_value, 3);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/vol_cell_uv: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/vol_cell_uv";
-    str_value = String(float_value, 3);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/vol_cell_uvpr: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/vol_cell_uvpr";
-    str_value = String(float_value, 3);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/vol_cell_ov: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/vol_cell_ov";
-    str_value = String(float_value, 3);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/vol_cell_ovpr: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/vol_cell_ovpr";
-    str_value = String(float_value, 3);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/vol_balan_trig: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/vol_balan_trig";
-    str_value = String(float_value, 3);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/vol_100_percent: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/vol_100_percent";
-    str_value = String(float_value, 3);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/vol_0_percent: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/vol_0_percent";
-    str_value = String(float_value, 3);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/vol_cell_rcv: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/vol_cell_rcv";
-    str_value = String(float_value, 3);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/vol_cell_rfv: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/vol_cell_rfv";
-    str_value = String(float_value, 3);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/vol_sys_pwr_off: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/vol_sys_pwr_off";
-    str_value = String(float_value, 3);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/cur_bat_coc: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/cur_bat_coc";
-    str_value = String(float_value, 3);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    uint32_t uint32_t_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/time_bat_cocp_delay: ");
-    // DEBUG_PRINTLN(uint32_t_value);
-    str_topic = str_base_topic + "/config/time_bat_cocp_delay";
-    str_value = String(uint32_t_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    uint32_t_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/time_bat_cocprd_delay: ");
-    // DEBUG_PRINTLN(uint32_t_value);
-    str_topic = str_base_topic + "/config/time_bat_cocprd_delay";
-    str_value = String(uint32_t_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/cur_bat_dc_oc: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/cur_bat_dc_oc";
-    str_value = String(float_value, 3);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    uint32_t_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/time_bat_dc_ocp_delay: ");
-    // DEBUG_PRINTLN(uint32_t_value);
-    str_topic = str_base_topic + "/config/time_bat_dc_ocp_delay";
-    str_value = String(uint32_t_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    uint32_t_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/time_bat_dc_oprd_delay: ");
-    // DEBUG_PRINTLN(uint32_t_value);
-    str_topic = str_base_topic + "/config/time_bat_dc_oprd_delay";
-    str_value = String(uint32_t_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    uint32_t_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/time_bat_scpr_delay: ");
-    // DEBUG_PRINTLN(uint32_t_value);
-    str_topic = str_base_topic + "/config/time_bat_scpr_delay";
-    str_value = String(uint32_t_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/cur_balance_max: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/cur_balance_max";
-    str_value = String(float_value, 3);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.1;
-    // DEBUG_PRINT(str_base_topic + "/config/tmp_bat_cot: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/tmp_bat_cot";
-    str_value = String(float_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.1;
-    // DEBUG_PRINT(str_base_topic + "/config/tmp_bat_cotpr: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/tmp_bat_cotpr";
-    str_value = String(float_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.1;
-    // DEBUG_PRINT(str_base_topic + "/config/tmp_bat_dc_ot: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/tmp_bat_dc_ot";
-    str_value = String(float_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.1;
-    // DEBUG_PRINT(str_base_topic + "/config/tmp_bat_dc_otpr: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/tmp_bat_dc_otpr";
-    str_value = String(float_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.1;
-    // DEBUG_PRINT(str_base_topic + "/config/tmp_bat_cut: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/tmp_bat_cut";
-    str_value = String(float_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.1;
-    // DEBUG_PRINT(str_base_topic + "/config/tmp_bat_cutpr: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/tmp_bat_cutpr";
-    str_value = String(float_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.1;
-    // DEBUG_PRINT(str_base_topic + "/config/tmp_mos_ot: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/tmp_mos_ot";
-    str_value = String(float_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.1;
-    // DEBUG_PRINT(str_base_topic + "/config/tmp_mos_otpr: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/tmp_mos_otpr";
-    str_value = String(float_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    uint32_t_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24);
-    // DEBUG_PRINT(str_base_topic + "/config/cell_count: ");
-    // DEBUG_PRINTLN(uint32_t_value);
-    str_topic = str_base_topic + "/config/cell_count";
-    str_value = String(uint32_t_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    uint32_t_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24);
-    // DEBUG_PRINT(str_base_topic + "/config/bat_charge_enabled: ");
-    // DEBUG_PRINTLN(uint32_t_value);
-    str_topic = str_base_topic + "/config/bat_charge_enabled";
-    str_value = String(uint32_t_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    uint32_t_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24);
-    // DEBUG_PRINT(str_base_topic + "/config/bat_discharge_enabled: ");
-    // DEBUG_PRINTLN(uint32_t_value);
-    str_topic = str_base_topic + "/config/bat_discharge_enabled";
-    str_value = String(uint32_t_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    uint32_t_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24);
-    // DEBUG_PRINT(str_base_topic + "/config/bat_balance_enabled: ");
-    // DEBUG_PRINTLN(uint32_t_value);
-    str_topic = str_base_topic + "/config/bat_balance_enabled";
-    str_value = String(uint32_t_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/cap_bat_cell: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/cap_bat_cell";
-    str_value = String(float_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    uint32_t_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24);
-    // DEBUG_PRINT(str_base_topic + "/config/scp_delay: ");
-    // DEBUG_PRINTLN(uint32_t_value);
-    str_topic = str_base_topic + "/config/scp_delay";
-    str_value = String(uint32_t_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    float_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24) * 0.001;
-    // DEBUG_PRINT(str_base_topic + "/config/vol_start_balance: ");
-    // DEBUG_PRINTLN(float_value);
-    str_topic = str_base_topic + "/config/vol_start_balance";
-    str_value = String(float_value, 3);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    // jump over resistance correction settings
-    index = 270;
-
-    uint32_t_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24);
-    // DEBUG_PRINT(str_base_topic + "/config/dev_address: ");
-    // DEBUG_PRINTLN(uint32_t_value);
-    str_topic = str_base_topic + "/config/dev_address";
-    str_value = String(uint32_t_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    uint32_t_value = (data[index++] | data[index++] << 8 | data[index++] << 16 | data[index++] << 24);
-    // DEBUG_PRINT(str_base_topic + "/config/tim_pro_discharge: ");
-    // DEBUG_PRINTLN(uint32_t_value);
-    str_topic = str_base_topic + "/config/tim_pro_discharge";
-    str_value = String(uint32_t_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    index = 284;
-    // two new values for heating start and stop temperature tested with firmware V15.41 on hardware 15H
+    // Veröffentliche die Konfigurationsdaten auf MQTT
+    // VolSmartSleep
+    toMqttQueue(str_base_topic + "vol_smart_sleep", String((float)configdata.VolSmartSleep * 0.001, 3));
+    // VolCellUV
+    toMqttQueue(str_base_topic + "vol_cell_uv", String((float)configdata.VolCellUV * 0.001, 3));
+    // VolCellUVPR
+    toMqttQueue(str_base_topic + "vol_cell_uvpr", String((float)configdata.VolCellUVPR * 0.001, 3));
+    // VolCellOV
+    toMqttQueue(str_base_topic + "vol_cell_ov", String((float)configdata.VolCellOV * 0.001, 3));
+    // VolCellOVPR
+    toMqttQueue(str_base_topic + "vol_cell_ovpr", String((float)configdata.VolCellOVPR * 0.001, 3));
+    // VolBalanTrig
+    toMqttQueue(str_base_topic + "vol_balan_trig", String((float)configdata.VolBalanTrig * 0.001, 3));
+    // VolSOC100%
+    toMqttQueue(str_base_topic + "vol_100_percent", String((float)configdata.VolSOC100percent * 0.001, 3));
+    // VolSOC0%
+    toMqttQueue(str_base_topic + "vol_0_percent", String((float)configdata.VolSOC0percent * 0.001, 3));
+    // VolCellRCV
+    toMqttQueue(str_base_topic + "vol_cell_rcv", String((float)configdata.VolCellRCV * 0.001, 3));
+    // VolCellRFV
+    toMqttQueue(str_base_topic + "vol_cell_rfv", String((float)configdata.VolCellRFV * 0.001, 3));
+    // VolSysPwrOff
+    toMqttQueue(str_base_topic + "vol_sys_pwr_off", String((float)configdata.VolSysPwrOff * 0.001, 3));
+    // CurBatCOC
+    toMqttQueue(str_base_topic + "cur_bat_coc", String((float)configdata.CurBatCOC * 0.001, 3));
+    // TIMBatCOCPDly
+    toMqttQueue(str_base_topic + "time_bat_cocp_delay", String(configdata.TimBatCOCPDly));
+    // TIMBatCOCPRDDly
+    toMqttQueue(str_base_topic + "time_bat_cocprd_delay", String(configdata.TimBatCOCPRDly));
+    // CurBatDcOC
+    toMqttQueue(str_base_topic + "cur_bat_dc_oc", String((float)configdata.CurBatDcOC * 0.001, 3));
+    // TIMBatDcOCPDly
+    toMqttQueue(str_base_topic + "time_bat_dc_ocp_delay", String(configdata.TimBatDcOCPDly));
+    // TIMBatDcOPRDDly
+    toMqttQueue(str_base_topic + "time_bat_dc_oprd_delay", String(configdata.TimBatDcOCPRDly));
+    // TIMBatSCPRDly
+    toMqttQueue(str_base_topic + "time_bat_scprd_delay", String(configdata.TimBatSCPRDly));
+    // CurBalanMax
+    toMqttQueue(str_base_topic + "cur_balance_max", String((float)configdata.CurBalanMax * 0.001, 3));
+    // TMPBatCOT
+    toMqttQueue(str_base_topic + "tmp_bat_cot", String((float)configdata.TmpBatCOT * 0.1, 1));
+    // TMPBatCOTPR
+    toMqttQueue(str_base_topic + "tmp_bat_cotpr", String((float)configdata.TmpBatCOTPR * 0.1, 1));
+    // TMPBatDcOT
+    toMqttQueue(str_base_topic + "tmp_bat_dc_ot", String((float)configdata.TmpBatDcOT * 0.1, 1));
+    // TMPBatDcOTPR
+    toMqttQueue(str_base_topic + "tmp_bat_dc_otpr", String((float)configdata.TmpBatDcOTPR * 0.1, 1));
+    // TMPBatCUT
+    toMqttQueue(str_base_topic + "tmp_bat_cut", String((float)configdata.TmpBatCUT * 0.1, 1));
+    // TMPBatCUTPR
+    toMqttQueue(str_base_topic + "tmp_bat_cutpr", String((float)configdata.TmpBatCUTPR * 0.1, 1));
+    // TMPMosOT
+    toMqttQueue(str_base_topic + "tmp_mos_ot", String((float)configdata.TmpMosOT * 0.1, 1));
+    // TMPMosOTPR
+    toMqttQueue(str_base_topic + "tmp_mos_otpr", String((float)configdata.TmpMosOTPR * 0.1, 1));
+    // CellCount
+    toMqttQueue(str_base_topic + "cell_count", String(configdata.CellCount[0]));
+    // BatChargeEN
+    toMqttQueue(str_base_topic + "switches/bat_charge_enabled", configdata.BatChargeEN_fmt);
+    // BatDisChargeEN
+    toMqttQueue(str_base_topic + "switches/bat_discharge_enabled", configdata.BatDisChargeEN_fmt);
+    // BalanEN
+    toMqttQueue(str_base_topic + "switches/balancing_enabled", configdata.BalanEN_fmt);
+    // CapBatCell
+    toMqttQueue(str_base_topic + "cap_bat_cell", String((float)configdata.CapBatCell * 0.001, 3));
+    // SCPDelay
+    toMqttQueue(str_base_topic + "scp_delay", String(configdata.ScpDelay));
+    // VolStartBalan
+    toMqttQueue(str_base_topic + "vol_start_balance", String((float)configdata.VolBalanTrig * 0.001, 3));
+    // DevAddr
+    toMqttQueue(str_base_topic + "dev_address", String(configdata.DevAddr));
+    // TIMProdischarge
+    toMqttQueue(str_base_topic + "tim_pro_discharge", String(configdata.TimProdischarge));
+    // HeatEN
+    toMqttQueue(str_base_topic + "switches/heating_enabled", configdata.HeatEN);
+    // Disable temp-sensor
+    toMqttQueue(str_base_topic + "switches/temp_sensor_disabled", configdata.DisableTempSensor);
+    // GPS Heartbeat
+    toMqttQueue(str_base_topic + "switches/gps_heartbeat", configdata.GPSHeartbeat);
+    // Port Switch
+    toMqttQueue(str_base_topic + "switches/port_switch", configdata.PortSwitch);
+    // LCD Always On
+    toMqttQueue(str_base_topic + "switches/lcd_always_on", configdata.LCDAlwaysOn);
+    // Special Charger
+    toMqttQueue(str_base_topic + "switches/special_charger", configdata.SpecialCharger);
+    // SmartSleep
+    toMqttQueue(str_base_topic + "switches/smart_sleep", configdata.SmartSleep);
+    // DisablePCLModule
+    toMqttQueue(str_base_topic + "switches/disable_pcl_module", configdata.DisablePCLModule);
+    // TimedStoredData
+    toMqttQueue(str_base_topic + "switches/timed_stored_data", configdata.TimedStoredData);
+    // ChargingFloatMode
+    toMqttQueue(str_base_topic + "switches/charging_float_mode", configdata.ChargingFloatMode);
     // TMPHeatingStart
-    uint8_t_value = data[index++];
-    // DEBUG_PRINT(str_base_topic + "/config/tmp_heating_start: ");
-    // DEBUG_PRINTLN(uint8_t_value);
-    str_topic = str_base_topic + "/config/tmp_heating_start";
-    str_value = String(uint8_t_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
+    toMqttQueue(str_base_topic + "tmp_heating_start", String(configdata.TmpHeatingStart));
     // TMPHeatingStop
-    uint8_t_value = data[index++];
-    // DEBUG_PRINT(str_base_topic + "/config/tmp_heating_stop: ");
-    // DEBUG_PRINTLN(uint8_t_value);
-    str_topic = str_base_topic + "/config/tmp_heating_stop";
-    str_value = String(uint8_t_value);
-    mqtt_client.publish(str_topic.c_str(), str_value.c_str());
-
-    DEBUG_PRINT("Index <---------- ");
-    DEBUG_PRINTLN(index);
+    toMqttQueue(str_base_topic + "tmp_heating_stop", String(configdata.TmpHeatingStop));
+    // TIMSmartSleep
+    toMqttQueue(str_base_topic + "time_smart_sleep", String(configdata.TimSmartSleep));
 }

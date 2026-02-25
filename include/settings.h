@@ -6,12 +6,6 @@
 #include <nvs_flash.h>
 #include "macros.h"
 
-extern uint16_t publish_delay;
-extern uint16_t min_publish_time;
-
-extern bool debug_flg;
-extern bool debug_flg_full_log;
-
 void init_settings();
 void write_setting(const char *setting_name, uint16_t value);
 void write_setting(const char *setting_name, bool value);

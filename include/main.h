@@ -8,8 +8,16 @@
 #include "led_control.h"
 #include "macros.h"
 #include <time.h>
+#include <Preferences.h>
+#include <rom/rtc.h> // Erforderlich für detaillierte Reset-Infos
 
 #ifdef USE_INFLUXDB
 #include "influxdb_handler.h"
 #endif
 
+#ifdef USE_TLS
+extern WiFiClientSecure secure_wifi_client;
+#endif
+
+extern void publish_init();
+extern Preferences prefs;

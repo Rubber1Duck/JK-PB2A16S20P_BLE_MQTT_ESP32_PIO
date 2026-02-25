@@ -7,7 +7,7 @@ QueueHandle_t ledQueue;
 void ledTask(void *pvParameters) {
     LedState ledState;
     while (true) {
-        if (xQueueReceive(ledQueue, &ledState, portMAX_DELAY) == pdTRUE) {
+        if (xQueueReceive(ledQueue, &ledState, 0) == pdTRUE) {  
             switch (ledState) {
                 case LED_OFF:
                     digitalWrite(LED_PIN, LOW);
@@ -55,16 +55,20 @@ void ledTask(void *pvParameters) {
                         xQueuePeek(ledQueue, &ledState, 0);
                     }
                     break;
+                default:
+                    break;
             }
         }
+        vTaskDelay(100 / portTICK_PERIOD_MS); // Add a small delay to prevent task starvation
     }
 }
 
-void init_led() {
+void init_led(){
+    
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, LOW);
 
-        // Create the LED queue
+    // Create the LED queue
     ledQueue = xQueueCreate(10, sizeof(LedState));
 
     // Create the LED task
@@ -72,6 +76,6 @@ void init_led() {
 }
 
 void set_led(LedState state) {
-    xQueueSend(ledQueue, &state, portMAX_DELAY);
+    xQueueSend(ledQueue, &state, 0);
 }
-#endif //USELED
+#endif // USELED
