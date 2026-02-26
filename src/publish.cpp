@@ -45,6 +45,10 @@ void publish_init()
         DEBUG_PRINTLN("Failed to create publish queue"); //without this, the system cannot function properly, so we restart to try again
         ESP.restart(); // Restart if queue creation fails
     }
+    else {
+        DEBUG_PRINTLN("Publish queue created successfully");
+    }
     // Create the publish task
     xTaskCreate(publishTask, "Publish Task", 4096, NULL, 1, NULL);
+    DEBUG_PRINTLN("Publish task created");
 }
