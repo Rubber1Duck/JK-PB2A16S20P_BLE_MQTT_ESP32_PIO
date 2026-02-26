@@ -9,6 +9,7 @@ uint16_t publish_delay;
 uint16_t min_pub_time;
 bool debug_flg = false;
 bool debug_flg_full = false;
+uint16_t corePubDelay = 50; // default value for core publish delay, can be changed via MQTT
 
 void write_setting(const char *setting_name, uint16_t value) {
     // "storage" is the namespace
@@ -51,6 +52,9 @@ void re_read_settings() {
     min_pub_time = min_pub_time > 1000 ? (uint16_t)MIN_PUB_TIME : min_pub_time;
     debug_flg = read_setting("debug_flg", false);
     debug_flg_full = read_setting("debug_flg_full", false);
+    corePubDelay = read_setting("corePubDelay", (uint16_t)50);
+    // Limit to 200 milliseconds
+    corePubDelay = corePubDelay > 200 ? (uint16_t)50 : corePubDelay;
 }
 
 void init_settings() {

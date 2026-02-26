@@ -37,6 +37,7 @@ String topic_debug_active;
 String topic_debug_active_full;
 String topic_publish_delay;
 String topic_min_pub_time;
+String topic_core_publish_delay;
 
 String formatUptime(time_t uptime) {
     int days = uptime / 86400;
@@ -178,6 +179,30 @@ void MQTTCallback(char *topic, byte *payload, unsigned int length) {
         }
         return;
     }
+
+    // Check core_publish_delay
+    if (strcmp(topic, topic_core_publish_delay.c_str()) == 0) {
+        char payloadStr[length + 1];
+        memcpy(payloadStr, payload, length);
+        payloadStr[length] = '\0';
+
+        bool isNumeric = true;
+        for (unsigned int i = 0; i < length; i++) {
+            if (!isdigit(payload[i])) {
+                isNumeric = false;
+                break;
+            }
+        }
+
+        if (isNumeric) {
+            uint16_t value = atoi(payloadStr);
+            write_setting("corePubDelay", value);
+        }
+        else {
+            toMqttQueue(topic, "50"); // Default to 50 milliseconds if invalid
+        }
+        return;
+    }
 }
 
 uint32_t lastMQTTreconnectAttempt = 0;
@@ -211,6 +236,9 @@ boolean mqtt_reconnect() {
 
         mqtt_client.publish(topic_min_pub_time.c_str(), String(min_pub_time).c_str()) || ErrorCnt++;
         mqtt_client.subscribe(topic_min_pub_time.c_str()) || ErrorCnt++; // min_pub_time
+
+        mqtt_client.publish(topic_core_publish_delay.c_str(), String(corePubDelay).c_str()) || ErrorCnt++;
+        mqtt_client.subscribe(topic_core_publish_delay.c_str()) || ErrorCnt++; // core_publish_delay
 
         if (ErrorCnt > 0) {
             String errorMsg = "Connected to broker but initial publish or subscriptions failed, error count: " + String(ErrorCnt);
@@ -261,6 +289,7 @@ void mqtt_init() {
     topic_debug_active_full = mqttname + "/parameter/debugging_active_full";
     topic_publish_delay = mqttname + "/parameter/publish_delay";
     topic_min_pub_time = mqttname + "/parameter/min_publish_time";
+    topic_core_publish_delay = mqttname + "/parameter/core_publish_delay";
 
     if (mqtt_reconnect()) {
         DEBUG_PRINTLN("MQTT Connected.");

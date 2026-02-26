@@ -38,5 +38,6 @@ extern uint16_t min_pub_time;
 extern bool debug_flg;
 extern bool debug_flg_full;
 extern uint16_t publish_delay;
+extern uint8_t corePubDelay;
 
 #endif // MQTT_HANDLER_H
