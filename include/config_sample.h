@@ -1,3 +1,4 @@
+#include "secrets.h"
 ////////////////////////////// Settings //////////////////////////////
 
 // if devicename is not defined in platformio.ini, use this default
@@ -89,18 +90,20 @@
 // #define USE_RANDOM_CLIENT_ID
 
 // only publish every this seconds (0 -> publish every change immediately) default: 5s.
-// 0 is possible but thats 4 DataFrames per second and the device might not be able to keep up with the load of publishing too many messages!
-// Lower values as 5s might cause issues with MQTT broker or network congestion,
-// especially if you have a lot of data points enabled.
-// All test are running with default value 5s, which is a good balance between timely updates and system stability.
-// If you want to publish more frequently, consider optimizing your MQTT broker and network setup,
-// or reducing the number of published data points to ensure stable operation.
+// ATTN: 0 is possible but thats 4 DataFrames per second and the device might not be able to keep up with the load of publishing too many messages!
+// for 0 the publish interval (see below) must be set to 35 or lower to prevent the queue from filling up.
+// But maybe this will cause to stability issues with the MQTT client!
 #define PUBLISH_DELAY 5
+
+// time between publish attempts in milliseconds, can be adjust via MQTT, default is 50ms,
+// which means max 20 publishes per second, adjust if you have a lot of messages to publish and the queue is filling up,
+// but be careful with too low values as it can cause stability issues with the MQTT client
+#define PUBLISH_INTERVAL 50
 
 // publish values also if they are not changed. 0 = off, n = seconds
 #define MIN_PUB_TIME 300
 
-// Differential voltage 
+// Differential voltage publishing
 #define DIFFV_DIVIDER 1000 // Set to 1000 to get differential cell voltage in V or to 1 for mV
 
 // NTP Configuration

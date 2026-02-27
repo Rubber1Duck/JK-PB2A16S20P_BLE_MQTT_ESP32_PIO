@@ -4,12 +4,13 @@ Preferences prefs;
 
 // Global variables to hold the settings values.
 // As of limitations of the preferences libary the key length is limited to 15 characters, so we have to use short names for the settings keys.
+// the variables are named same as the keys to make it easier to understand which variable corresponds to which key.
 //       123456789012345
 uint16_t publish_delay;
 uint16_t min_pub_time;
-bool debug_flg = false;
-bool debug_flg_full = false;
-uint16_t corePubDelay = 50; // default value for core publish delay, can be changed via MQTT
+bool     debug_flg = false;
+bool     debug_flg_full = false;
+uint16_t publishInterval;
 
 void write_setting(const char *setting_name, uint16_t value) {
     // "storage" is the namespace
@@ -52,9 +53,9 @@ void re_read_settings() {
     min_pub_time = min_pub_time > 1000 ? (uint16_t)MIN_PUB_TIME : min_pub_time;
     debug_flg = read_setting("debug_flg", false);
     debug_flg_full = read_setting("debug_flg_full", false);
-    corePubDelay = read_setting("corePubDelay", (uint16_t)50);
+    publishInterval = read_setting("publishInterval", (uint16_t)PUBLISH_INTERVAL);
     // Limit to 200 milliseconds
-    corePubDelay = corePubDelay > 200 ? (uint16_t)50 : corePubDelay;
+    publishInterval = publishInterval > 200 ? (uint16_t)PUBLISH_INTERVAL : publishInterval;
 }
 
 void init_settings() {

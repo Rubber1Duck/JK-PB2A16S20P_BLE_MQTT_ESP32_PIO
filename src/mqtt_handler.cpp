@@ -37,7 +37,7 @@ String topic_debug_active;
 String topic_debug_active_full;
 String topic_publish_delay;
 String topic_min_pub_time;
-String topic_core_publish_delay;
+String topic_publish_interval;
 
 String formatUptime(time_t uptime) {
     int days = uptime / 86400;
@@ -115,7 +115,7 @@ PubSubClient mqtt_client(mqtt_server, mqtt_port, MQTTCallback, wifi_client);
 // handle Subscriptions - optimized version
 void MQTTCallback(char *topic, byte *payload, unsigned int length) {
     // Early return pattern - check each topic and return immediately after handling
-    
+
     // Check debugging_active
     if (strcmp(topic, topic_debug_active.c_str()) == 0) {
         String cmd = String((char *)payload, length);
@@ -150,9 +150,6 @@ void MQTTCallback(char *topic, byte *payload, unsigned int length) {
             uint16_t value = atoi(payloadStr);
             write_setting("publish_delay", value);
         }
-        else {
-            toMqttQueue(topic, "5"); // Default to 5 seconds if invalid
-        }
         return;
     }
 
@@ -170,18 +167,15 @@ void MQTTCallback(char *topic, byte *payload, unsigned int length) {
             }
         }
 
-        if (isNumeric) {
+        if (isNumeric){
             uint16_t value = atoi(payloadStr);
             write_setting("min_pub_time", value);
-        }
-        else {
-            toMqttQueue(topic, "300"); // Default to 300 seconds if invalid
         }
         return;
     }
 
-    // Check core_publish_delay
-    if (strcmp(topic, topic_core_publish_delay.c_str()) == 0) {
+    // Check publish_interval
+    if (strcmp(topic, topic_publish_interval.c_str()) == 0) {
         char payloadStr[length + 1];
         memcpy(payloadStr, payload, length);
         payloadStr[length] = '\0';
@@ -196,10 +190,7 @@ void MQTTCallback(char *topic, byte *payload, unsigned int length) {
 
         if (isNumeric) {
             uint16_t value = atoi(payloadStr);
-            write_setting("corePubDelay", value);
-        }
-        else {
-            toMqttQueue(topic, "50"); // Default to 50 milliseconds if invalid
+            write_setting("publishInterval", value);
         }
         return;
     }
@@ -237,8 +228,8 @@ boolean mqtt_reconnect() {
         mqtt_client.publish(topic_min_pub_time.c_str(), String(min_pub_time).c_str()) || ErrorCnt++;
         mqtt_client.subscribe(topic_min_pub_time.c_str()) || ErrorCnt++; // min_pub_time
 
-        mqtt_client.publish(topic_core_publish_delay.c_str(), String(corePubDelay).c_str()) || ErrorCnt++;
-        mqtt_client.subscribe(topic_core_publish_delay.c_str()) || ErrorCnt++; // core_publish_delay
+        mqtt_client.publish(topic_publish_interval.c_str(), String(publishInterval).c_str()) || ErrorCnt++;
+        mqtt_client.subscribe(topic_publish_interval.c_str()) || ErrorCnt++; // publish_interval
 
         if (ErrorCnt > 0) {
             String errorMsg = "Connected to broker but initial publish or subscriptions failed, error count: " + String(ErrorCnt);
@@ -289,7 +280,7 @@ void mqtt_init() {
     topic_debug_active_full = mqttname + "/parameter/debugging_active_full";
     topic_publish_delay = mqttname + "/parameter/publish_delay";
     topic_min_pub_time = mqttname + "/parameter/min_publish_time";
-    topic_core_publish_delay = mqttname + "/parameter/core_publish_delay";
+    topic_publish_interval = mqttname + "/parameter/publish_interval";
 
     if (mqtt_reconnect()) {
         DEBUG_PRINTLN("MQTT Connected.");
