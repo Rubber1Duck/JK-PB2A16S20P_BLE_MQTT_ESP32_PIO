@@ -26,7 +26,7 @@ void publishTask(void *pvParameters) {
                 DEBUG_PRINTLN(failMsg);
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(corePubDelay)); // time between publish attempts, can be adjust via MQTT, default is 50ms, which means max 20 publishes per second, adjust if you have a lot of messages to publish and the queue is filling up, but be careful with too low values as it can cause stability issues with the MQTT client  
+        vTaskDelay(pdMS_TO_TICKS(publishInterval)); // time between publish attempts, can be adjust via MQTT, default is 50ms, which means max 20 publishes per second, adjust if you have a lot of messages to publish and the queue is filling up, but be careful with too low values as it can cause stability issues with the MQTT client  
     }
 }
 
