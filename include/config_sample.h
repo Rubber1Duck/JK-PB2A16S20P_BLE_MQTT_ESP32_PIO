@@ -17,8 +17,8 @@
 // WiFi credentials
 // #define USE_WIFI_STATIC_IP // uncomment to use static IP configuration instead of DHCP (see below for settings)
 
-#define SSID_NAME SECRET_WIFI_SSID
-#define SSID_PASSWORD SECRET_WIFI_PASSWORD
+#define SSID_NAME "your ssid"
+#define SSID_PASSWORD "your password"
 
 #ifdef USE_WIFI_STATIC_IP
 #define IP_ADDRESS "" // optional static IP address, leave empty for DHCP
@@ -32,8 +32,8 @@
 // #define USE_TLS // uncomment to enable TLS support for MQTT
 
 #define MQTT_SERVER "" // ip or dns name of your MQTT broker
-#define MQTT_USERNAME SECRET_MQTT_USERNAME
-#define MQTT_PASSWORD SECRET_MQTT_PASSWORD
+#define MQTT_USERNAME "" // your MQTT username
+#define MQTT_PASSWORD "" // your MQTT password
 #ifndef USE_TLS
 #define MQTT_PORT 1883
 #else // USE_TLS
