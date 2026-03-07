@@ -1,5 +1,5 @@
-#ifndef ZD_DATA_STRUCT_H
-#define ZD_DATA_STRUCT_H
+#ifndef STRUCT_CELL_DATA_H
+#define STRUCT_CELL_DATA_H
 #include <Arduino.h>
 #include "arduino_base64.hpp"
 #include <bitset>
@@ -356,4 +356,4 @@ struct CellDataOld
   uint32_t RunTime2;                    //  4     Hilfsvariable zur Bestimmung ob ein neuer RunTime Wert vorliegt, da dieser in CellData aufgrund der Formatierung als String nicht direkt mit dem gelesenen Wert verglichen werden kann
 };
 
-#endif // ZD_DATA_STRUCT_H
+#endif // STRUCT_CELL_DATA_H

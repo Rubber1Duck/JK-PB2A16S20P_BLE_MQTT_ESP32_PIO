@@ -1,9 +1,9 @@
-#ifndef CD_DATA_STRUCT_H
-#define CD_DATA_STRUCT_H
+#ifndef STRUCT_CONFIG_INFO_H
+#define STRUCT_CONFIG_INFO_H
 #include <Arduino.h>
 
-// Struktur für die Konfigurationsdaten (ConfigData; FrameType 0x03)
-struct ConfigData
+// Struktur für die Konfigurationsdaten (ConfigInfo; FrameType 0x03)
+struct ConfigInfo
 {
   uint8_t Header[4];               // 4     Header                        #
   uint8_t FrameType;               // 1     Frame type                    #
@@ -103,4 +103,4 @@ struct ConfigData
 
 } __attribute__((packed)); // Verhindert Padding und sorgt dafür, dass die Struktur genau so im Speicher liegt wie definiert;
 
-#endif // CD_DATA_STRUCT_H
+#endif // STRUCT_CONFIG_INFO_H

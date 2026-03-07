@@ -11,6 +11,7 @@
 #include <Preferences.h>
 #include <rom/rtc.h> // Erforderlich für detaillierte Reset-Infos
 #include <WebServer.h>
+#include <ElegantOTA.h>
 
 #ifdef USE_INFLUXDB
 #include "influxdb_handler.h"

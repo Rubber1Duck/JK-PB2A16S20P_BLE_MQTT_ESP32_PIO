@@ -64,6 +64,33 @@ ResetEntry history[25] = {0}; // Array für 25 Einträge
 
 WebServer server(80);
 
+uint32_t ota_progress_millis = 0;
+
+void onOTAStart() {
+  // Log when OTA has started
+  DEBUG_PRINTLN("OTA update started!");
+  // <Add your own code here>
+}
+
+void onOTAProgress(size_t current, size_t final) {
+  // Log every 1 second
+  if (millis() - ota_progress_millis > 1000) {
+    ota_progress_millis = millis();
+    DEBUG_PRINTF("OTA Progress Current: %u bytes, Final: %u bytes\n", current, final);
+  }
+}
+
+void onOTAEnd(bool success) {
+  // Log when OTA has finished
+  if (success) {
+    DEBUG_PRINTLN("OTA update finished successfully!");
+  } else {
+    DEBUG_PRINTLN("There was an error during OTA update!");
+  }
+  // <Add your own code here>
+}
+
+
 // Hauptseite
 void handleRoot()
 {
@@ -193,6 +220,16 @@ void setup()
 
     server.on("/", handleRoot);
     server.on("/clear", handleClear);
+    server.on("/ota", []() {
+        server.send(200, "text/plain", "Hi! This is ElegantOTA Demo 2.");
+    });
+
+    ElegantOTA.begin(&server);    // Start ElegantOTA
+    // ElegantOTA callbacks
+    ElegantOTA.onStart(onOTAStart);
+    ElegantOTA.onProgress(onOTAProgress);
+    ElegantOTA.onEnd(onOTAEnd);
+    
     server.begin();
 
     publish_init();
@@ -214,6 +251,7 @@ void setup()
 void loop()
 {
     server.handleClient();
+    ElegantOTA.loop();
     wifi_loop();
     mqtt_loop();
     ble_loop();

@@ -45,13 +45,13 @@ void parser(void *message) {
 
     switch (type) {
     case 0x01:
-        readConfigDataRecord(message, devicename);
+        readConfigInfoRecord(message, devicename);
         break;
     case 0x02:
         readCellDataRecord(message, devicename);
         break;
     case 0x03:
-        readDeviceDataRecord(message, devicename);
+        readDeviceInfoRecord(message, devicename);
         break;
     default:
         DEBUG_PRINTLN("Unbekannter Typ in message[4]!");

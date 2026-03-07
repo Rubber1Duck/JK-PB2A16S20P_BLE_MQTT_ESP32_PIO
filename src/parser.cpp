@@ -126,83 +126,81 @@ String getLocalTimeString()
     return String(timeBuffer);
 }
 
-DeviceData devicedata;
+DeviceInfo deviceinfo;
 
-void readDeviceDataRecord(void *message, const char *devicename)
+void readDeviceInfoRecord(void *message, const char *devicename)
 {
 
     // Startzeit für die Verarbeitung des Datensatzes
     // uint32_t start_time = millis();
-    memcpy(&devicedata, message, 300); // Kopiere 300 Bytes in die Struktur
+    memcpy(&deviceinfo, message, 300); // Kopiere 300 Bytes in die Struktur
 
     String str_base_topic = mqtt_main_topic + devicename + "/device/";
 
     // Publish the FrameCounter to MQTT
-    toMqttQueue(str_base_topic + "read_count", String(devicedata.FrameCounter));
+    toMqttQueue(str_base_topic + "read_count", String(deviceinfo.FrameCounter));
 
     // Publish Manufacturer Device ID
-    toMqttQueue(str_base_topic + "vendor_id", devicedata.ManufacturerDeviceID);
+    toMqttQueue(str_base_topic + "vendor_id", deviceinfo.ManufacturerDeviceID);
 
     // Publish Hardware Version and Software Version
-    toMqttQueue(str_base_topic + "hw_revision", devicedata.HardwareVersion);
-    toMqttQueue(str_base_topic + "sw_version", devicedata.SoftwareVersion);
+    toMqttQueue(str_base_topic + "hw_revision", deviceinfo.HardwareVersion);
+    toMqttQueue(str_base_topic + "sw_version", deviceinfo.SoftwareVersion);
 
     // Publish Uptime in seconds and in human-readable format (days, hours, minutes, seconds)
-    toMqttQueue(str_base_topic + "uptime", String(devicedata.OddRunTime));
-    toMqttQueue(str_base_topic + "uptime_fmt", devicedata.getOddRunTimeStr());
+    toMqttQueue(str_base_topic + "uptime", String(deviceinfo.OddRunTime));
+    toMqttQueue(str_base_topic + "uptime_fmt", deviceinfo.getOddRunTimeStr());
 
     // Publish Power On Times
-    toMqttQueue(str_base_topic + "power_up_times", String(devicedata.PwrOnTimes));
+    toMqttQueue(str_base_topic + "power_up_times", String(deviceinfo.PwrOnTimes));
 
     // Publish Device Name, Passcode, Manufacturing Date, Serial Number, User Data, Setup Passcode and User Data 2
-    toMqttQueue(str_base_topic + "device_name", devicedata.DeviceName);
-    toMqttQueue(str_base_topic + "device_passwd", devicedata.DevicePasscode);
-    toMqttQueue(str_base_topic + "manufacturing_date", devicedata.ManufacturingDate);
-    toMqttQueue(str_base_topic + "serial_number", devicedata.SerialNumber);
+    toMqttQueue(str_base_topic + "device_name", deviceinfo.DeviceName);
+    toMqttQueue(str_base_topic + "device_passwd", deviceinfo.DevicePasscode);
+    toMqttQueue(str_base_topic + "manufacturing_date", deviceinfo.ManufacturingDate);
+    toMqttQueue(str_base_topic + "serial_number", deviceinfo.SerialNumber);
 #ifndef V19
-    toMqttQueue(str_base_topic + "passcode", devicedata.Passcode);
+    toMqttQueue(str_base_topic + "passcode", deviceinfo.Passcode);
 #endif
-    toMqttQueue(str_base_topic + "user_data", devicedata.UserData);
-    toMqttQueue(str_base_topic + "setup_passcode", devicedata.SetupPasscode);
-    toMqttQueue(str_base_topic + "user_data2", devicedata.UserData2);
+    toMqttQueue(str_base_topic + "user_data", deviceinfo.UserData);
+    toMqttQueue(str_base_topic + "setup_passcode", deviceinfo.SetupPasscode);
+    toMqttQueue(str_base_topic + "user_data2", deviceinfo.UserData2);
 
 // Publish UART and CAN protocol numbers and enable status
 #ifdef PROTOCOL_NUMBERS_AND_ENABLE_STATUS
-    toMqttQueue(str_base_topic + "uart1_protocol_number", String(devicedata.UART1MPRTOLNbr));
-    toMqttQueue(str_base_topic + "uart1_protocol_txt", uart_protocol_number_str[devicedata.UART1MPRTOLNbr]);
-    toMqttQueue(str_base_topic + "uart1_protocol_enable", String(devicedata.UART1MPRTOLEnable));
-    toMqttQueue(str_base_topic + "can_protocol_number", String(devicedata.CANMPRTOLNbr));
-    toMqttQueue(str_base_topic + "can_protocol_txt", can_protocol_number_str[devicedata.CANMPRTOLNbr]);
-    toMqttQueue(str_base_topic + "uart_protocol_enable_0_15", String(devicedata.UARTMPRTOLEnable0_15));
-    toMqttQueue(str_base_topic + "uart2_protocol_number", String(devicedata.UART2MPRTOLNbr));
-    toMqttQueue(str_base_topic + "uart2_protocol_txt", uart_protocol_number_str[devicedata.UART2MPRTOLNbr]);
-    toMqttQueue(str_base_topic + "uart2_protocol_enable", String(devicedata.UART2MPRTOLEnable));
-    toMqttQueue(str_base_topic + "uart_protocol_lib_version", String(devicedata.UARTMPTLVer));
+    toMqttQueue(str_base_topic + "uart1_protocol_number", String(deviceinfo.UART1MPRTOLNbr));
+    toMqttQueue(str_base_topic + "uart1_protocol_txt", uart_protocol_number_str[deviceinfo.UART1MPRTOLNbr]);
+    toMqttQueue(str_base_topic + "uart1_protocol_enable", String(deviceinfo.UART1MPRTOLEnable));
+    toMqttQueue(str_base_topic + "can_protocol_number", String(deviceinfo.CANMPRTOLNbr));
+    toMqttQueue(str_base_topic + "can_protocol_txt", can_protocol_number_str[deviceinfo.CANMPRTOLNbr]);
+    toMqttQueue(str_base_topic + "uart_protocol_enable_0_15", String(deviceinfo.UARTMPRTOLEnable0_15));
+    toMqttQueue(str_base_topic + "uart2_protocol_number", String(deviceinfo.UART2MPRTOLNbr));
+    toMqttQueue(str_base_topic + "uart2_protocol_txt", uart_protocol_number_str[deviceinfo.UART2MPRTOLNbr]);
+    toMqttQueue(str_base_topic + "uart2_protocol_enable", String(deviceinfo.UART2MPRTOLEnable));
+    toMqttQueue(str_base_topic + "uart_protocol_lib_version", String(deviceinfo.UARTMPTLVer));
 #endif
 
 // Publish trigger values for LCD buzzer and dry contacts
 #ifdef LCD_AND_DRY_TRIGGER_VALUES
-    toMqttQueue(str_base_topic + "lcd_buzzer_trigger", String(devicedata.LCDBuzzerTrigger));
-    toMqttQueue(str_base_topic + "lcd_buzzer_trigger_txt", Trigger_values_str[devicedata.LCDBuzzerTrigger]);
-    toMqttQueue(str_base_topic + "lcd_buzzer_trigger_value", String(devicedata.LCDBuzzerTriggerVal));
-    toMqttQueue(str_base_topic + "lcd_buzzer_release_value", String(devicedata.LCDBuzzerReleaseVal));
-    toMqttQueue(str_base_topic + "dry1_trigger", String(devicedata.DRY1Trigger));
-    toMqttQueue(str_base_topic + "dry1_trigger_txt", Trigger_values_str[devicedata.DRY1Trigger]);
-    toMqttQueue(str_base_topic + "dry1_trigger_value", String(devicedata.DRY1TriggerVal));
-    toMqttQueue(str_base_topic + "dry1_release_value", String(devicedata.DRY1ReleaseVal));
-    toMqttQueue(str_base_topic + "dry2_trigger", String(devicedata.DRY2Trigger));
-    toMqttQueue(str_base_topic + "dry2_trigger_txt", Trigger_values_str[devicedata.DRY2Trigger]);
-    toMqttQueue(str_base_topic + "dry2_trigger_value", String(devicedata.DRY2TriggerVal));
-    toMqttQueue(str_base_topic + "dry2_release_value", String(devicedata.DRY2ReleaseVal));
-    toMqttQueue(str_base_topic + "can_protocol_lib_version", String(devicedata.CANMPTLVer));
+    toMqttQueue(str_base_topic + "lcd_buzzer_trigger", String(deviceinfo.LCDBuzzerTrigger));
+    toMqttQueue(str_base_topic + "lcd_buzzer_trigger_txt", Trigger_values_str[deviceinfo.LCDBuzzerTrigger]);
+    toMqttQueue(str_base_topic + "lcd_buzzer_trigger_value", String(deviceinfo.LCDBuzzerTriggerVal));
+    toMqttQueue(str_base_topic + "lcd_buzzer_release_value", String(deviceinfo.LCDBuzzerReleaseVal));
+    toMqttQueue(str_base_topic + "dry1_trigger", String(deviceinfo.DRY1Trigger));
+    toMqttQueue(str_base_topic + "dry1_trigger_txt", Trigger_values_str[deviceinfo.DRY1Trigger]);
+    toMqttQueue(str_base_topic + "dry1_trigger_value", String(deviceinfo.DRY1TriggerVal));
+    toMqttQueue(str_base_topic + "dry1_release_value", String(deviceinfo.DRY1ReleaseVal));
+    toMqttQueue(str_base_topic + "dry2_trigger", String(deviceinfo.DRY2Trigger));
+    toMqttQueue(str_base_topic + "dry2_trigger_txt", Trigger_values_str[deviceinfo.DRY2Trigger]);
+    toMqttQueue(str_base_topic + "dry2_trigger_value", String(deviceinfo.DRY2TriggerVal));
+    toMqttQueue(str_base_topic + "dry2_release_value", String(deviceinfo.DRY2ReleaseVal));
+    toMqttQueue(str_base_topic + "can_protocol_lib_version", String(deviceinfo.CANMPTLVer));
 #endif
 
     // Publish RCV Time and RFV Time
-    toMqttQueue(str_base_topic + "rcv_time", String((float)devicedata.RCVTime * 0.1, 1)); // Assuming RCVTime is in 0.1h units
-    toMqttQueue(str_base_topic + "rfv_time", String((float)devicedata.RFVTime * 0.1, 1)); // Assuming RFVTime is in 0.1h units
+    toMqttQueue(str_base_topic + "rcv_time", String((float)deviceinfo.RCVTime * 0.1, 1)); // Assuming RCVTime is in 0.1h units
+    toMqttQueue(str_base_topic + "rfv_time", String((float)deviceinfo.RFVTime * 0.1, 1)); // Assuming RFVTime is in 0.1h units
 
-    // String finishMsg = getLocalTimeString() + ": Finished parsing Device data, should now be available/updated in MQTT topics." + " (Processing time: " + String(millis() - start_time) + " ms)";
-    // DEBUG_PRINTLN(finishMsg);
 }
 
 CellData celldata;
@@ -511,120 +509,117 @@ void readCellDataRecord(void *message, const char *devicename)
     }
 }
 
-ConfigData configdata;
+ConfigInfo configinfo;
 
-void readConfigDataRecord(void *message, const char *devicename)
+void readConfigInfoRecord(void *message, const char *devicename)
 {
     // Startzeit für die Verarbeitung des Datensatzes
     // uint32_t start_time = millis();
 
-    // Kopiere die empfangenen Bytes in die DeviceData-Struktur
-    memcpy(&configdata, message, 300); // Kopiere 300 Bytes in die Struktur
-    configdata.update_switches();
+    // Kopiere die empfangenen Bytes in die ConfigInfo-Struktur
+    memcpy(&configinfo, message, 300); // Kopiere 300 Bytes in die Struktur
+    configinfo.update_switches();
 
     // MQTT-Themenbasis
     String str_base_topic = mqtt_main_topic + devicename + "/config/";
 
     // Veröffentliche die Konfigurationsdaten auf MQTT
     // VolSmartSleep
-    toMqttQueue(str_base_topic + "vol_smart_sleep", String((float)configdata.VolSmartSleep * 0.001, 3));
+    toMqttQueue(str_base_topic + "vol_smart_sleep", String((float)configinfo.VolSmartSleep * 0.001, 3));
     // VolCellUV
-    toMqttQueue(str_base_topic + "vol_cell_uv", String((float)configdata.VolCellUV * 0.001, 3));
+    toMqttQueue(str_base_topic + "vol_cell_uv", String((float)configinfo.VolCellUV * 0.001, 3));
     // VolCellUVPR
-    toMqttQueue(str_base_topic + "vol_cell_uvpr", String((float)configdata.VolCellUVPR * 0.001, 3));
+    toMqttQueue(str_base_topic + "vol_cell_uvpr", String((float)configinfo.VolCellUVPR * 0.001, 3));
     // VolCellOV
-    toMqttQueue(str_base_topic + "vol_cell_ov", String((float)configdata.VolCellOV * 0.001, 3));
+    toMqttQueue(str_base_topic + "vol_cell_ov", String((float)configinfo.VolCellOV * 0.001, 3));
     // VolCellOVPR
-    toMqttQueue(str_base_topic + "vol_cell_ovpr", String((float)configdata.VolCellOVPR * 0.001, 3));
+    toMqttQueue(str_base_topic + "vol_cell_ovpr", String((float)configinfo.VolCellOVPR * 0.001, 3));
     // VolBalanTrig
-    toMqttQueue(str_base_topic + "vol_balan_trig", String((float)configdata.VolBalanTrig * 0.001, 3));
+    toMqttQueue(str_base_topic + "vol_balan_trig", String((float)configinfo.VolBalanTrig * 0.001, 3));
     // VolSOC100%
-    toMqttQueue(str_base_topic + "vol_100_percent", String((float)configdata.VolSOC100percent * 0.001, 3));
+    toMqttQueue(str_base_topic + "vol_100_percent", String((float)configinfo.VolSOC100percent * 0.001, 3));
     // VolSOC0%
-    toMqttQueue(str_base_topic + "vol_0_percent", String((float)configdata.VolSOC0percent * 0.001, 3));
+    toMqttQueue(str_base_topic + "vol_0_percent", String((float)configinfo.VolSOC0percent * 0.001, 3));
     // VolCellRCV
-    toMqttQueue(str_base_topic + "vol_cell_rcv", String((float)configdata.VolCellRCV * 0.001, 3));
+    toMqttQueue(str_base_topic + "vol_cell_rcv", String((float)configinfo.VolCellRCV * 0.001, 3));
     // VolCellRFV
-    toMqttQueue(str_base_topic + "vol_cell_rfv", String((float)configdata.VolCellRFV * 0.001, 3));
+    toMqttQueue(str_base_topic + "vol_cell_rfv", String((float)configinfo.VolCellRFV * 0.001, 3));
     // VolSysPwrOff
-    toMqttQueue(str_base_topic + "vol_sys_pwr_off", String((float)configdata.VolSysPwrOff * 0.001, 3));
+    toMqttQueue(str_base_topic + "vol_sys_pwr_off", String((float)configinfo.VolSysPwrOff * 0.001, 3));
     // CurBatCOC
-    toMqttQueue(str_base_topic + "cur_bat_coc", String((float)configdata.CurBatCOC * 0.001, 3));
+    toMqttQueue(str_base_topic + "cur_bat_coc", String((float)configinfo.CurBatCOC * 0.001, 3));
     // TIMBatCOCPDly
-    toMqttQueue(str_base_topic + "time_bat_cocp_delay", String(configdata.TimBatCOCPDly));
+    toMqttQueue(str_base_topic + "time_bat_cocp_delay", String(configinfo.TimBatCOCPDly));
     // TIMBatCOCPRDDly
-    toMqttQueue(str_base_topic + "time_bat_cocprd_delay", String(configdata.TimBatCOCPRDly));
+    toMqttQueue(str_base_topic + "time_bat_cocprd_delay", String(configinfo.TimBatCOCPRDly));
     // CurBatDcOC
-    toMqttQueue(str_base_topic + "cur_bat_dc_oc", String((float)configdata.CurBatDcOC * 0.001, 3));
+    toMqttQueue(str_base_topic + "cur_bat_dc_oc", String((float)configinfo.CurBatDcOC * 0.001, 3));
     // TIMBatDcOCPDly
-    toMqttQueue(str_base_topic + "time_bat_dc_ocp_delay", String(configdata.TimBatDcOCPDly));
+    toMqttQueue(str_base_topic + "time_bat_dc_ocp_delay", String(configinfo.TimBatDcOCPDly));
     // TIMBatDcOPRDDly
-    toMqttQueue(str_base_topic + "time_bat_dc_oprd_delay", String(configdata.TimBatDcOCPRDly));
+    toMqttQueue(str_base_topic + "time_bat_dc_oprd_delay", String(configinfo.TimBatDcOCPRDly));
     // TIMBatSCPRDly
-    toMqttQueue(str_base_topic + "time_bat_scprd_delay", String(configdata.TimBatSCPRDly));
+    toMqttQueue(str_base_topic + "time_bat_scprd_delay", String(configinfo.TimBatSCPRDly));
     // CurBalanMax
-    toMqttQueue(str_base_topic + "cur_balance_max", String((float)configdata.CurBalanMax * 0.001, 3));
+    toMqttQueue(str_base_topic + "cur_balance_max", String((float)configinfo.CurBalanMax * 0.001, 3));
     // TMPBatCOT
-    toMqttQueue(str_base_topic + "tmp_bat_cot", String((float)configdata.TmpBatCOT * 0.1, 1));
+    toMqttQueue(str_base_topic + "tmp_bat_cot", String((float)configinfo.TmpBatCOT * 0.1, 1));
     // TMPBatCOTPR
-    toMqttQueue(str_base_topic + "tmp_bat_cotpr", String((float)configdata.TmpBatCOTPR * 0.1, 1));
+    toMqttQueue(str_base_topic + "tmp_bat_cotpr", String((float)configinfo.TmpBatCOTPR * 0.1, 1));
     // TMPBatDcOT
-    toMqttQueue(str_base_topic + "tmp_bat_dc_ot", String((float)configdata.TmpBatDcOT * 0.1, 1));
+    toMqttQueue(str_base_topic + "tmp_bat_dc_ot", String((float)configinfo.TmpBatDcOT * 0.1, 1));
     // TMPBatDcOTPR
-    toMqttQueue(str_base_topic + "tmp_bat_dc_otpr", String((float)configdata.TmpBatDcOTPR * 0.1, 1));
+    toMqttQueue(str_base_topic + "tmp_bat_dc_otpr", String((float)configinfo.TmpBatDcOTPR * 0.1, 1));
     // TMPBatCUT
-    toMqttQueue(str_base_topic + "tmp_bat_cut", String((float)configdata.TmpBatCUT * 0.1, 1));
+    toMqttQueue(str_base_topic + "tmp_bat_cut", String((float)configinfo.TmpBatCUT * 0.1, 1));
     // TMPBatCUTPR
-    toMqttQueue(str_base_topic + "tmp_bat_cutpr", String((float)configdata.TmpBatCUTPR * 0.1, 1));
+    toMqttQueue(str_base_topic + "tmp_bat_cutpr", String((float)configinfo.TmpBatCUTPR * 0.1, 1));
     // TMPMosOT
-    toMqttQueue(str_base_topic + "tmp_mos_ot", String((float)configdata.TmpMosOT * 0.1, 1));
+    toMqttQueue(str_base_topic + "tmp_mos_ot", String((float)configinfo.TmpMosOT * 0.1, 1));
     // TMPMosOTPR
-    toMqttQueue(str_base_topic + "tmp_mos_otpr", String((float)configdata.TmpMosOTPR * 0.1, 1));
+    toMqttQueue(str_base_topic + "tmp_mos_otpr", String((float)configinfo.TmpMosOTPR * 0.1, 1));
     // CellCount
-    toMqttQueue(str_base_topic + "cell_count", String(configdata.CellCount[0]));
+    toMqttQueue(str_base_topic + "cell_count", String(configinfo.CellCount[0]));
     // BatChargeEN
-    toMqttQueue(str_base_topic + "switches/bat_charge_enabled", configdata.BatChargeEN_fmt);
+    toMqttQueue(str_base_topic + "switches/bat_charge_enabled", configinfo.BatChargeEN_fmt);
     // BatDisChargeEN
-    toMqttQueue(str_base_topic + "switches/bat_discharge_enabled", configdata.BatDisChargeEN_fmt);
+    toMqttQueue(str_base_topic + "switches/bat_discharge_enabled", configinfo.BatDisChargeEN_fmt);
     // BalanEN
-    toMqttQueue(str_base_topic + "switches/balancing_enabled", configdata.BalanEN_fmt);
+    toMqttQueue(str_base_topic + "switches/balancing_enabled", configinfo.BalanEN_fmt);
     // CapBatCell
-    toMqttQueue(str_base_topic + "cap_bat_cell", String((float)configdata.CapBatCell * 0.001, 3));
+    toMqttQueue(str_base_topic + "cap_bat_cell", String((float)configinfo.CapBatCell * 0.001, 3));
     // SCPDelay
-    toMqttQueue(str_base_topic + "scp_delay", String(configdata.ScpDelay));
+    toMqttQueue(str_base_topic + "scp_delay", String(configinfo.ScpDelay));
     // VolStartBalan
-    toMqttQueue(str_base_topic + "vol_start_balance", String((float)configdata.VolBalanTrig * 0.001, 3));
+    toMqttQueue(str_base_topic + "vol_start_balance", String((float)configinfo.VolBalanTrig * 0.001, 3));
     // DevAddr
-    toMqttQueue(str_base_topic + "dev_address", String(configdata.DevAddr));
+    toMqttQueue(str_base_topic + "dev_address", String(configinfo.DevAddr));
     // TIMProdischarge
-    toMqttQueue(str_base_topic + "tim_pro_discharge", String(configdata.TimProdischarge));
+    toMqttQueue(str_base_topic + "tim_pro_discharge", String(configinfo.TimProdischarge));
     // HeatEN
-    toMqttQueue(str_base_topic + "switches/heating_enabled", configdata.HeatEN);
+    toMqttQueue(str_base_topic + "switches/heating_enabled", configinfo.HeatEN);
     // Disable temp-sensor
-    toMqttQueue(str_base_topic + "switches/temp_sensor_disabled", configdata.DisableTempSensor);
+    toMqttQueue(str_base_topic + "switches/temp_sensor_disabled", configinfo.DisableTempSensor);
     // GPS Heartbeat
-    toMqttQueue(str_base_topic + "switches/gps_heartbeat", configdata.GPSHeartbeat);
+    toMqttQueue(str_base_topic + "switches/gps_heartbeat", configinfo.GPSHeartbeat);
     // Port Switch
-    toMqttQueue(str_base_topic + "switches/port_switch", configdata.PortSwitch);
+    toMqttQueue(str_base_topic + "switches/port_switch", configinfo.PortSwitch);
     // LCD Always On
-    toMqttQueue(str_base_topic + "switches/lcd_always_on", configdata.LCDAlwaysOn);
+    toMqttQueue(str_base_topic + "switches/lcd_always_on", configinfo.LCDAlwaysOn);
     // Special Charger
-    toMqttQueue(str_base_topic + "switches/special_charger", configdata.SpecialCharger);
+    toMqttQueue(str_base_topic + "switches/special_charger", configinfo.SpecialCharger);
     // SmartSleep
-    toMqttQueue(str_base_topic + "switches/smart_sleep", configdata.SmartSleep);
+    toMqttQueue(str_base_topic + "switches/smart_sleep", configinfo.SmartSleep);
     // DisablePCLModule
-    toMqttQueue(str_base_topic + "switches/disable_pcl_module", configdata.DisablePCLModule);
+    toMqttQueue(str_base_topic + "switches/disable_pcl_module", configinfo.DisablePCLModule);
     // TimedStoredData
-    toMqttQueue(str_base_topic + "switches/timed_stored_data", configdata.TimedStoredData);
+    toMqttQueue(str_base_topic + "switches/timed_stored_data", configinfo.TimedStoredData);
     // ChargingFloatMode
-    toMqttQueue(str_base_topic + "switches/charging_float_mode", configdata.ChargingFloatMode);
+    toMqttQueue(str_base_topic + "switches/charging_float_mode", configinfo.ChargingFloatMode);
     // TMPHeatingStart
-    toMqttQueue(str_base_topic + "tmp_heating_start", String(configdata.TmpHeatingStart));
+    toMqttQueue(str_base_topic + "tmp_heating_start", String(configinfo.TmpHeatingStart));
     // TMPHeatingStop
-    toMqttQueue(str_base_topic + "tmp_heating_stop", String(configdata.TmpHeatingStop));
+    toMqttQueue(str_base_topic + "tmp_heating_stop", String(configinfo.TmpHeatingStop));
     // TIMSmartSleep
-    toMqttQueue(str_base_topic + "time_smart_sleep", String(configdata.TimSmartSleep));
-
-    // String finishConfigMsg = getLocalTimeString() + ": Finished parsing Config data." + " (Processing time: " + String(millis() - start_time) + " ms)";
-    // DEBUG_PRINTLN(finishConfigMsg);
+    toMqttQueue(str_base_topic + "time_smart_sleep", String(configinfo.TimSmartSleep));
 }

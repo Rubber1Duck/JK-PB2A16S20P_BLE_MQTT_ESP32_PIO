@@ -1,5 +1,5 @@
-#ifndef DATA_STRUCT_DD_H
-#define DATA_STRUCT_DD_H
+#ifndef STRUCT_DEVICE_INFO_H
+#define STRUCT_DEVICE_INFO_H
 #include <Arduino.h>
 
 struct publishItem
@@ -8,8 +8,8 @@ struct publishItem
   char payload[33]; // Adjust the size as needed (longest string should be a 32 bit value in binary format as string (00000000000000000000000000000000), which is 32 characters plus null terminator)
 };
 
-// Struktur für die Gerätedaten (DeviceData; FrameType 0x01)
-struct DeviceData
+// Struktur für die Gerätedaten (DeviceInfo; FrameType 0x01)
+struct DeviceInfo
 {
   uint8_t Header[4];             // 4     Header                        #
   uint8_t FrameType;             // 1     Frame type                    #
@@ -73,4 +73,4 @@ struct DeviceData
   }
 } __attribute__((packed)); // Verhindert Padding und sorgt dafür, dass die Struktur genau so im Speicher liegt wie definiert
 
-#endif // DATA_STRUCT_DD_H
+#endif // STRUCT_DEVICE_INFO_H
