@@ -83,7 +83,7 @@ struct CellData {
   float BatVolCorrect;          //  4     BatVolCorrect                 #
   uint8_t unknown2[4];          //  4		  Reserved
   uint16_t BatVol2;             //  2     BatVol                        mV        0.01 multiplier
-  uint16_t HeatCurrent;         //  2     HeatCurrent                   mA        0.001 multiplier
+  int16_t HeatCurrent;          //  2     HeatCurrent                   mA        0.001 multiplier
   uint8_t unknown3[7];          //  7		  Reserved
   uint8_t ChargerPlugged;       //  1     ChargerPlugged                #         1: Inserted; 0: Not inserted
   uint32_t SysRunTicks;         //  4     SysRunTicks                   0.1S      0.1 multiplier
@@ -336,7 +336,7 @@ struct CellDataOld {
   uint16_t VolDischargCur;              //  2     VolDischargCur                mV        0.001 multiplier
   float BatVolCorrect;                  //  4     BatVolCorrect                 #
   uint16_t BatVol2;                     //  2     BatVol                        mV        0.01 multiplier
-  uint16_t HeatCurrent;                 //  2     HeatCurrent                   mA        0.001 multiplier
+  int16_t HeatCurrent;                  //  2     HeatCurrent                   mA        0.001 multiplier
   uint8_t ChargerPlugged;               //  1     ChargerPlugged                #         1: Inserted; 0: Not inserted
   uint32_t SysRunTicks;                 //  4     SysRunTicks                   0.1S      0.1 multiplier
   int16_t TempBat3;                     //  2     TempBat 3                     0.1℃	   0.1 multiplier, can be negative
