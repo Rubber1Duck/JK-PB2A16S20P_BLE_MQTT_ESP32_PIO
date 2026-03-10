@@ -591,7 +591,7 @@ void readConfigInfoRecord(void *message, const char *devicename)
     // SCPDelay
     toMqttQueue(str_base_topic + "scp_delay", String(configinfo.ScpDelay));
     // VolStartBalan
-    toMqttQueue(str_base_topic + "vol_start_balance", String((float)configinfo.VolBalanTrig * 0.001, 3));
+    toMqttQueue(str_base_topic + "vol_start_balance", String((float)configinfo.VolStartBalan * 0.001, 3));
     // DevAddr
     toMqttQueue(str_base_topic + "dev_address", String(configinfo.DevAddr));
     // TIMProdischarge
