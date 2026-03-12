@@ -104,8 +104,8 @@ struct CellData
   char CellSta_fmt[33];        // Hilfsvariable für die Interpretation des CellSta Bitmasks (32 Zellen + Nullterminator) 00000000 00000000 00000000 00000000
   char CellVolAve_fmt[8];      // Hilfsvariable für die Formatierung der CellVolAve mit 3 Dezimalstellen eg. 3.456 V
   char CellVdifMax_fmt[8];     // Hilfsvariable für die Formatierung der CellVdifMax mit 3 Dezimalstellen eg. 0.123 V or 123 mV depending on DIFFV_DIVIDER
-  char MaxVolCellNbr_fmt[3];   // Hilfsvariable für die Formatierung des MaxVolCellNbr eg. 12
-  char MinVolCellNbr_fmt[3];   // Hilfsvariable für die Formatierung des MinVolCellNbr eg. 5
+  char MaxVolCellNbr_fmt[4];   // Hilfsvariable für die Formatierung des MaxVolCellNbr eg. 12
+  char MinVolCellNbr_fmt[4];   // Hilfsvariable für die Formatierung des MinVolCellNbr eg. 5
   char CellWireRes_fmt[32][8]; // Hilfsvariable für die Formatierung der CellWireRes mit 3 Dezimalstellen eg. 0.123 Ω
   char TempMos_fmt[8];         // Hilfsvariable für die Formatierung der TempMos mit 1 Dezimalstelle eg. 25.3 ℃
   char CellWireResSta_fmt[33]; // Hilfsvariable für die Interpretation des CellWireResSta Bitmasks (32 Zellen + Nullterminator) 00000000 00000000 00000000 00000000

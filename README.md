@@ -14,6 +14,7 @@ jk_ble_listener
 
 ## Table of Contents
 - [Installation](#installation)
+- [Build Troubleshooting](#build-troubleshooting)
 - [Usage](#usage)
 - [Supported JK BMS Models](#supported-jk-bms-models)
 - [Contributing](#contributing)
@@ -21,6 +22,18 @@ jk_ble_listener
 
 ## Installation
 Use VS-Code with [PlatformIO](https://platformio.org/install/ide?install=vscode) Add-On to build and flash the firmware.
+
+## Build Troubleshooting
+If your build fails in `ESPAsyncWebServer/src/AsyncJson.cpp` with an error like
+`JsonHandlerTypes was not declared in this scope`, pin `ESPAsyncWebServer` in
+`platformio.ini` to a known working version:
+
+```ini
+ESP32Async/ESPAsyncWebServer@3.7.3
+```
+
+This project currently keeps that pin in `lib_deps` to ensure reproducible builds
+across all environments.
 
 ## Usage
 - Create a config.h file in folder includes. A sample file exist, you can modify and rename it. The available configuration options are well documented in the sample file.

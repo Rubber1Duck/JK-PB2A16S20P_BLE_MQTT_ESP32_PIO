@@ -60,7 +60,7 @@ String get_reset_reason_string(esp_reset_reason_t reason)
 }
 
 const char *NVS_KEY = "reset_history";
-ResetEntry history[25] = {0}; // Array für 25 Einträge
+ResetEntry history[25]; // Array für 25 Einträge
 
 WebServer server(80);
 
@@ -76,7 +76,7 @@ void onOTAProgress(size_t current, size_t final) {
   // Log every 1 second
   if (millis() - ota_progress_millis > 1000) {
     ota_progress_millis = millis();
-    DEBUG_PRINTF("OTA Progress Current: %u bytes, Final: %u bytes\n", current, final);
+    DEBUG_PRINTF("OTA Progress Current: %zu bytes, Final: %zu bytes\n", current, final);
   }
 }
 
@@ -94,19 +94,26 @@ void onOTAEnd(bool success) {
 // Hauptseite
 void handleRoot()
 {
-    String html = "<html><head><meta charset='UTF-8'><title>ESP32 Time Log</title>";
-    html += "<style>body{font-family:sans-serif; padding:20px;} table{width:100%; border-collapse:collapse;} td,th{border:1px solid #ddd; padding:10px;}</style></head><body>";
-    html += "<h1>Reset-Historie mit Zeitstempel</h1><table><tr><th>Nr.</th><th>Zeitpunkt</th><th>Grund</th></tr>";
+    server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    server.send(200, "text/html", "");
+    
+    server.sendContent("<html><head><meta charset='UTF-8'><title>ESP32 Time Log</title>");
+    server.sendContent("<style>body{font-family:sans-serif; padding:20px;} table{width:100%; border-collapse:collapse;} td,th{border:1px solid #ddd; padding:10px;}</style></head><body>");
+    server.sendContent("<h1>Reset-Historie mit Zeitstempel</h1><table><tr><th>Nr.</th><th>Zeitpunkt</th><th>Grund</th></tr>");
 
+    char row[320];
     for (int i = 0; i < 25; i++)
     {
-        html += "<tr><td>" + String(i + 1) + "</td>";
-        html += "<td>" + formatTime(history[i].timestamp) + "</td>";
-        html += "<td>" + get_reset_reason_string((esp_reset_reason_t)history[i].reason) + "</td></tr>";
+        snprintf(row, sizeof(row), "<tr><td>%d</td><td>%s</td><td>%s</td></tr>",
+            i + 1,
+            formatTime(history[i].timestamp).c_str(),
+            get_reset_reason_string((esp_reset_reason_t)history[i].reason).c_str()
+        );
+        server.sendContent(row);
     }
 
-    html += "</table><br><a href='/clear'>Log löschen</a></body></html>";
-    server.send(200, "text/html", html);
+    server.sendContent("</table><br><a href='/clear'>Log löschen</a></body></html>");
+    server.sendContent(""); // Antwort sauber abschließen
 }
 
 // Historie im NVS nullen
@@ -192,10 +199,7 @@ void setup()
     prefs.begin("system", false);
     prefs.getBytes(NVS_KEY, history, sizeof(history));
     // 3. Historie rotieren (Index 0 ist immer der neuste)
-    for (int i = 24; i > 0; i--)
-    {
-        history[i] = history[i - 1];
-    }
+    memmove(&history[1], &history[0], sizeof(ResetEntry) * 24); // Schneller als Schleife
     history[0].reason = currentReason;
     time(&history[0].timestamp); // Aktuelle Zeit speichern
     // 4. Zurück in den NVS schreiben
