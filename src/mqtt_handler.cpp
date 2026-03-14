@@ -1,4 +1,5 @@
 #include "mqtt_handler.h"
+#include "publish.h"
 
 constexpr unsigned long RECONNECT_DELAY = 2000;
 unsigned long lastReconnectAttempt = 0;
@@ -39,6 +40,12 @@ String topic_publish_delay;
 String topic_min_pub_time;
 String topic_publish_interval;
 
+static uint32_t rawdata_enqueued_count = 0;
+static uint32_t rawdata_drop_init_failed_count = 0;
+static uint32_t rawdata_drop_oversize_count = 0;
+static uint32_t rawdata_drop_pool_exhausted_count = 0;
+static uint32_t rawdata_drop_queue_full_count = 0;
+
 String formatUptime(time_t uptime)
 {
     int days = uptime / 86400;
@@ -51,17 +58,23 @@ String formatUptime(time_t uptime)
     return String(buffer);
 }
 
-void toMqttQueue(String topic, String payload)
+void toMqttQueue(const char *topic, const char *payload)
 {
     std::lock_guard<std::mutex> lock(mqttQueueMutex);
     if (mqtt_client.state() != MQTT_CONNECTED || !isWifiConnected)
     {
         return; // Wait until MQTT is connected before pushing topics to publish queue
     }
+
+    if (topic == nullptr || payload == nullptr)
+    {
+        return;
+    }
+
     PublishMessage queue_in;
-    strncpy(queue_in.topic, topic.c_str(), sizeof(queue_in.topic) - 1);
+    strncpy(queue_in.topic, topic, sizeof(queue_in.topic) - 1);
     queue_in.topic[sizeof(queue_in.topic) - 1] = '\0';
-    strncpy(queue_in.payload, payload.c_str(), sizeof(queue_in.payload) - 1);
+    strncpy(queue_in.payload, payload, sizeof(queue_in.payload) - 1);
     queue_in.payload[sizeof(queue_in.payload) - 1] = '\0';
     if (xQueueSend(publishQueue, &queue_in, 0) != pdTRUE)
     {
@@ -70,23 +83,110 @@ void toMqttQueue(String topic, String payload)
     }
 }
 
-void setState(String key, String value, bool publish)
+void toMqttQueue(String topic, String payload)
 {
+    toMqttQueue(topic.c_str(), payload.c_str());
+}
+
+void toMqttQueueRawData(String topic, const char *payload, size_t payloadLen)
+{
+    if (!ensureRawPublishInfraInitialized())
+    {
+        rawdata_drop_init_failed_count++;
+        DEBUG_PRINTLN("Rawdata infra not available, dropping payload");
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(mqttQueueMutex);
+    if (mqtt_client.state() != MQTT_CONNECTED || !isWifiConnected)
+    {
+        return; // Wait until MQTT is connected before pushing topics to publish queue
+    }
+
+    if (payload == nullptr || payloadLen == 0)
+    {
+        return;
+    }
+
+    if (payloadLen > RAWDATA_POOL_SLOT_SIZE)
+    {
+        rawdata_drop_oversize_count++;
+        String failMsg = "Rawdata payload too large for pool: " + String(payloadLen);
+        DEBUG_PRINTLN(failMsg);
+        return;
+    }
+
+    uint16_t slotIndex = 0;
+    if (!rawDataPoolAllocSlot(&slotIndex, 0))
+    {
+        rawdata_drop_pool_exhausted_count++;
+        DEBUG_PRINTLN("Rawdata pool exhausted, dropping payload");
+        return;
+    }
+
+    const uint8_t *slotPtrConst = rawDataPoolSlotPtr(slotIndex);
+    if (slotPtrConst == nullptr)
+    {
+        rawDataPoolFreeSlot(slotIndex);
+        return;
+    }
+
+    uint8_t *slotPtr = const_cast<uint8_t *>(slotPtrConst);
+    memcpy(slotPtr, payload, payloadLen);
+
+    RawPublishMessage queue_in;
+    strncpy(queue_in.topic, topic.c_str(), sizeof(queue_in.topic) - 1);
+    queue_in.topic[sizeof(queue_in.topic) - 1] = '\0';
+    queue_in.payload_len = static_cast<uint16_t>(payloadLen);
+    queue_in.slot_index = slotIndex;
+
+    if (xQueueSend(rawPublishQueue, &queue_in, 0) != pdTRUE)
+    {
+        rawdata_drop_queue_full_count++;
+        rawDataPoolFreeSlot(slotIndex);
+        String failMsg = "Failed to send rawdata message to queue: " + String(topic);
+        DEBUG_PRINTLN(failMsg);
+        return;
+    }
+
+    rawdata_enqueued_count++;
+}
+
+void setState(const char *key, const char *value, bool publish)
+{
+    if (key == nullptr || value == nullptr)
+    {
+        return;
+    }
+
     stateMap[key] = value;
     if (publish)
     {
-        String fullTopic = mqttname + "/status/" + key;
-        toMqttQueue(fullTopic.c_str(), value.c_str());
+        char fullTopic[192];
+        snprintf(fullTopic, sizeof(fullTopic), "%s/status/%s", mqttname.c_str(), key);
+        toMqttQueue(fullTopic, value);
     }
+}
+
+void setState(String key, String value, bool publish)
+{
+    setState(key.c_str(), value.c_str(), publish);
+}
+
+static void setStateU32(const char *key, uint32_t value, bool publish)
+{
+    char valueBuf[16];
+    snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(value));
+    setState(key, valueBuf, publish);
 }
 
 void publishStates()
 {
     for (const auto &kv : stateMap)
     {
-        String fullTopic = mqttname + "/status/" + kv.first;
-        String payload = kv.second;
-        toMqttQueue(fullTopic.c_str(), payload.c_str());
+        char fullTopic[192];
+        snprintf(fullTopic, sizeof(fullTopic), "%s/status/%s", mqttname.c_str(), kv.first.c_str());
+        toMqttQueue(fullTopic, kv.second.c_str());
     }
     vTaskDelay(25 / portTICK_PERIOD_MS);
 }
@@ -97,6 +197,13 @@ void publishStatesTask(void *pvParameters)
     {
         // update uptime before publishing states
         setState("uptime", formatUptime(esp_timer_get_time() / 1000000), false);
+        setStateU32("rawpool_free_slots", rawDataPoolFreeCount(), false);
+        setStateU32("rawpool_capacity", RAWDATA_POOL_SLOT_COUNT, false);
+        setStateU32("rawdata_enqueued", rawdata_enqueued_count, false);
+        setStateU32("rawdata_drop_init_failed", rawdata_drop_init_failed_count, false);
+        setStateU32("rawdata_drop_oversize", rawdata_drop_oversize_count, false);
+        setStateU32("rawdata_drop_pool_exhausted", rawdata_drop_pool_exhausted_count, false);
+        setStateU32("rawdata_drop_queue_full", rawdata_drop_queue_full_count, false);
         publishStates();
         // Warte min_pub_time Sekunden, aber in kleineren Schritten
         uint32_t total_delay = min_pub_time * 1000;
@@ -282,11 +389,14 @@ void mqtt_loop()
     {
         if (!isWifiConnected)
         {
-            DEBUG_PRINTLN("Waiting for WiFi connection before attempting MQTT reconnect...");
-            while (!isWifiConnected)
+            static uint32_t lastWifiWaitLog = 0;
+            uint32_t nowMs = millis();
+            if (nowMs - lastWifiWaitLog > 5000)
             {
-                vTaskDelay(200 / portTICK_PERIOD_MS);
+                DEBUG_PRINTLN("Waiting for WiFi connection before attempting MQTT reconnect...");
+                lastWifiWaitLog = nowMs;
             }
+            return;
         }
     
         unsigned long now = millis();

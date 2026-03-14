@@ -19,7 +19,7 @@ void write_setting(const char *setting_name, uint16_t value)
     // Save the uint16_t value
     prefs.putUShort(setting_name, value);
     prefs.end();
-    DEBUG_PRINTLN("Value for " + String(setting_name) + "  changed to  " + String(value));
+    DEBUG_PRINTF("Value for %s changed to %u\n", setting_name, static_cast<unsigned int>(value));
     re_read_settings();
 }
 
@@ -28,7 +28,7 @@ void write_setting(const char *setting_name, bool value)
     prefs.begin("storage", false);
     prefs.putUChar(setting_name, value ? 1 : 0);
     prefs.end();
-    DEBUG_PRINTLN("Value for " + String(setting_name) + "  changed to  " + String(value));
+    DEBUG_PRINTF("Value for %s changed to %s\n", setting_name, value ? "true" : "false");
     re_read_settings();
 }
 

@@ -116,7 +116,11 @@ void WiFiEvent(WiFiEvent_t event)
     case ARDUINO_EVENT_WIFI_STA_GOT_IP:
         DEBUG_PRINT("IP-Adresse: ");
         DEBUG_PRINTLN(WiFi.localIP());
-        setState("wifi_rssi", String(WiFi.RSSI()), false);
+        {
+            char rssi_buf[12];
+            snprintf(rssi_buf, sizeof(rssi_buf), "%d", WiFi.RSSI());
+            setState("wifi_rssi", rssi_buf, false);
+        }
         isWifiConnected = true;
         break;
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
@@ -175,8 +179,12 @@ void wifi_loop()
     uint32_t currentTime = millis();
     if (currentTime - WIFI_RSSI_Update_Time >=WIFI_RSSI_UPDATE_INTERVAL)
     {
-        setState("wifi_rssi", String(WiFi.RSSI()), false);
-        setState("MinFreeHeap", String(ESP.getMinFreeHeap()), false);
+        char rssi_buf[12];
+        char heap_buf[16];
+        snprintf(rssi_buf, sizeof(rssi_buf), "%d", WiFi.RSSI());
+        snprintf(heap_buf, sizeof(heap_buf), "%lu", static_cast<unsigned long>(ESP.getMinFreeHeap()));
+        setState("wifi_rssi", rssi_buf, false);
+        setState("MinFreeHeap", heap_buf, false);
         WIFI_RSSI_Update_Time = currentTime;
     }
 }
