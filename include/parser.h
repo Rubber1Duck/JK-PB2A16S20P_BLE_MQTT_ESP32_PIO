@@ -22,6 +22,11 @@ void readCellDataRecord(void *message, const char *devicename);
 void readConfigInfoRecord(void *message, const char *devicename);
 String getLocalTimeString();
 
+extern DeviceInfo deviceinfo;
+extern CellData celldata;
+extern bool has_device_info;
+extern bool has_cell_data;
+
 extern uint16_t min_pub_time;
 extern uint16_t publish_delay;
 extern bool debug_flg_full;

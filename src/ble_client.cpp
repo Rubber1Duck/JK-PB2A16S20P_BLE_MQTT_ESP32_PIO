@@ -60,7 +60,7 @@ void parser(void *message) {
 }
 
 // Convert BLE disconnect reason code to readable text
-String getDisconnectReasonText(int reason) {
+const char *getDisconnectReasonText(int reason) {
     switch (reason) {
     case 0x08:
         return "Connection Timeout (0x08)";
@@ -79,7 +79,7 @@ String getDisconnectReasonText(int reason) {
     case 0x3E:
         return "LMP Response Timeout (0x3E)";
     default:
-        return "Unknown Reason (" + String(reason, HEX) + ")";
+        return "Unknown Reason";
     }
 }
 
@@ -89,8 +89,7 @@ class MyClientCallback : public NimBLEClientCallbacks {
 
     void onDisconnect(NimBLEClient *pClient, int reason) override {
         DEBUG_PRINTF("%s Disconnected, reason = %d - Starting scan\n", pClient->getPeerAddress().toString().c_str(), reason);
-        String reasonText = getDisconnectReasonText(reason);
-        DEBUG_PRINTLN("BLE Disconnected. Reason: " + reasonText);
+        DEBUG_PRINTF("BLE Disconnected. Reason: %s\n", getDisconnectReasonText(reason));
         NimBLEDevice::getScan()->start(scanTimeMs, false, true);
     }
 } clientCallbacks;
@@ -102,7 +101,7 @@ class ScanCallbacks : public NimBLEScanCallbacks {
         
         DEBUG_PRINTF("Advertised Device found: %s\n", advertisedDevice->toString().c_str());
         if (advertisedDevice->isAdvertisingService(serviceUUID) && advertisedDevice->getName() == devicename) {
-            DEBUG_PRINTLN("Found our server \"" + String(devicename) + "\"");
+            DEBUG_PRINTF("Found our server \"%s\"\n", devicename);
             /** stop scan before connecting */
             NimBLEDevice::getScan()->stop();
             /** Save the device reference in a global for the client to use*/
@@ -233,9 +232,10 @@ bool connectToBLEServer() {
     }
 
     DEBUG_PRINTF("Connected to: %s RSSI: %d\n", pClient->getPeerAddress().toString().c_str(), pClient->getRssi());
-    String macAddr = String(myDevice->getAddress().toString().c_str());
-    String rssiVal = String(myDevice->getRSSI());
-    setState("ble_device_mac", macAddr, true);
+    std::string macAddr = myDevice->getAddress().toString();
+    char rssiVal[12];
+    snprintf(rssiVal, sizeof(rssiVal), "%d", myDevice->getRSSI());
+    setState("ble_device_mac", macAddr.c_str(), true);
     setState("ble_device_rssi", rssiVal, true);
 
     // Obtain a reference to the service we are after in the remote BLE server.
@@ -244,8 +244,8 @@ bool connectToBLEServer() {
         DEBUG_PRINTLN(" - Found our service");
         pRemoteCharacteristic = pRemoteService->getCharacteristic(charUUID);
         if (pRemoteCharacteristic == nullptr) {
-            String charMsg = "Failed to find our characteristic UUID: " + String(charUUID.toString().c_str());
-            DEBUG_PRINTLN(charMsg);
+            std::string charUuid = charUUID.toString();
+            DEBUG_PRINTF("Failed to find our characteristic UUID: %s\n", charUuid.c_str());
             pClient->disconnect();
             return false;
         }
@@ -260,7 +260,8 @@ bool connectToBLEServer() {
             DEBUG_PRINTLN("Subscribed to notifications");
         }
     } else {
-        DEBUG_PRINTLN("Failed to find our service UUID: " + String(serviceUUID.toString().c_str()));
+        std::string svcUuid = serviceUUID.toString();
+        DEBUG_PRINTF("Failed to find our service UUID: %s\n", svcUuid.c_str());
         pClient->disconnect();
     }
     if (pRemoteCharacteristic->canWrite()) {
@@ -325,7 +326,9 @@ void ble_loop() {
 
         if (last_rssi_time == 0 || (millis() - last_rssi_time) >= BLE_RSSI_INTERVAL) {
             last_rssi_time = millis();
-            setState("ble_device_rssi", String(myDevice->getRSSI()).c_str(), true);
+            char rssiVal[12];
+            snprintf(rssiVal, sizeof(rssiVal), "%d", myDevice->getRSSI());
+            setState("ble_device_rssi", rssiVal, true);
         }
     }
 }
@@ -348,7 +351,7 @@ void bleClientTask(void *pvParameters) {
     /** Start scanning for advertisers */
     pBLEScan->start(scanTimeMs);
 
-    DEBUG_PRINTLN("Scan for our Server \"" + String(devicename) + "\"");
+    DEBUG_PRINTF("Scan for our Server \"%s\"\n", devicename);
 
     // Keep the task running
     while (true) {
@@ -403,7 +406,7 @@ void ble_setup() {
     /** Start scanning for advertisers */
     pBLEScan->start(scanTimeMs);
 
-        DEBUG_PRINTLN("Scan for our Server \"" + String(devicename) + "\"");
+    DEBUG_PRINTF("Scan for our Server \"%s\"\n", devicename);
 
 #endif
 }

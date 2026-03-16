@@ -21,10 +21,14 @@
 #include <WiFiClientSecure.h>
 #endif
 
+void setState(const char *key, const char *value, bool publish);
 void setState(String key, String value, bool publish);
+String formatUptime(time_t uptime);
 void mqtt_loop();
 void mqtt_init();
+void toMqttQueue(const char *topic, const char *payload);
 void toMqttQueue(String topic, String payload);
+void toMqttQueueRawData(String topic, const char *payload, size_t payloadLen);
 
 // MQTT Setting
 // MQTT Client name used when connecting to broker
@@ -33,6 +37,7 @@ extern String mqttname;
 extern String mqtt_main_topic;
 extern PubSubClient mqtt_client;
 extern QueueHandle_t publishQueue;
+extern QueueHandle_t rawPublishQueue;
 extern boolean isWifiConnected;
 extern uint16_t min_pub_time;
 extern bool debug_flg;
