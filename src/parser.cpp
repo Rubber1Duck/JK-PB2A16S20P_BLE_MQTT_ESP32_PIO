@@ -280,6 +280,7 @@ String getLocalTimeString()
 }
 
 DeviceInfo deviceinfo;
+bool has_device_info = false;
 
 void readDeviceInfoRecord(void *message, const char *devicename)
 {
@@ -287,6 +288,13 @@ void readDeviceInfoRecord(void *message, const char *devicename)
     // Startzeit für die Verarbeitung des Datensatzes
     // uint32_t start_time = millis();
     memcpy(&deviceinfo, message, 300); // Kopiere 300 Bytes in die Struktur
+    has_device_info = true;
+
+    // Ensure fixed-size text fields are null-terminated before downstream use.
+    deviceinfo.ManufacturerDeviceID[sizeof(deviceinfo.ManufacturerDeviceID) - 1] = '\0';
+    deviceinfo.HardwareVersion[sizeof(deviceinfo.HardwareVersion) - 1] = '\0';
+    deviceinfo.SoftwareVersion[sizeof(deviceinfo.SoftwareVersion) - 1] = '\0';
+    deviceinfo.DeviceName[sizeof(deviceinfo.DeviceName) - 1] = '\0';
 
     ensureCellTopicCache(devicename);
     const char *base_device = cellTopicCache.base_device;
@@ -358,6 +366,7 @@ void readDeviceInfoRecord(void *message, const char *devicename)
 }
 
 CellData celldata;
+bool has_cell_data = false;
 CellDataOld cdOld[2]; // Array to store old values for MQTT and INFLUX, used for comparison and change detection
 
 void readCellDataRecord(void *message, const char *devicename)
@@ -410,6 +419,7 @@ void readCellDataRecord(void *message, const char *devicename)
     dtostrf(Q_discharged_mAh, 0, 3, Q_discharged_mAh_str);
         
     memcpy(&celldata, message, 300); // Kopiere 300 Bytes message in die Struktur
+    has_cell_data = true;
     celldata.prepareOutValues(); // Bereite die formatierten Strings für die Ausgabe vor
 
     ensureCellTopicCache(devicename);

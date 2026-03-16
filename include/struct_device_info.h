@@ -14,12 +14,12 @@ struct DeviceInfo
   uint8_t Header[4];             // 4     Header                        #
   uint8_t FrameType;             // 1     Frame type                    #
   uint8_t FrameCounter;          // 1     Frame counter                 #
-  char ManufacturerDeviceID[16]; // 16    Manufacturer Device ID        /0 terminated String
-  char HardwareVersion[8];       // 8     Hardware Version              /0 terminated String
-  char SoftwareVersion[8];       // 8     Software Version              /0 terminated String
-  uint32_t OddRunTime;           // 4     Odd Run Time                  s
+  char ManufacturerDeviceID[16]; // 16    Manufacturer Device ID        /0 terminated String  //show in HTML Device Info Block
+  char HardwareVersion[8];       // 8     Hardware Version              /0 terminated String  //show in HTML Device Info Block
+  char SoftwareVersion[8];       // 8     Software Version              /0 terminated String  //show in HTML Device Info Block
+  uint32_t OddRunTime;           // 4     Odd Run Time                  s                     //show in HTML Device Info Block (converted to human readable format)
   uint32_t PwrOnTimes;           // 4     Power On Times                #
-  char DeviceName[16];           // 16    Device Name                   /0 terminated String
+  char DeviceName[16];           // 16    Device Name                   /0 terminated String  //show in HTML Device Info Block
   char DevicePasscode[16];       // 16    Device Passcode               /0 terminated String
   char ManufacturingDate[8];     // 8     Manufacturing Date            /0 terminated String
 #ifdef V19                       // it seems in V19 Serial Number is 16 bytes and there is no passcode field
@@ -61,7 +61,7 @@ struct DeviceInfo
   // Note: The structure is packed to ensure there is no padding between the fields, which allows us to directly copy the received byte array into this structure.
   // We will also add helper functions to convert the runtime and other relevant fields into human-readable
   // formats when needed.
-  String getOddRunTimeStr()
+  String getOddRunTimeStr() // Helper function to convert OddRunTime into a human-readable format
   {
     char OddRunTimeStr[64];
     uint32_t seconds = OddRunTime % 60;

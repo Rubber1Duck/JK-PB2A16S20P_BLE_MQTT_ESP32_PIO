@@ -23,6 +23,7 @@
 
 void setState(const char *key, const char *value, bool publish);
 void setState(String key, String value, bool publish);
+String formatUptime(time_t uptime);
 void mqtt_loop();
 void mqtt_init();
 void toMqttQueue(const char *topic, const char *payload);

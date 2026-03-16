@@ -10,20 +10,20 @@ struct CellData
   uint8_t Header[4];            //	4		  Header                        #
   uint8_t FrameType;            //	1		  Frame type                    #
   uint8_t FrameCounter;         //	1		  Frame counter                 #
-  uint16_t CellVol[32];         //	64	  32 mal Cell voltages          mV        0.001 multiplier
+  uint16_t CellVol[32];         //	64	  32 mal Cell voltages          mV        0.001 multiplier  // show in HTML Cell Data Block
   uint32_t CellSta;             //	4		  Enabled cells bitmask         BITMASK   A value of 1 for BIT[n] indicates that the battery exists.
-  uint16_t CellVolAve;          //	2		  Average cell voltage          mV        0.001 multiplier
-  uint16_t CellVdifMax;         //	2		  Cell voltage difference       mV        0.001 multiplier or 1 mV depending on DIFFV_DIVIDER
-  uint8_t MaxVolCellNbr;        //	1		  MaxVolCellNbr                 #
-  uint8_t MinVolCellNbr;        //	1		  MinVolCellNbr                 #
+  uint16_t CellVolAve;          //	2		  Average cell voltage          mV        0.001 multiplier // show in HTML Cell Data Block
+  uint16_t CellVdifMax;         //	2		  Cell voltage difference       mV        0.001 multiplier or 1 mV depending on DIFFV_DIVIDER // show in HTML Cell Data Block
+  uint8_t MaxVolCellNbr;        //	1		  MaxVolCellNbr                 #         show in HTML Cell Data Block
+  uint8_t MinVolCellNbr;        //	1		  MinVolCellNbr                 #         show in HTML Cell Data Block
   uint16_t CellWireRes[32];     //	64	  32 mal Cell wire resistance   mΩ
   int16_t TempMos;              //	2		  TempMos                       0.1℃     0.1 multiplier, can be negative
   uint32_t CellWireResSta;      //	4		  CellWireResSta                BITMASK   A value of 1 for BIT[n] indicates that the equalization line is alarming.
-  uint32_t BatVol;              //	4		  BatVol                        mV        0.001 multiplier
-  uint32_t BatWatt;             //	4		  BatWatt                       mW        0.001 multiplier
-  int32_t BatCurrent;           //	4		  BatCurrent                    mA        0.001 multiplier, can be negative
-  int16_t TempBat1;             //	2		  TempBat 1                     0.1℃     0.1 multiplier, can be negative
-  int16_t TempBat2;             //	2		  TempBat 2                     0.1℃     0.1 multipler, can be negative
+  uint32_t BatVol;              //	4		  BatVol                        mV        0.001 multiplier // show in HTML Cell Data Block
+  uint32_t BatWatt;             //	4		  BatWatt                       mW        0.001 multiplier // show in HTML Cell Data Block
+  int32_t BatCurrent;           //	4		  BatCurrent                    mA        0.001 multiplier, can be negative // show in HTML Cell Data Block
+  int16_t TempBat1;             //	2		  TempBat 1                     0.1℃     0.1 multiplier, can be negative // show in HTML Cell Data Block
+  int16_t TempBat2;             //	2		  TempBat 2                     0.1℃     0.1 multipler, can be negative // show in HTML Cell Data Block
   uint32_t AlarmBitMask;        //  4     AlarmBitMask                  BITMASK   BIT0: AlarmWireRes (1: Fault; 0: Normal),
                                 //                                                BIT1: AlarmMosOTP (1: Fault; 0: Normal),
                                 //                                                BIT2: AlarmCellQuantity (1: Fault; 0: Normal),
@@ -50,11 +50,11 @@ struct CellData
                                 //                                                BIT23: PLCModule anomaly (1: Fault; 0: Normal)
   int16_t BalanCurrent;         //	2		  BalanCurrent                  mA        0.001 multiplier, can be negative
   uint8_t BalanSta;             //	1		  BalanSta                      #         2: Discharge; 1: Charge; 0: Off
-  uint8_t SOCStateOfcharge;     //  1     SOCStateOfcharge              %         1 multiplier
-  int32_t SOCCapRemain;         //  4     SOCCapRemain                  mAH       0.001 multiplier, can be negative
+  uint8_t SOCStateOfcharge;     //  1     SOCStateOfcharge              %         1 multiplier // show in HTML Cell Data Block
+  int32_t SOCCapRemain;         //  4     SOCCapRemain                  mAH       0.001 multiplier, can be negative // show in HTML Cell Data Block
   uint32_t SOCFullChargeCap;    //  4     SOCFullChargeCap              mAH	      0.001 multiplier
-  uint32_t SOCCycleCount;       //  4     SOCCycleCount                 #
-  uint32_t SOCCycleCap;         //  4     SOCCycleCap                   mAH       0.001 multiplier
+  uint32_t SOCCycleCount;       //  4     SOCCycleCount                 #   // show in HTML Cell Data Block
+  uint32_t SOCCycleCap;         //  4     SOCCycleCap                   mAH       0.001 multiplier // show in HTML Cell Data Block
   uint8_t SOCSOH;               //  1     SOCSOH                        %
   uint8_t Precharge;            //  1     Precharge                     #         1: On; 0: Off
   uint16_t UserAlarm;           //  2     UserAlarm                     #
@@ -88,9 +88,9 @@ struct CellData
   uint8_t ChargerPlugged;       //  1     ChargerPlugged                #         1: Inserted; 0: Not inserted
   uint32_t SysRunTicks;         //  4     SysRunTicks                   0.1S      0.1 multiplier
   uint8_t unknown4[4];          //  4		  Reserved
-  int16_t TempBat3;             //  2     TempBat 3                     0.1℃	   0.1 multiplier, can be negative
-  int16_t TempBat4;             //  2     TempBat 4                     0.1℃	   0.1 multiplier, can be negative
-  int16_t TempBat5;             //  2     TempBat 5                     0.1℃	   0.1 multiplier, can be negative
+  int16_t TempBat3;             //  2     TempBat 3                     0.1℃	   0.1 multiplier, can be negative // show in HTML Cell Data Block
+  int16_t TempBat4;             //  2     TempBat 4                     0.1℃	   0.1 multiplier, can be negative // show in HTML Cell Data Block
+  int16_t TempBat5;             //  2     TempBat 5                     0.1℃	   0.1 multiplier, can be negative // show in HTML Cell Data Block
   uint8_t unknown5[2];          //  2		  Reserved
   uint32_t RTCTicks;            //  4     RTCTicks		                  #         The countdown begins on January 1, 2020. RTC ticks, 1 tick = 1/32768 second, will overflow after around 136 years
   uint8_t unknown6[4];          //  4		  Reserved
