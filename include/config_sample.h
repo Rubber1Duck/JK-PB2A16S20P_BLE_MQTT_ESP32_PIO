@@ -14,6 +14,10 @@
 // uncomment to publish trigger values for LCD buzzer and dry contacts from device info frame
 // #define LCD_AND_DRY_TRIGGER_VALUES
 
+// Number of reset reasons to store in history, adjust as needed but be careful with NVS storage limits
+// (see: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/storage/nvs_flash.html#nvs-flash)
+#define MAX_RESET_REASONS 10 
+
 // WiFi credentials
 // #define USE_WIFI_STATIC_IP // uncomment to use static IP configuration instead of DHCP (see below for settings)
 
