@@ -218,6 +218,7 @@ void handleBmsPage(WebServer &server)
     server.sendContent(
         "<div class='footer-links'>"
         "<a href='/reset_history'>Reset-Historie</a>"
+        "<a href='/reset_esp' onclick=\"return confirm('ESP32 jetzt neu starten?');\">ESP32 neu starten</a>"
         "<a href='/update'>Firmware-Update</a>"
         "</div>");
 

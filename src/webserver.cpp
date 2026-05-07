@@ -222,6 +222,13 @@ void handleClear()
     server.sendHeader("Location", "/");
     server.send(303);
 }
+
+void handleEspReset()
+{
+    server.send(200, "text/html", "<html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='3;url=/'></head><body><p>ESP32 wird neu gestartet...</p><p><a href='/'>Zur\xFCck</a></p></body></html>");
+    delay(150);
+    ESP.restart();
+}
 } // namespace
 
 void setupWebserver(ResetEntry *history, size_t historyCount, const char *nvsKey)
@@ -233,6 +240,7 @@ void setupWebserver(ResetEntry *history, size_t historyCount, const char *nvsKey
     server.on("/", handleRoot);
     server.on("/reset_history", handleResetHistory);
     server.on("/clear", handleClear);
+    server.on("/reset_esp", handleEspReset);
     server.on("/bms", handleRoot);
     server.on("/api/bms", handleBmsApi);
     server.on("/ota", []() {
