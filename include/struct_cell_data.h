@@ -96,10 +96,14 @@ struct CellData
   uint8_t unknown6[4];          //  4		  Reserved
   uint32_t TimeEnterSleep;      //  4     TimeEnterSleep                s
   uint8_t PCLModuleSta;         //  1     PCLModuleSta                  #         1: On; 0: Off
-  uint8_t unknown7[24];         //  24		Reserved
+  uint8_t unknown7[3];          //  3		  Reserved
+  uint16_t ChargeStatusTime;    //  2     ChargeStatusTime              s
+  uint8_t ChargeStatus;         //  1     ChargeStatus                  #         0x00: Bulk ; 0x01: Absorption ; 0x02: Float
+  uint8_t DryContactMask;       //  1     DryContactMask                BITMASK   0x00: DRY and DRY2 off ; 0x02: DRY1 on ; 0x04: DRY2 on ; 0x06: DRY1 and DRY2 on
+  uint8_t unknown8[17];         //  17		Reserved
   uint8_t Checksum;             //  1     CRC Checksum                  #
   // Total: 300 bytes
-  // Hilfsvariablen für die Ausgabe zu MQTT und InfluxDB
+  // Hilfsvariablen für die Ausgabe zu MQTT
   char CellVol_fmt[32][8];     // Hilfsvariable für die Formatierung der CellVoltages mit 3 Dezimalstellen eg. 3.456 V
   char CellSta_fmt[33];        // Hilfsvariable für die Interpretation des CellSta Bitmasks (32 Zellen + Nullterminator) 00000000 00000000 00000000 00000000
   char CellVolAve_fmt[8];      // Hilfsvariable für die Formatierung der CellVolAve mit 3 Dezimalstellen eg. 3.456 V
@@ -162,6 +166,11 @@ struct CellData
   char RTCTicksToSeconds_fmt[16];                                                                                    // Hilfsvariable für die Umrechnung der RTCTicks in Sekunden (1 tick = 1/32768 second) und Formatierung auf 3 Dezimalstellen eg. 123456.789 s
   char TimeEnterSleep_fmt[10];                                                                                       // Hilfsvariable für die Formatierung des TimeEnterSleep eg. 1234 s
   char PCLModuleSta_fmt[4];                                                                                          // Hilfsvariable für die Interpretation des PCLModuleSta (1: On; 0: Off)
+  char ChargeStatusTime_fmt[10];                                                                                     // Hilfsvariable für die Formatierung des ChargeStatusTime eg. 1234 s
+  char ChargeStatus_fmt[12];                                                                                         // Hilfsvariable für die Interpretation des ChargeStatus (0x00: Bulk ; 0x01: Absorption ; 0x02: Float)
+  char Dry1Contact_fmt[7];                                                                                           // Hilfsvariable für die Interpretation des Dry1Contact Open/closed (0x00: DRY and DRY2 off ; 0x02: DRY1 on ; 0x04: DRY2 on ; 0x06: DRY1 and DRY2 on)
+  char Dry2Contact_fmt[7];                                                                                           // Hilfsvariable für die Interpretation des Dry2Contact Open/closed (0x00: DRY and DRY2 off ; 0x02: DRY1 on ; 0x04: DRY2 on ; 0x06: DRY1 and DRY2 on)
+  bool check_bit(uint8_t mask, uint8_t flag){ return (mask & flag) == flag; }
   void prepareOutValues()
   {
     // Aktualisiere die Hilfsvariablen basierend auf den gelesenen Daten
@@ -295,6 +304,24 @@ struct CellData
     snprintf(TimeEnterSleep_fmt, sizeof(TimeEnterSleep_fmt), "%d", TimeEnterSleep);
     // PCLModuleSta interpretieren (1: On; 0: Off)
     strncpy(PCLModuleSta_fmt, PCLModuleSta ? "On" : "Off", sizeof(PCLModuleSta_fmt));
+    // ChargeStatusTime formatieren
+    snprintf(ChargeStatusTime_fmt, sizeof(ChargeStatusTime_fmt), "%d", ChargeStatusTime);
+    // ChargeStatus interpretieren (0x00: Bulk ; 0x01: Absorption ; 0x02: Float)
+    if (ChargeStatus == 0x00)
+    {
+      strncpy(ChargeStatus_fmt, "Bulk", sizeof(ChargeStatus_fmt));
+    }
+    else if (ChargeStatus == 0x01)
+    {
+      strncpy(ChargeStatus_fmt, "Absorption", sizeof(ChargeStatus_fmt));
+    }
+    else if (ChargeStatus == 0x02)
+    {
+      strncpy(ChargeStatus_fmt, "Float", sizeof(ChargeStatus_fmt));
+    }
+    // Dry1Contact_fmt interpretieren (0x00: DRY and DRY2 open ; 0x02: DRY1 closed ; 0x04: DRY2 closed ; 0x06: DRY1 and DRY2 closed)
+    check_bit(DryContactMask, 0x02) ? strncpy(Dry1Contact_fmt, "closed", sizeof(Dry1Contact_fmt)) : strncpy(Dry1Contact_fmt, "open", sizeof(Dry1Contact_fmt));
+    check_bit(DryContactMask, 0x04) ? strncpy(Dry2Contact_fmt, "closed", sizeof(Dry2Contact_fmt)) : strncpy(Dry2Contact_fmt, "open", sizeof(Dry2Contact_fmt));
   }
 } __attribute__((packed)); // Verhindert Padding und sorgt dafür, dass die Struktur genau so im Speicher liegt wie definiert;
 
@@ -353,6 +380,10 @@ struct CellDataOld
   uint32_t RTCTicks;                    //  4     RTCTicks		                  #         The countdown begins on January 1, 2020. RTC ticks, 1 tick = 1/32768 second, will overflow after around 136 years
   uint32_t TimeEnterSleep;              //  4     TimeEnterSleep                s
   uint8_t PCLModuleSta;                 //  1     PCLModuleSta                  #         1: On; 0: Off
+  uint16_t ChargeStatusTime;            //  2     ChargeStatusTime              s
+  uint8_t ChargeStatus;                 //  1     ChargeStatus                  #         0x00: Bulk ; 0x01: Absorption ; 0x02: Float
+  boolean DryContact1;                  //  1     DryContactMask1               #         Hilfsvariable zur Bestimmung ob sich der DryContact1 Wert geändert hat, da dieser in CellData aufgrund der Formatierung als String nicht direkt mit dem gelesenen Wert verglichen werden kann
+  boolean DryContact2;                  //  1     DryContactMask2               #         Hilfsvariable zur Bestimmung ob sich der DryContact2 Wert geändert hat, da dieser in CellData aufgrund der Formatierung als String nicht direkt mit dem gelesenen Wert verglichen werden kann
   uint32_t RunTime2;                    //  4     Hilfsvariable zur Bestimmung ob ein neuer RunTime Wert vorliegt, da dieser in CellData aufgrund der Formatierung als String nicht direkt mit dem gelesenen Wert verglichen werden kann
 };
 

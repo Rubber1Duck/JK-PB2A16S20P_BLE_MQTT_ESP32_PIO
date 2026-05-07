@@ -1,0 +1,138 @@
+# Home Assistant MQTT sensors for JK-BMS listener
+#
+# Nutzung:
+# 1) DEVICENAME und TOPIC_BASE unten anpassen.
+# 2) Inhalt unter mqtt: in deine configuration.yaml einbinden.
+#
+# Beispiel BASE:
+#   TOPIC_BASE = jk_ble_listener/
+#   DEVICENAME = JK-PB2A16S20P-01
+#   BASE = jk_ble_listener/JK-PB2A16S20P-01
+
+mqtt:
+  sensor:
+    - name: "JKBMS Status"
+      unique_id: "jkbms_status"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/status/status"
+      icon: mdi:heart-pulse
+
+    - name: "JKBMS Uptime"
+      unique_id: "jkbms_uptime"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/status/uptime"
+      icon: mdi:clock-outline
+
+    - name: "JKBMS IP Address"
+      unique_id: "jkbms_ipaddress"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/status/ipaddress"
+      icon: mdi:ip-network
+
+    - name: "JKBMS WiFi RSSI"
+      unique_id: "jkbms_wifi_rssi"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/status/wifi_rssi"
+      unit_of_measurement: "dBm"
+      device_class: signal_strength
+      state_class: measurement
+      icon: mdi:wifi
+
+    - name: "JKBMS BLE Connection"
+      unique_id: "jkbms_ble_connection"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/status/ble_connection"
+      icon: mdi:bluetooth-connect
+
+    - name: "JKBMS Device Name"
+      unique_id: "jkbms_device_name"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/device/device_name"
+      icon: mdi:battery
+
+    - name: "JKBMS SW Version"
+      unique_id: "jkbms_sw_version"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/device/sw_version"
+      icon: mdi:tag-text-outline
+
+    - name: "JKBMS Runtime"
+      unique_id: "jkbms_runtime_fmt"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/device/uptime_fmt"
+      icon: mdi:timer-outline
+
+    - name: "JKBMS Battery Voltage"
+      unique_id: "jkbms_battery_voltage"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/data/battery_voltage"
+      unit_of_measurement: "V"
+      device_class: voltage
+      state_class: measurement
+      icon: mdi:flash
+
+    - name: "JKBMS Battery Current"
+      unique_id: "jkbms_battery_current"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/data/battery_current"
+      unit_of_measurement: "A"
+      device_class: current
+      state_class: measurement
+      icon: mdi:current-dc
+
+    - name: "JKBMS Battery Power"
+      unique_id: "jkbms_battery_power"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/data/battery_power"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      icon: mdi:lightning-bolt
+
+    - name: "JKBMS SOC"
+      unique_id: "jkbms_battery_soc"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/data/battery_soc"
+      unit_of_measurement: "%"
+      device_class: battery
+      state_class: measurement
+      icon: mdi:battery-medium
+
+    - name: "JKBMS SOH"
+      unique_id: "jkbms_battery_soh"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/data/battery_soh"
+      unit_of_measurement: "%"
+      state_class: measurement
+      icon: mdi:heart
+
+    - name: "JKBMS Capacity Remaining"
+      unique_id: "jkbms_capacity_remaining"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/data/battery_capacity_remaining"
+      unit_of_measurement: "Ah"
+      state_class: measurement
+      icon: mdi:battery-clock
+
+    - name: "JKBMS Total Runtime"
+      unique_id: "jkbms_total_runtime_fmt"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/data/battery_total_runtime_fmt"
+      icon: mdi:calendar-clock
+
+    - name: "JKBMS MOS Temperature"
+      unique_id: "jkbms_temp_mosfet"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/data/temperatures/temp_mosfet"
+      unit_of_measurement: "C"
+      device_class: temperature
+      state_class: measurement
+      icon: mdi:thermometer
+
+    - name: "JKBMS Battery Temperature 1"
+      unique_id: "jkbms_temp_sensor1"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/data/temperatures/temp_sensor1"
+      unit_of_measurement: "C"
+      device_class: temperature
+      state_class: measurement
+      icon: mdi:thermometer
+
+    - name: "JKBMS Alarm Raw"
+      unique_id: "jkbms_alarm_raw"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/data/alarms/alarm_raw"
+      icon: mdi:alarm-light
+
+    - name: "JKBMS Alarm Mask"
+      unique_id: "jkbms_alarm_mask"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/data/alarms/alarms_mask"
+      icon: mdi:shield-alert
+
+    - name: "JKBMS Cell Count"
+      unique_id: "jkbms_cell_count"
+      state_topic: "jk_ble_listener/JK-PB2A16S20P-01/config/cell_count"
+      state_class: measurement
+      icon: mdi:counter

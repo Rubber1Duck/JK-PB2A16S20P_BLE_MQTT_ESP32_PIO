@@ -2,9 +2,6 @@
 #include <cstring>
 #include <type_traits>
 
-#define INFLUX 1
-#define MQTT 0
-
 uint32_t lastPublishTimeCellData = 0;
 uint32_t lastDataReceivedTime = 0;
 bool first_run = true;
@@ -16,11 +13,11 @@ float Q_discharged = 0; // discharge in As
 float Q_charged_mAh = 0;
 float Q_discharged_mAh = 0;
 
-float Q_charged_mAh_old[2] = {0};
-float Q_discharged_mAh_old[2] = {0};
+float Q_charged_mAh_old = 0;
+float Q_discharged_mAh_old = 0;
 char Q_charged_mAh_str[32];
 char Q_discharged_mAh_str[32];
-uint32_t battery_power_calculated[2] = {0};
+uint32_t battery_power_calculated = 0;
 
 uint8_t counter_last = 0;
 
@@ -255,18 +252,6 @@ void publishIfChanged(T &currentValue, T newValue, const char *publishValue, con
 {
     publishIfChanged(currentValue, newValue, publishValue, topic.c_str());
 }
-#ifdef USE_INFLUXDB
-template <typename T>
-void publishIfChangedInflux(T &currentValue, T newValue, const char *publishValue, const String &topic)
-{
-    if (currentValue != newValue)
-    {
-        publishToInfluxDB(topic, publishValue);
-        currentValue = newValue;
-    }
-}
-#endif
-
 String getLocalTimeString()
 {
     struct tm timeinfo;
@@ -367,7 +352,7 @@ void readDeviceInfoRecord(void *message, const char *devicename)
 
 CellData celldata;
 bool has_cell_data = false;
-CellDataOld cdOld[2]; // Array to store old values for MQTT and INFLUX, used for comparison and change detection
+CellDataOld cdOld; // Array to store old values, used for comparison and change detection
 
 void readCellDataRecord(void *message, const char *devicename)
 {
@@ -431,8 +416,8 @@ void readCellDataRecord(void *message, const char *devicename)
     snprintf(readcount_payload, sizeof(readcount_payload), "%u", celldata.FrameCounter);
     toMqttQueueWithSuffix(base_data, "readcount", readcount_payload);
     // Publish charge and discharge in mAh with change detection with 3 decimal places
-    publishIfChangedWithSuffix(Q_charged_mAh_old[MQTT], Q_charged_mAh, Q_charged_mAh_str, base_data, "battery_charged_mAh");
-    publishIfChangedWithSuffix(Q_discharged_mAh_old[MQTT], Q_discharged_mAh, Q_discharged_mAh_str, base_data, "battery_discharged_mAh");
+    publishIfChangedWithSuffix(Q_charged_mAh_old, Q_charged_mAh, Q_charged_mAh_str, base_data, "battery_charged_mAh");
+    publishIfChangedWithSuffix(Q_discharged_mAh_old, Q_discharged_mAh, Q_discharged_mAh_str, base_data, "battery_discharged_mAh");
 
     if (debug_flg_full)
     {
@@ -458,228 +443,210 @@ void readCellDataRecord(void *message, const char *devicename)
     {
         if (celldata.CellVol[i] != 0)
         {
-            publishIfChanged(cdOld[MQTT].CellVol[i], celldata.CellVol[i], celldata.CellVol_fmt[i], cellTopicCache.cell_voltage[i]);
-#ifdef INFLUX_CELLS_VOLTAGE
-            publishToInfluxDB("cell_" + String(i + 1), celldata.CellVol[i]);
-#endif
+            publishIfChanged(cdOld.CellVol[i], celldata.CellVol[i], celldata.CellVol_fmt[i], cellTopicCache.cell_voltage[i]);
         }
     }
 
     // CellSta as bitmask
     if (debug_flg)
     {
-        publishIfChangedWithSuffix(cdOld[MQTT].CellSta, celldata.CellSta, celldata.CellSta_fmt, base_data, "cells_used");
+        publishIfChangedWithSuffix(cdOld.CellSta, celldata.CellSta, celldata.CellSta_fmt, base_data, "cells_used");
     }
 
     // Cell Average Voltage
-    publishIfChangedWithSuffix(cdOld[MQTT].CellVolAve, celldata.CellVolAve, celldata.CellVolAve_fmt, base_data, "cells/voltage/cell_avg_voltage");
+    publishIfChangedWithSuffix(cdOld.CellVolAve, celldata.CellVolAve, celldata.CellVolAve_fmt, base_data, "cells/voltage/cell_avg_voltage");
 
     // Cell Voltage Difference
-    publishIfChangedWithSuffix(cdOld[MQTT].CellVdifMax, celldata.CellVdifMax, celldata.CellVdifMax_fmt, base_data, "cells/voltage/cell_diff_voltage");
+    publishIfChangedWithSuffix(cdOld.CellVdifMax, celldata.CellVdifMax, celldata.CellVdifMax_fmt, base_data, "cells/voltage/cell_diff_voltage");
 
     // High Voltage Cell
-    publishIfChangedWithSuffix(cdOld[MQTT].MaxVolCellNbr, celldata.MaxVolCellNbr, celldata.MaxVolCellNbr_fmt, base_data, "cells/voltage/high_voltage_cell");
+    publishIfChangedWithSuffix(cdOld.MaxVolCellNbr, celldata.MaxVolCellNbr, celldata.MaxVolCellNbr_fmt, base_data, "cells/voltage/high_voltage_cell");
 
     // Low Voltage Cell
-    publishIfChangedWithSuffix(cdOld[MQTT].MinVolCellNbr, celldata.MinVolCellNbr, celldata.MinVolCellNbr_fmt, base_data, "cells/voltage/low_voltage_cell");
+    publishIfChangedWithSuffix(cdOld.MinVolCellNbr, celldata.MinVolCellNbr, celldata.MinVolCellNbr_fmt, base_data, "cells/voltage/low_voltage_cell");
 
     // Cell resistances
     for (uint8_t i = 0; i < 32; i++)
     {
         if (celldata.CellWireRes[i] != 0)
         {
-            publishIfChanged(cdOld[MQTT].CellWireRes[i], celldata.CellWireRes[i], celldata.CellWireRes_fmt[i], cellTopicCache.cell_resistance[i]);
+            publishIfChanged(cdOld.CellWireRes[i], celldata.CellWireRes[i], celldata.CellWireRes_fmt[i], cellTopicCache.cell_resistance[i]);
         }
     }
 
     // Temp MOSFET
-    publishIfChangedWithSuffix(cdOld[MQTT].TempMos, celldata.TempMos, celldata.TempMos_fmt, base_data, "temperatures/temp_mosfet");
-#ifdef INFLUX_TEMP_SENSOR_MOSFET
-    publishIfChangedInflux(cdOld[INFLUX].TempMos, celldata.TempMos, celldata.TempMos_fmt, "temp_mosfet");
-#endif
+    publishIfChangedWithSuffix(cdOld.TempMos, celldata.TempMos, celldata.TempMos_fmt, base_data, "temperatures/temp_mosfet");
 
     // Cell Wire Resistance Status as bitmask
     if (debug_flg)
     {
-        publishIfChangedWithSuffix(cdOld[MQTT].CellWireResSta, celldata.CellWireResSta, celldata.CellWireResSta_fmt, base_data, "cell_resistance_alert");
+        publishIfChangedWithSuffix(cdOld.CellWireResSta, celldata.CellWireResSta, celldata.CellWireResSta_fmt, base_data, "cell_resistance_alert");
     }
 
     // Battery Total Voltage
-    publishIfChangedWithSuffix(cdOld[MQTT].BatVol, celldata.BatVol, celldata.BatVol_fmt, base_data, "battery_voltage");
-#ifdef INFLUX_BATTERY_VOLTAGE
-    publishIfChangedInflux(cdOld[INFLUX].BatVol, celldata.BatVol, celldata.BatVol_fmt, "battery_voltage");
-#endif
+    publishIfChangedWithSuffix(cdOld.BatVol, celldata.BatVol, celldata.BatVol_fmt, base_data, "battery_voltage");
 
     // Battery Power
-    publishIfChangedWithSuffix(cdOld[MQTT].BatWatt, celldata.BatWatt, celldata.BatWatt_fmt, base_data, "battery_power");
-#ifdef INFLUX_BATTERY_POWER
-    publishIfChangedInflux(cdOld[INFLUX].BatWatt, celldata.BatWatt, celldata.BatWatt_fmt, "battery_power");
-#endif
+    publishIfChangedWithSuffix(cdOld.BatWatt, celldata.BatWatt, celldata.BatWatt_fmt, base_data, "battery_power");
 
     // Battery Current
-    publishIfChangedWithSuffix(cdOld[MQTT].BatCurrent, celldata.BatCurrent, celldata.BatCurrent_fmt, base_data, "battery_current");
-#ifdef INFLUX_BATTERY_CURRENT
-    publishIfChangedInflux(cdOld[INFLUX].BatCurrent, celldata.BatCurrent, celldata.BatCurrent_fmt, "battery_current");
-#endif
+    publishIfChangedWithSuffix(cdOld.BatCurrent, celldata.BatCurrent, celldata.BatCurrent_fmt, base_data, "battery_current");
 
-    // Signed Battery Power for MQTT and InfluxDB
+    // Signed Battery Power for MQTT
     // this is to have the correct sign for the power (discharging "-" or charging)
     char signed_BatWatt_str[32];
     dtostrf((celldata.BatCurrent < 0 ? (float)(0 - celldata.BatWatt * 0.001) : (float)(celldata.BatWatt * 0.001)), 0, 3, signed_BatWatt_str); // to have the correct sign for the power (discharging "-" or charging)
-    publishIfChangedWithSuffix(battery_power_calculated[MQTT], celldata.BatWatt, signed_BatWatt_str, base_data, "battery_power_calculated");
-#ifdef INFLUX_BATTERY_POWER
-    publishIfChangedInflux(battery_power_calculated[INFLUX], celldata.BatWatt, signed_BatWatt_str, "battery_power");
-#endif
+    publishIfChangedWithSuffix(battery_power_calculated, celldata.BatWatt, signed_BatWatt_str, base_data, "battery_power_calculated");
 
     // Batterie Temp Sensor 1
-    publishIfChangedWithSuffix(cdOld[MQTT].TempBat1, celldata.TempBat1, celldata.TempBat1_fmt, base_data, "temperatures/temp_sensor1");
-#ifdef INFLUX_TEMP_SENSOR_1
-    publishIfChangedInflux(cdOld[INFLUX].TempBat1, celldata.TempBat1, celldata.TempBat1_fmt, "temp_sensor1");
-#endif
+    publishIfChangedWithSuffix(cdOld.TempBat1, celldata.TempBat1, celldata.TempBat1_fmt, base_data, "temperatures/temp_sensor1");
 
     // Batterie Temp Sensor 2
-    publishIfChangedWithSuffix(cdOld[MQTT].TempBat2, celldata.TempBat2, celldata.TempBat2_fmt, base_data, "temperatures/temp_sensor2");
-#ifdef INFLUX_TEMP_SENSOR_2
-    publishIfChangedInflux(cdOld[INFLUX].TempBat2, celldata.TempBat2, celldata.TempBat2_fmt, "temp_sensor2");
-#endif
+    publishIfChangedWithSuffix(cdOld.TempBat2, celldata.TempBat2, celldata.TempBat2_fmt, base_data, "temperatures/temp_sensor2");
 
     // Alarms as raw dezimal, bitmask and resolved alarms according to BMS RS485 ModbusV1.1 2024.02 Page 10
-    publishIfChangedWithSuffix(cdOld[MQTT].AlarmBitMask, celldata.AlarmBitMask, celldata.Alarm_raw_fmt, base_data, "alarms/alarm_raw");
+    publishIfChangedWithSuffix(cdOld.AlarmBitMask, celldata.AlarmBitMask, celldata.Alarm_raw_fmt, base_data, "alarms/alarm_raw");
 
     if (debug_flg)
     {
-        publishIfChangedWithSuffix(cdOld[MQTT].AlarmBitMask, celldata.AlarmBitMask, celldata.AlarmBitMask_fmt, base_data, "alarms/alarms_mask");
+        publishIfChangedWithSuffix(cdOld.AlarmBitMask, celldata.AlarmBitMask, celldata.AlarmBitMask_fmt, base_data, "alarms/alarms_mask");
     }
     for (int i = 0; i < 24; ++i)
     {
         char alarm_topic[192];
         snprintf(alarm_topic, sizeof(alarm_topic), "%salarms/%s", base_data, celldata.AlarmsTopics[i]);
-        publishIfChanged(cdOld[MQTT].AlarmBitMask, celldata.AlarmBitMask, celldata.AlarmsValue_fmt[i], alarm_topic);
+        publishIfChanged(cdOld.AlarmBitMask, celldata.AlarmBitMask, celldata.AlarmsValue_fmt[i], alarm_topic);
     }
 
     // Balance Current
-    publishIfChangedWithSuffix(cdOld[MQTT].BalanCurrent, celldata.BalanCurrent, celldata.BalanCurrent_fmt, base_data, "balance_current");
+    publishIfChangedWithSuffix(cdOld.BalanCurrent, celldata.BalanCurrent, celldata.BalanCurrent_fmt, base_data, "balance_current");
 
     // Balance Status
-    publishIfChangedWithSuffix(cdOld[MQTT].BalanSta, celldata.BalanSta, celldata.BalanSta_fmt, base_data, "balance_status");
+    publishIfChangedWithSuffix(cdOld.BalanSta, celldata.BalanSta, celldata.BalanSta_fmt, base_data, "balance_status");
 
     // State of Charge
-    publishIfChangedWithSuffix(cdOld[MQTT].SOCStateOfcharge, celldata.SOCStateOfcharge, celldata.SOCStateOfcharge_fmt, base_data, "battery_soc");
-#ifdef INFLUX_BATTERY_SOC
-    publishIfChangedInflux(cdOld[INFLUX].SOCStateOfcharge, celldata.SOCStateOfcharge, celldata.SOCStateOfcharge_fmt, "battery_soc");
-#endif
+    publishIfChangedWithSuffix(cdOld.SOCStateOfcharge, celldata.SOCStateOfcharge, celldata.SOCStateOfcharge_fmt, base_data, "battery_soc");
 
     // Battery Capacity Remaining
-    publishIfChangedWithSuffix(cdOld[MQTT].SOCCapRemain, celldata.SOCCapRemain, celldata.SOCCapRemain_fmt, base_data, "battery_capacity_remaining");
+    publishIfChangedWithSuffix(cdOld.SOCCapRemain, celldata.SOCCapRemain, celldata.SOCCapRemain_fmt, base_data, "battery_capacity_remaining");
 
     // Battery Capacity Total
-    publishIfChangedWithSuffix(cdOld[MQTT].SOCFullChargeCap, celldata.SOCFullChargeCap, celldata.SOCFullChargeCap_fmt, base_data, "battery_capacity_total");
+    publishIfChangedWithSuffix(cdOld.SOCFullChargeCap, celldata.SOCFullChargeCap, celldata.SOCFullChargeCap_fmt, base_data, "battery_capacity_total");
 
     // Battery Cycle Count
-    publishIfChangedWithSuffix(cdOld[MQTT].SOCCycleCount, celldata.SOCCycleCount, celldata.SOCCycleCount_fmt, base_data, "battery_cycle_count");
+    publishIfChangedWithSuffix(cdOld.SOCCycleCount, celldata.SOCCycleCount, celldata.SOCCycleCount_fmt, base_data, "battery_cycle_count");
 
     // Battery Cycle Capacity Total
-    publishIfChangedWithSuffix(cdOld[MQTT].SOCCycleCap, celldata.SOCCycleCap, celldata.SOCCycleCap_fmt, base_data, "battery_cycle_capacity_total");
+    publishIfChangedWithSuffix(cdOld.SOCCycleCap, celldata.SOCCycleCap, celldata.SOCCycleCap_fmt, base_data, "battery_cycle_capacity_total");
 
     // Battery SOH
-    publishIfChangedWithSuffix(cdOld[MQTT].SOCSOH, celldata.SOCSOH, celldata.SOCSOH_fmt, base_data, "battery_soh");
+    publishIfChangedWithSuffix(cdOld.SOCSOH, celldata.SOCSOH, celldata.SOCSOH_fmt, base_data, "battery_soh");
 
     // Battery Precharge Status
-    publishIfChangedWithSuffix(cdOld[MQTT].Precharge, celldata.Precharge, celldata.Precharge_fmt, base_data, "battery_precharge_status");
+    publishIfChangedWithSuffix(cdOld.Precharge, celldata.Precharge, celldata.Precharge_fmt, base_data, "battery_precharge_status");
 
     // Battery User Alarm 1
-    publishIfChangedWithSuffix(cdOld[MQTT].UserAlarm, celldata.UserAlarm, celldata.UserAlarm_fmt, base_data, "battery_user_alarm1");
+    publishIfChangedWithSuffix(cdOld.UserAlarm, celldata.UserAlarm, celldata.UserAlarm_fmt, base_data, "battery_user_alarm1");
 
     // Battery Total Runtime in seconds and in human-readable format
-    publishIfChangedWithSuffix(cdOld[MQTT].RunTime, celldata.RunTime, celldata.RunTime_fmt, base_data, "battery_total_runtime_sec");
-    publishIfChangedWithSuffix(cdOld[MQTT].RunTime2, celldata.RunTime, celldata.RunTime_fmt_dhms, base_data, "battery_total_runtime_fmt");
+    publishIfChangedWithSuffix(cdOld.RunTime, celldata.RunTime, celldata.RunTime_fmt, base_data, "battery_total_runtime_sec");
+    publishIfChangedWithSuffix(cdOld.RunTime2, celldata.RunTime, celldata.RunTime_fmt_dhms, base_data, "battery_total_runtime_fmt");
 
     // Charging MOSFET Status
-    publishIfChangedWithSuffix(cdOld[MQTT].Charge, celldata.Charge, celldata.Charge_fmt, base_data, "charging_mosfet_status");
+    publishIfChangedWithSuffix(cdOld.Charge, celldata.Charge, celldata.Charge_fmt, base_data, "charging_mosfet_status");
 
     // Discharging MOSFET Status
-    publishIfChangedWithSuffix(cdOld[MQTT].Discharge, celldata.Discharge, celldata.Discharge_fmt, base_data, "discharging_mosfet_status");
+    publishIfChangedWithSuffix(cdOld.Discharge, celldata.Discharge, celldata.Discharge_fmt, base_data, "discharging_mosfet_status");
 
     // Battery User Alarm 2
-    publishIfChangedWithSuffix(cdOld[MQTT].UserAlarm2, celldata.UserAlarm2, celldata.UserAlarm2_fmt, base_data, "battery_user_alarm2");
+    publishIfChangedWithSuffix(cdOld.UserAlarm2, celldata.UserAlarm2, celldata.UserAlarm2_fmt, base_data, "battery_user_alarm2");
 
     // Time Discharge Over Current Protection Release (timeDcOCPR)
-    publishIfChangedWithSuffix(cdOld[MQTT].TimeDcOCPR, celldata.TimeDcOCPR, celldata.TimeDcOCPR_fmt, base_data, "timeDcOCPR");
+    publishIfChangedWithSuffix(cdOld.TimeDcOCPR, celldata.TimeDcOCPR, celldata.TimeDcOCPR_fmt, base_data, "timeDcOCPR");
 
     // Time Discharge Short Circuit Protection Release (timeDcSCPR)
-    publishIfChangedWithSuffix(cdOld[MQTT].TimeDcSCPR, celldata.TimeDcSCPR, celldata.TimeDcSCPR_fmt, base_data, "timeDcSCPR");
+    publishIfChangedWithSuffix(cdOld.TimeDcSCPR, celldata.TimeDcSCPR, celldata.TimeDcSCPR_fmt, base_data, "timeDcSCPR");
 
     // Time Charge Over Current Protection Release (timeCOCPR)
-    publishIfChangedWithSuffix(cdOld[MQTT].TimeCOCPR, celldata.TimeCOCPR, celldata.TimeCOCPR_fmt, base_data, "timeCOCPR");
+    publishIfChangedWithSuffix(cdOld.TimeCOCPR, celldata.TimeCOCPR, celldata.TimeCOCPR_fmt, base_data, "timeCOCPR");
 
     // Time Charge Short Circuit Protection Release (timeCSCPR)
-    publishIfChangedWithSuffix(cdOld[MQTT].TimeCSCPR, celldata.TimeCSCPR, celldata.TimeCSCPR_fmt, base_data, "timeCSCPR");
+    publishIfChangedWithSuffix(cdOld.TimeCSCPR, celldata.TimeCSCPR, celldata.TimeCSCPR_fmt, base_data, "timeCSCPR");
 
     // Time Under Voltage Protection Release (timeUVPR)
-    publishIfChangedWithSuffix(cdOld[MQTT].TimeUVPR, celldata.TimeUVPR, celldata.TimeUVPR_fmt, base_data, "timeUVPR");
+    publishIfChangedWithSuffix(cdOld.TimeUVPR, celldata.TimeUVPR, celldata.TimeUVPR_fmt, base_data, "timeUVPR");
 
     // Time Over Voltage Protection Release (timeOVPR)
-    publishIfChangedWithSuffix(cdOld[MQTT].TimeOVPR, celldata.TimeOVPR, celldata.TimeOVPR_fmt, base_data, "timeOVPR");
+    publishIfChangedWithSuffix(cdOld.TimeOVPR, celldata.TimeOVPR, celldata.TimeOVPR_fmt, base_data, "timeOVPR");
 
     // Temperature Sensor Absent Mask as raw dezimal, bitmask and resolved according to BMS RS485 ModbusV1.1 2024.02 Page 11
-    publishIfChangedWithSuffix(cdOld[MQTT].TempSensorAbsentMask, celldata.TempSensorAbsentMask, celldata.TempSensorAbsent_fmt, base_data, "temperatures/temp_sensor_absent");
+    publishIfChangedWithSuffix(cdOld.TempSensorAbsentMask, celldata.TempSensorAbsentMask, celldata.TempSensorAbsent_fmt, base_data, "temperatures/temp_sensor_absent");
     if (debug_flg)
     {
-        publishIfChangedWithSuffix(cdOld[MQTT].TempSensorAbsentMask, celldata.TempSensorAbsentMask, celldata.TempSensorAbsentMask_fmt, base_data, "temperatures/temp_sensor_absent_mask");
+        publishIfChangedWithSuffix(cdOld.TempSensorAbsentMask, celldata.TempSensorAbsentMask, celldata.TempSensorAbsentMask_fmt, base_data, "temperatures/temp_sensor_absent_mask");
     }
     for (int i = 0; i < 6; ++i)
     {
         char temp_absent_topic[192];
         snprintf(temp_absent_topic, sizeof(temp_absent_topic), "%stemperatures/%s", base_data, celldata.TempSensorsAbsentTopics[i]);
-        publishIfChanged(cdOld[MQTT].TempSensorAbsentMask, celldata.TempSensorAbsentMask, celldata.TempSensAbsentValues_fmt[i], temp_absent_topic);
+        publishIfChanged(cdOld.TempSensorAbsentMask, celldata.TempSensorAbsentMask, celldata.TempSensAbsentValues_fmt[i], temp_absent_topic);
     }
 
     // Battery Heating
-    publishIfChangedWithSuffix(cdOld[MQTT].Heating, celldata.Heating, celldata.Heating_fmt, base_data, "temperatures/battery_heating");
+    publishIfChangedWithSuffix(cdOld.Heating, celldata.Heating, celldata.Heating_fmt, base_data, "temperatures/battery_heating");
 
     // Time Emergency
-    publishIfChangedWithSuffix(cdOld[MQTT].TimeEmergency, celldata.TimeEmergency, celldata.TimeEmergency_fmt, base_data, "time_emergency");
+    publishIfChangedWithSuffix(cdOld.TimeEmergency, celldata.TimeEmergency, celldata.TimeEmergency_fmt, base_data, "time_emergency");
 
     // Heating Current
-    publishIfChangedWithSuffix(cdOld[MQTT].HeatCurrent, celldata.HeatCurrent, celldata.HeatCurrent_fmt, base_data, "heat_current");
+    publishIfChangedWithSuffix(cdOld.HeatCurrent, celldata.HeatCurrent, celldata.HeatCurrent_fmt, base_data, "heat_current");
 
     // System run ticks, unit: 0.1s, range: 0~4294967295
-    publishIfChangedWithSuffix(cdOld[MQTT].SysRunTicks, celldata.SysRunTicks, celldata.SysRunTicks_fmt, base_data, "sys_run_ticks");
+    publishIfChangedWithSuffix(cdOld.SysRunTicks, celldata.SysRunTicks, celldata.SysRunTicks_fmt, base_data, "sys_run_ticks");
 
     // Batterie Temp Sensor3
-    publishIfChangedWithSuffix(cdOld[MQTT].TempBat3, celldata.TempBat3, celldata.TempBat3_fmt, base_data, "temperatures/temp_sensor3");
-#ifdef INFLUX_TEMP_SENSOR_3
-    publishIfChangedInflux(cdOld[INFLUX].TempBat3, celldata.TempBat3, celldata.TempBat3_fmt, "temp_sensor3");
-#endif
+    publishIfChangedWithSuffix(cdOld.TempBat3, celldata.TempBat3, celldata.TempBat3_fmt, base_data, "temperatures/temp_sensor3");
 
     // Batterie Temp Sensor4
     if (celldata.TempBat4 > 1200 || celldata.TempBat4 < -400)
     { // if the value is out of range, it could be that the sensor is not present or not working, so we publish a separate topic for this
-        publishIfChangedWithSuffix(cdOld[MQTT].TempBat4, celldata.TempBat4, "out of range", base_data, "temperatures/temp_sensor4");
+        publishIfChangedWithSuffix(cdOld.TempBat4, celldata.TempBat4, "out of range", base_data, "temperatures/temp_sensor4");
     }
     else
     {
-        publishIfChangedWithSuffix(cdOld[MQTT].TempBat4, celldata.TempBat4, celldata.TempBat4_fmt, base_data, "temperatures/temp_sensor4");
-#ifdef INFLUX_TEMP_SENSOR_4
-        publishIfChangedInflux(cdOld[INFLUX].TempBat4, celldata.TempBat4, celldata.TempBat4_fmt, "temp_sensor4");
-#endif
+        publishIfChangedWithSuffix(cdOld.TempBat4, celldata.TempBat4, celldata.TempBat4_fmt, base_data, "temperatures/temp_sensor4");
     }
 
     // Batterie Temp Sensor5
     if (celldata.TempBat5 > 1200 || celldata.TempBat5 < -400)
     { // if the value is out of range, it could be that the sensor is not present or not working, so we publish a separate topic for this
-        publishIfChangedWithSuffix(cdOld[MQTT].TempBat5, celldata.TempBat5, "out of range", base_data, "temperatures/temp_sensor5");
+        publishIfChangedWithSuffix(cdOld.TempBat5, celldata.TempBat5, "out of range", base_data, "temperatures/temp_sensor5");
     }
     else
     {
-        publishIfChangedWithSuffix(cdOld[MQTT].TempBat5, celldata.TempBat5, celldata.TempBat5_fmt, base_data, "temperatures/temp_sensor5");
-#ifdef INFLUX_TEMP_SENSOR_5
-        publishIfChangedInflux(cdOld[INFLUX].TempBat5, celldata.TempBat5, celldata.TempBat5_fmt, "temp_sensor5");
-#endif
+        publishIfChangedWithSuffix(cdOld.TempBat5, celldata.TempBat5, celldata.TempBat5_fmt, base_data, "temperatures/temp_sensor5");
     }
 
     // RTC Ticks
-    publishIfChangedWithSuffix(cdOld[MQTT].RTCTicks, celldata.RTCTicks, celldata.RTCTicksToSeconds_fmt, base_data, "rtc_ticks");
+    publishIfChangedWithSuffix(cdOld.RTCTicks, celldata.RTCTicks, celldata.RTCTicksToSeconds_fmt, base_data, "rtc_ticks");
+
+    // TimeEnterSleep
+    publishIfChangedWithSuffix(cdOld.TimeEnterSleep, celldata.TimeEnterSleep, celldata.TimeEnterSleep_fmt, base_data, "time_enter_sleep");
+
+    // PCLModuleSta
+    publishIfChangedWithSuffix(cdOld.PCLModuleSta, celldata.PCLModuleSta, celldata.PCLModuleSta_fmt, base_data, "pcl_module_status");
+
+    // ChargeStatusTime
+    publishIfChangedWithSuffix(cdOld.ChargeStatusTime, celldata.ChargeStatusTime, celldata.ChargeStatusTime_fmt, base_data, "charge_status_time");
+
+    // ChargeStatus
+    publishIfChangedWithSuffix(cdOld.ChargeStatus, celldata.ChargeStatus, celldata.ChargeStatus_fmt, base_data, "charge_status");
+
+    // Dry1Contact
+    publishIfChangedWithSuffix(cdOld.DryContact1, celldata.check_bit(celldata.DryContactMask, 2), celldata.Dry1Contact_fmt, base_data, "dry_contact_1");
+    
+    // Dry2Contact
+    publishIfChangedWithSuffix(cdOld.DryContact2, celldata.check_bit(celldata.DryContactMask, 4), celldata.Dry2Contact_fmt, base_data, "dry_contact_2");
 
     uint32_t heapAfterCycle = ESP.getFreeHeap();
     int32_t heapDelta = static_cast<int32_t>(heapBeforeCycle) - static_cast<int32_t>(heapAfterCycle);
@@ -751,6 +718,7 @@ void readCellDataRecord(void *message, const char *devicename)
 }
 
 ConfigInfo configinfo;
+bool has_config_info = false;
 
 void readConfigInfoRecord(void *message, const char *devicename)
 {
@@ -759,6 +727,7 @@ void readConfigInfoRecord(void *message, const char *devicename)
 
     // Kopiere die empfangenen Bytes in die ConfigInfo-Struktur
     memcpy(&configinfo, message, 300); // Kopiere 300 Bytes in die Struktur
+    has_config_info = true;
     configinfo.update_switches();
 
     ensureCellTopicCache(devicename);

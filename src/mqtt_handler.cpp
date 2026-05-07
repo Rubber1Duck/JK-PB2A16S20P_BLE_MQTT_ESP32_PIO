@@ -1,6 +1,8 @@
 #include "mqtt_handler.h"
 #include "publish.h"
 
+#include <ctype.h>
+
 constexpr unsigned long RECONNECT_DELAY = 2000;
 unsigned long lastReconnectAttempt = 0;
 constexpr int MQTT_BUFFER_SIZE = 2048;
@@ -45,6 +47,154 @@ static uint32_t rawdata_drop_init_failed_count = 0;
 static uint32_t rawdata_drop_oversize_count = 0;
 static uint32_t rawdata_drop_pool_exhausted_count = 0;
 static uint32_t rawdata_drop_queue_full_count = 0;
+
+#ifdef USE_HA_DISCOVERY
+#ifndef HA_DISCOVERY_PREFIX
+#define HA_DISCOVERY_PREFIX "homeassistant"
+#endif
+
+namespace
+{
+struct DiscoveryEntity
+{
+    const char *key;
+    const char *name;
+    const char *topicSuffix;
+    const char *unit;
+    const char *deviceClass;
+    const char *stateClass;
+    const char *icon;
+};
+
+const DiscoveryEntity DISCOVERY_ENTITIES[] = {
+    {"status", "JKBMS Status", "status/status", nullptr, nullptr, nullptr, "mdi:heart-pulse"},
+    {"uptime", "JKBMS Uptime", "status/uptime", nullptr, nullptr, nullptr, "mdi:clock-outline"},
+    {"ipaddress", "JKBMS IP Address", "status/ipaddress", nullptr, nullptr, nullptr, "mdi:ip-network"},
+    {"wifi_rssi", "JKBMS WiFi RSSI", "status/wifi_rssi", "dBm", "signal_strength", "measurement", "mdi:wifi"},
+    {"ble_connection", "JKBMS BLE Connection", "status/ble_connection", nullptr, nullptr, nullptr, "mdi:bluetooth-connect"},
+    {"device_name", "JKBMS Device Name", "device/device_name", nullptr, nullptr, nullptr, "mdi:battery"},
+    {"sw_version", "JKBMS SW Version", "device/sw_version", nullptr, nullptr, nullptr, "mdi:tag-text-outline"},
+    {"runtime_fmt", "JKBMS Runtime", "device/uptime_fmt", nullptr, nullptr, nullptr, "mdi:timer-outline"},
+    {"battery_voltage", "JKBMS Battery Voltage", "data/battery_voltage", "V", "voltage", "measurement", "mdi:flash"},
+    {"battery_current", "JKBMS Battery Current", "data/battery_current", "A", "current", "measurement", "mdi:current-dc"},
+    {"battery_power", "JKBMS Battery Power", "data/battery_power", "W", "power", "measurement", "mdi:lightning-bolt"},
+    {"battery_soc", "JKBMS SOC", "data/battery_soc", "%", "battery", "measurement", "mdi:battery-medium"},
+    {"battery_soh", "JKBMS SOH", "data/battery_soh", "%", nullptr, "measurement", "mdi:heart"},
+    {"capacity_remaining", "JKBMS Capacity Remaining", "data/battery_capacity_remaining", "Ah", nullptr, "measurement", "mdi:battery-clock"},
+    {"total_runtime_fmt", "JKBMS Total Runtime", "data/battery_total_runtime_fmt", nullptr, nullptr, nullptr, "mdi:calendar-clock"},
+    {"temp_mosfet", "JKBMS MOS Temperature", "data/temperatures/temp_mosfet", "C", "temperature", "measurement", "mdi:thermometer"},
+    {"temp_sensor1", "JKBMS Battery Temperature 1", "data/temperatures/temp_sensor1", "C", "temperature", "measurement", "mdi:thermometer"},
+    {"alarm_raw", "JKBMS Alarm Raw", "data/alarms/alarm_raw", nullptr, nullptr, nullptr, "mdi:alarm-light"},
+    {"alarm_mask", "JKBMS Alarm Mask", "data/alarms/alarms_mask", nullptr, nullptr, nullptr, "mdi:shield-alert"},
+    {"cell_count", "JKBMS Cell Count", "config/cell_count", nullptr, nullptr, "measurement", "mdi:counter"},
+};
+
+String jsonEscape(const String &in)
+{
+    String out;
+    out.reserve(in.length() + 8);
+    for (size_t i = 0; i < in.length(); i++)
+    {
+        char c = in[i];
+        if (c == '\\')
+            out += "\\\\";
+        else if (c == '"')
+            out += "\\\"";
+        else if (c == '\n')
+            out += "\\n";
+        else if (c == '\r')
+            out += "\\r";
+        else if (c == '\t')
+            out += "\\t";
+        else
+            out += c;
+    }
+    return out;
+}
+
+String sanitizeEntityId(const char *in)
+{
+    String out;
+    if (in == nullptr)
+    {
+        return "jkbms";
+    }
+
+    for (size_t i = 0; in[i] != '\0'; i++)
+    {
+        unsigned char c = static_cast<unsigned char>(in[i]);
+        if (isalnum(c) || c == '_' || c == '-')
+        {
+            out += static_cast<char>(tolower(c));
+        }
+        else
+        {
+            out += '_';
+        }
+    }
+
+    if (out.length() == 0)
+    {
+        out = "jkbms";
+    }
+    return out;
+}
+
+bool publishHomeAssistantDiscovery()
+{
+    const String deviceId = sanitizeEntityId(mqtt_devicename);
+    const String availabilityTopic = mqttname + "/status/status";
+
+    for (const auto &entity : DISCOVERY_ENTITIES)
+    {
+        String objectId = deviceId + "_" + entity.key;
+        String configTopic = String(HA_DISCOVERY_PREFIX) + "/sensor/" + objectId + "/config";
+        String stateTopic = mqttname + "/" + entity.topicSuffix;
+
+        String payload = "{";
+        payload += "\"name\":\"" + jsonEscape(entity.name) + "\",";
+        payload += "\"uniq_id\":\"" + jsonEscape(objectId) + "\",";
+        payload += "\"stat_t\":\"" + jsonEscape(stateTopic) + "\",";
+        payload += "\"avty_t\":\"" + jsonEscape(availabilityTopic) + "\",";
+        payload += "\"pl_avail\":\"online\",";
+        payload += "\"pl_not_avail\":\"offline\",";
+
+        if (entity.unit != nullptr)
+        {
+            payload += "\"unit_of_meas\":\"" + jsonEscape(entity.unit) + "\",";
+        }
+        if (entity.deviceClass != nullptr)
+        {
+            payload += "\"dev_cla\":\"" + jsonEscape(entity.deviceClass) + "\",";
+        }
+        if (entity.stateClass != nullptr)
+        {
+            payload += "\"stat_cla\":\"" + jsonEscape(entity.stateClass) + "\",";
+        }
+        if (entity.icon != nullptr)
+        {
+            payload += "\"ic\":\"" + jsonEscape(entity.icon) + "\",";
+        }
+
+        payload += "\"dev\":{";
+        payload += "\"ids\":[\"" + jsonEscape(deviceId) + "\"],";
+        payload += "\"name\":\"" + jsonEscape(String("JK BMS ") + mqtt_devicename) + "\",";
+        payload += "\"mf\":\"JK\",";
+        payload += "\"mdl\":\"JK BLE Listener\"";
+        payload += "}}";
+
+        if (!mqtt_client.publish(configTopic.c_str(), payload.c_str(), true))
+        {
+            DEBUG_PRINTLN("HA discovery publish failed: " + configTopic);
+            return false;
+        }
+    }
+
+    DEBUG_PRINTLN("HA discovery published.");
+    return true;
+}
+} // namespace
+#endif // USE_HA_DISCOVERY
 
 String formatUptime(time_t uptime)
 {
@@ -361,6 +511,10 @@ boolean mqtt_reconnect()
 
         mqtt_client.publish(topic_publish_interval.c_str(), String(publishInterval).c_str()) || ErrorCnt++;
         mqtt_client.subscribe(topic_publish_interval.c_str()) || ErrorCnt++; // publish_interval
+
+    #ifdef USE_HA_DISCOVERY
+        publishHomeAssistantDiscovery() || ErrorCnt++;
+    #endif
 
         if (ErrorCnt > 0)
         {
