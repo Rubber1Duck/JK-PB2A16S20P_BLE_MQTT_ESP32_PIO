@@ -43,6 +43,7 @@ String get_reset_reason_string(esp_reset_reason_t reason)
 
 const char *get_reset_reason_class(esp_reset_reason_t reason)
 {
+#ifdef USE_WEBSERVER
     switch (reason)
     {
     case ESP_RST_PANIC:
@@ -61,7 +62,12 @@ const char *get_reset_reason_class(esp_reset_reason_t reason)
     default:
         return "reason-unknown";
     }
+#else
+    return "reason-unknown";
+#endif
 }
+
+#ifdef USE_WEBSERVER
 
 void handleBmsPage(WebServer &server)
 {
@@ -268,3 +274,5 @@ void handleResetHistoryPage(WebServer &server, const ResetEntry *history, size_t
     server.sendContent("</table><div class='actions'><a href='/clear'>Log l&#246;schen</a><a href='/'>Zur&#252;ck zur Startseite</a></div></div></body></html>");
     server.sendContent("");
 }
+
+#endif // USE_WEBSERVER

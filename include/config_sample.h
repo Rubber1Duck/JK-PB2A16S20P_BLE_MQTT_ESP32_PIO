@@ -16,7 +16,10 @@
 
 // Number of reset reasons to store in history, adjust as needed but be careful with NVS storage limits
 // (see: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/storage/nvs_flash.html#nvs-flash)
-#define MAX_RESET_REASONS 10 
+#define MAX_RESET_REASONS 10
+
+// Uncomment to enable webserver and OTA update functionality
+#define USE_WEBSERVER
 
 // WiFi credentials
 // #define USE_WIFI_STATIC_IP // uncomment to use static IP configuration instead of DHCP (see below for settings)

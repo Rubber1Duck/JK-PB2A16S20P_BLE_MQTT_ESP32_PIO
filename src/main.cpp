@@ -1,5 +1,7 @@
 #include "main.h"
+#ifdef USE_WEBSERVER
 #include "app_webserver.h"
+#endif
 
 #ifdef NTPSERVER
 const char *ntpServer = NTPSERVER;
@@ -102,7 +104,9 @@ void setup()
     }
     DEBUG_PRINTLN("---------------------------\n");
 
+#ifdef USE_WEBSERVER
     setupWebserver(history, MAX_RESET_REASONS, NVS_KEY);
+#endif
 
     publish_init();
     mqtt_init();
@@ -111,7 +115,9 @@ void setup()
 
 void loop()
 {
+#ifdef USE_WEBSERVER
     webserverLoop();
+#endif
     wifi_loop();
     mqtt_loop();
     ble_loop();

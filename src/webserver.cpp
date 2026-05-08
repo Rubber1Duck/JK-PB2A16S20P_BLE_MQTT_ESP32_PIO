@@ -1,5 +1,7 @@
 #include "app_webserver.h"
 
+#ifdef USE_WEBSERVER
+
 #include <WebServer.h>
 #include <ElegantOTA.h>
 #include <Preferences.h>
@@ -225,7 +227,7 @@ void handleClear()
 
 void handleEspReset()
 {
-    server.send(200, "text/html", "<html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='3;url=/'></head><body><p>ESP32 wird neu gestartet...</p><p><a href='/'>Zur\xFCck</a></p></body></html>");
+    server.send(200, "text/html", "<html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='3;url=/'></head><body><p>ESP32 wird neu gestartet...</p><p><a href='/'>Zur&#252;ck</a></p></body></html>");
     delay(150);
     ESP.restart();
 }
@@ -260,3 +262,5 @@ void webserverLoop()
     server.handleClient();
     ElegantOTA.loop();
 }
+
+#endif // USE_WEBSERVER
