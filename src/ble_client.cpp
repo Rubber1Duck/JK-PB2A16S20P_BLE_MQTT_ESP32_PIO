@@ -264,7 +264,7 @@ bool connectToBLEServer() {
         DEBUG_PRINTF("Failed to find our service UUID: %s\n", svcUuid.c_str());
         pClient->disconnect();
     }
-    if (pRemoteCharacteristic->canWrite()) {
+    if (pRemoteCharacteristic->canWriteNoResponse()) {
         // Sending getdevice info
         if (pRemoteCharacteristic->writeValue(getdeviceInfo, 20)) {
             DEBUG_PRINTLN("Sent \"getdeviceInfo\" to the BLE device");
@@ -275,6 +275,10 @@ bool connectToBLEServer() {
             pClient->disconnect();
             return false;
         }
+    } else {
+        DEBUG_PRINTLN("Characteristic does not support writing with no response");
+        pClient->disconnect();
+        return false;
     }
     setState("ble_connection", "connected", true);
     ble_connected = true;
