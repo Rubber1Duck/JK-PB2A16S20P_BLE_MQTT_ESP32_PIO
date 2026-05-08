@@ -45,13 +45,13 @@ void parser(void *message) {
 
     switch (type) {
     case 0x01:
-        readConfigDataRecord(message, devicename);
+        readConfigInfoRecord(message, devicename);
         break;
     case 0x02:
         readCellDataRecord(message, devicename);
         break;
     case 0x03:
-        readDeviceDataRecord(message, devicename);
+        readDeviceInfoRecord(message, devicename);
         break;
     default:
         DEBUG_PRINTLN("Unbekannter Typ in message[4]!");
@@ -60,7 +60,7 @@ void parser(void *message) {
 }
 
 // Convert BLE disconnect reason code to readable text
-String getDisconnectReasonText(int reason) {
+const char *getDisconnectReasonText(int reason) {
     switch (reason) {
     case 0x08:
         return "Connection Timeout (0x08)";
@@ -79,7 +79,7 @@ String getDisconnectReasonText(int reason) {
     case 0x3E:
         return "LMP Response Timeout (0x3E)";
     default:
-        return "Unknown Reason (" + String(reason, HEX) + ")";
+        return "Unknown Reason";
     }
 }
 
@@ -89,8 +89,7 @@ class MyClientCallback : public NimBLEClientCallbacks {
 
     void onDisconnect(NimBLEClient *pClient, int reason) override {
         DEBUG_PRINTF("%s Disconnected, reason = %d - Starting scan\n", pClient->getPeerAddress().toString().c_str(), reason);
-        String reasonText = getDisconnectReasonText(reason);
-        DEBUG_PRINTLN("BLE Disconnected. Reason: " + reasonText);
+        DEBUG_PRINTF("BLE Disconnected. Reason: %s\n", getDisconnectReasonText(reason));
         NimBLEDevice::getScan()->start(scanTimeMs, false, true);
     }
 } clientCallbacks;
@@ -102,7 +101,7 @@ class ScanCallbacks : public NimBLEScanCallbacks {
         
         DEBUG_PRINTF("Advertised Device found: %s\n", advertisedDevice->toString().c_str());
         if (advertisedDevice->isAdvertisingService(serviceUUID) && advertisedDevice->getName() == devicename) {
-            DEBUG_PRINTLN("Found our server \"" + String(devicename) + "\"");
+            DEBUG_PRINTF("Found our server \"%s\"\n", devicename);
             /** stop scan before connecting */
             NimBLEDevice::getScan()->stop();
             /** Save the device reference in a global for the client to use*/
@@ -124,7 +123,7 @@ bool CRC_Check(uint8_t *data, size_t length) {
         return false; // Not enough data for CRC
 
     uint16_t calculated_crc = 0;
-    for (size_t i = 0; i < length - 1; i++) {
+    for (size_t i = 0; i < length - 1; i++){
         calculated_crc += data[i];
     }
     calculated_crc &= 0xFF; // Keep only the lowest byte
@@ -162,7 +161,7 @@ void notifyCB(NimBLERemoteCharacteristic *pRemoteCharacteristic, uint8_t *pData,
         ble_buffer_index += bytes_to_copy;
 
         // if 300 bytes received and CRC_Check OK call parser
-        if (ble_buffer_index >= BUFFER_SIZE && CRC_Check(ble_buffer, BUFFER_SIZE)) {
+        if (ble_buffer_index >= BUFFER_SIZE && CRC_Check(ble_buffer, BUFFER_SIZE)){
             std::vector<uint8_t> message(ble_buffer, ble_buffer + BUFFER_SIZE);
             ble_buffer_index = 0;
             capturing = false; // waiting for next start sequence
@@ -195,8 +194,7 @@ bool connectToBLEServer() {
                 return false;
             }
             DEBUG_PRINTF("Reconnected client\n");
-        }
-        else {
+        } else {
             /**
              *  We don't already have a client that knows this device,
              *  check for a client that is disconnected that we can use.
@@ -234,9 +232,10 @@ bool connectToBLEServer() {
     }
 
     DEBUG_PRINTF("Connected to: %s RSSI: %d\n", pClient->getPeerAddress().toString().c_str(), pClient->getRssi());
-    String macAddr = String(myDevice->getAddress().toString().c_str());
-    String rssiVal = String(myDevice->getRSSI());
-    setState("ble_device_mac", macAddr, true);
+    std::string macAddr = myDevice->getAddress().toString();
+    char rssiVal[12];
+    snprintf(rssiVal, sizeof(rssiVal), "%d", myDevice->getRSSI());
+    setState("ble_device_mac", macAddr.c_str(), true);
     setState("ble_device_rssi", rssiVal, true);
 
     // Obtain a reference to the service we are after in the remote BLE server.
@@ -245,8 +244,8 @@ bool connectToBLEServer() {
         DEBUG_PRINTLN(" - Found our service");
         pRemoteCharacteristic = pRemoteService->getCharacteristic(charUUID);
         if (pRemoteCharacteristic == nullptr) {
-            String charMsg = "Failed to find our characteristic UUID: " + String(charUUID.toString().c_str());
-            DEBUG_PRINTLN(charMsg);
+            std::string charUuid = charUUID.toString();
+            DEBUG_PRINTF("Failed to find our characteristic UUID: %s\n", charUuid.c_str());
             pClient->disconnect();
             return false;
         }
@@ -260,9 +259,9 @@ bool connectToBLEServer() {
             }
             DEBUG_PRINTLN("Subscribed to notifications");
         }
-    }
-    else {
-        DEBUG_PRINTLN("Failed to find our service UUID: " + String(serviceUUID.toString().c_str()));
+    } else {
+        std::string svcUuid = serviceUUID.toString();
+        DEBUG_PRINTF("Failed to find our service UUID: %s\n", svcUuid.c_str());
         pClient->disconnect();
     }
     if (pRemoteCharacteristic->canWrite()) {
@@ -271,8 +270,7 @@ bool connectToBLEServer() {
             DEBUG_PRINTLN("Sent \"getdeviceInfo\" to the BLE device");
             initial_send_done = false;    // Reset the initial send flag for the new connection
             last_sending_time = millis(); // Update the last sending time to the current time
-        }
-        else {
+        } else {
             DEBUG_PRINTLN("Failed to send \"getdeviceInfo\" to the BLE device");
             pClient->disconnect();
             return false;
@@ -296,8 +294,7 @@ void ble_loop() {
         doConnect = false;
         if (connectToBLEServer()) {
             DEBUG_PRINTLN("We are now connected to the BLE Server.");
-        }
-        else {
+        } else {
             DEBUG_PRINTLN("Failed to connect to the BLE Server.");
         }
     }
@@ -312,15 +309,13 @@ void ble_loop() {
                 DEBUG_PRINTLN("Send getInfo (initial)");
                 if (pRemoteCharacteristic->writeValue(getInfo, 20)) {
                     DEBUG_PRINTLN("Sent \"getInfo\" to the BLE device");
-                }
-                else {
+                } else {
                     DEBUG_PRINTLN("Failed to send \"getInfo\" to the BLE device");
                 }
                 last_sending_time = millis(); // Update the last sending time to the current time
                 initial_send_done = true;     // Set the flag to indicate the initial send is done
             }
-        }
-        else {
+        } else {
             // Subsequent sends every hour
             if ((millis() - last_sending_time) >= REPEAT_SEND_INTERVAL) {
                 DEBUG_PRINTLN("Send getInfo (hourly)");
@@ -331,7 +326,9 @@ void ble_loop() {
 
         if (last_rssi_time == 0 || (millis() - last_rssi_time) >= BLE_RSSI_INTERVAL) {
             last_rssi_time = millis();
-            setState("ble_device_rssi", String(myDevice->getRSSI()).c_str(), true);
+            char rssiVal[12];
+            snprintf(rssiVal, sizeof(rssiVal), "%d", myDevice->getRSSI());
+            setState("ble_device_rssi", rssiVal, true);
         }
     }
 }
@@ -354,7 +351,7 @@ void bleClientTask(void *pvParameters) {
     /** Start scanning for advertisers */
     pBLEScan->start(scanTimeMs);
 
-    DEBUG_PRINTLN("Scan for our Server \"" + String(devicename) + "\"");
+    DEBUG_PRINTF("Scan for our Server \"%s\"\n", devicename);
 
     // Keep the task running
     while (true) {
@@ -409,7 +406,7 @@ void ble_setup() {
     /** Start scanning for advertisers */
     pBLEScan->start(scanTimeMs);
 
-        DEBUG_PRINTLN("Scan for our Server \"" + String(devicename) + "\"");
+    DEBUG_PRINTF("Scan for our Server \"%s\"\n", devicename);
 
 #endif
 }

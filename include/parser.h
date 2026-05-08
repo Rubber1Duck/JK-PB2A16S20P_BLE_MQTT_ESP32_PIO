@@ -7,20 +7,21 @@
 #include "mqtt_handler.h"
 #include <map>
 #include "time.h"
-#include "data_struct_device_data.h" // DeviceData structure
-#include "data_struct_cell_data.h"   // CellData structure
-#include "data_struct_config_data.h" // ConfigData structure
+#include "struct_device_info.h" // DeviceInfo structure
+#include "struct_cell_data.h"   // CellData structure
+#include "struct_config_info.h" // ConfigInfo structure
 
-#ifdef USE_INFLUXDB
-#include <InfluxDbClient.h>
-#include "influxdb_handler.h"
-extern InfluxDBClient influx_client;
-#endif
-
-void readDeviceDataRecord(void *message, const char *devicename);
+void readDeviceInfoRecord(void *message, const char *devicename);
 void readCellDataRecord(void *message, const char *devicename);
-void readConfigDataRecord(void *message, const char *devicename);
+void readConfigInfoRecord(void *message, const char *devicename);
 String getLocalTimeString();
+
+extern DeviceInfo deviceinfo;
+extern CellData celldata;
+extern ConfigInfo configinfo;
+extern bool has_device_info;
+extern bool has_cell_data;
+extern bool has_config_info;
 
 extern uint16_t min_pub_time;
 extern uint16_t publish_delay;

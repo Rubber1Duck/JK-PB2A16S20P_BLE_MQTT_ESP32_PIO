@@ -1,4 +1,5 @@
 #include "main.h"
+#include "app_webserver.h"
 
 #ifdef NTPSERVER
 const char *ntpServer = NTPSERVER;
@@ -10,10 +11,14 @@ const int daylightOffset_sec = DLOFFSET;
 #endif
 #endif // NTPSERVER
 
-void setup() {
+const char *NVS_KEY = "reset_history";
+ResetEntry history[MAX_RESET_REASONS];
+
+void setup()
+{
 #ifdef SERIAL_OUT
     Serial.begin(115200);
-    delay(1000); // Warte kurz, damit die serielle Verbindung stabil ist
+    delay(1000);
 #endif
     init_settings();
 
@@ -24,43 +29,40 @@ void setup() {
     DEBUG_PRINTLN("");
 
 #ifdef USE_TLS
-    // 1. Zertifikat im Flash belassen (Standard auf ESP32)
-    const char* cert_flash = MQTT_ROOT_CA_CERT;
-    // 2. Pointer für PSRAM vorbereiten
-    char* root_ca_cert_psram = nullptr;
-    // Prüfen, ob PSRAM verfügbar ist
-    if(psramFound()) {
+    const char *cert_flash = MQTT_ROOT_CA_CERT;
+    char *root_ca_cert_psram = nullptr;
+    if (psramFound())
+    {
         size_t cert_len = strlen(cert_flash) + 1;
-        // Speicher explizit im PSRAM anfordern
-        root_ca_cert_psram = (char*) ps_malloc(cert_len);
-        if (root_ca_cert_psram != nullptr) {
+        root_ca_cert_psram = (char *)ps_malloc(cert_len);
+        if (root_ca_cert_psram != nullptr)
+        {
             memcpy(root_ca_cert_psram, cert_flash, cert_len);
-            DEBUG_PRINTLN("Zertifikat erfolgreich in PSRAM kopiert.");
+            Serial.println("Zertifikat erfolgreich in PSRAM kopiert.");
         }
-        else {
-            DEBUG_PRINTLN("Fehler: Kein Speicher im PSRAM verfügbar.");
+        else
+        {
+            Serial.println("Fehler: Kein Speicher im PSRAM verfügbar.");
         }
     }
-    else {
-        DEBUG_PRINTLN("PSRAM nicht gefunden, Zertifikat bleibt im Flash.");
+    else
+    {
+        Serial.println("PSRAM nicht gefunden, Zertifikat bleibt im Flash.");
     }
-    const char* root_ca_cert = root_ca_cert_psram ? root_ca_cert_psram : cert_flash;
+    const char *root_ca_cert = root_ca_cert_psram ? root_ca_cert_psram : cert_flash;
 #endif
 
 #ifdef USELED
     init_led();
-    // Send LED_FLASH state to the LED task
     set_led(LedState::LED_DOUBLE_FLASH);
 #endif
 
-    // WIFI Setup
     init_wifi();
 #ifdef USE_TLS
     secure_wifi_client.setCACert(root_ca_cert);
 #endif
 
 #ifdef NTPSERVER
-    // NTP Setup
 #ifdef TIMEZONE
     configTzTime(time_zone, ntpServer);
 #else
@@ -68,30 +70,49 @@ void setup() {
 #endif
     DEBUG_PRINTLN("NTP-Time synced");
     DEBUG_PRINTLN("Current time: " + getLocalTimeString());
-#endif // NTPSERVER
+#endif
+
+    DEBUG_PRINTLN("\n--- ESP32 Reset History ---");
+    uint8_t currentReason = (uint8_t)esp_reset_reason();
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo))
+        Serial.println("Zeit-Sync fehlgeschlagen");
+
+    prefs.begin("system", false);
+    prefs.getBytes(NVS_KEY, history, sizeof(history));
+    memmove(&history[1], &history[0], sizeof(ResetEntry) * (MAX_RESET_REASONS - 1));
+    history[0].reason = currentReason;
+    time(&history[0].timestamp);
+    prefs.putBytes(NVS_KEY, history, sizeof(history));
+    prefs.end();
+
+    for (int i = 0; i < MAX_RESET_REASONS; i++)
+    {
+        if (history[i].reason == 0 && i > 0)
+            continue;
+        DEBUG_PRINT("Eintrag [");
+        DEBUG_PRINT(i);
+        DEBUG_PRINT("]: ");
+        DEBUG_PRINT(formatTime(history[i].timestamp));
+        DEBUG_PRINT(" - ");
+        DEBUG_PRINT(get_reset_reason_string((esp_reset_reason_t)history[i].reason));
+        DEBUG_PRINT(" (Code: ");
+        DEBUG_PRINT((int)history[i].reason);
+        DEBUG_PRINTLN(")");
+    }
+    DEBUG_PRINTLN("---------------------------\n");
+
+    setupWebserver(history, MAX_RESET_REASONS, NVS_KEY);
 
     publish_init();
-
     mqtt_init();
-
-#ifdef USE_RS485
-    init_rs485();
-#endif
-
-#ifdef USE_INFLUXDB
-    // InfluxDB Setup
-    init_influxdb();
-#endif
-
     ble_setup();
 }
 
-void loop() {
+void loop()
+{
+    webserverLoop();
     wifi_loop();
     mqtt_loop();
     ble_loop();
-
-#ifdef USE_RS485
-    rs485_loop();
-#endif
 }

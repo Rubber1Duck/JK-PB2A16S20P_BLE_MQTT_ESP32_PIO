@@ -1,29 +1,29 @@
-#ifndef ZD_DATA_STRUCT_H
-#define ZD_DATA_STRUCT_H
+#ifndef STRUCT_CELL_DATA_H
+#define STRUCT_CELL_DATA_H
 #include <Arduino.h>
 #include "arduino_base64.hpp"
 #include <bitset>
 
 // Struktur für die Zellendaten (LiveDaten) (CellData; FrameType 0x02)
-struct CellData {
-                                //  bytes Description                   Unit      Multiplier or format
+struct CellData
+{                               //  bytes Description                   Unit      Multiplier or format
   uint8_t Header[4];            //	4		  Header                        #
   uint8_t FrameType;            //	1		  Frame type                    #
   uint8_t FrameCounter;         //	1		  Frame counter                 #
-  uint16_t CellVol[32];         //	64	  32 mal Cell voltages          mV        0.001 multiplier
+  uint16_t CellVol[32];         //	64	  32 mal Cell voltages          mV        0.001 multiplier  // show in HTML Cell Data Block
   uint32_t CellSta;             //	4		  Enabled cells bitmask         BITMASK   A value of 1 for BIT[n] indicates that the battery exists.
-  uint16_t CellVolAve;          //	2		  Average cell voltage          mV        0.001 multiplier
-  uint16_t CellVdifMax;         //	2		  Cell voltage difference       mV        0.001 multiplier or 1 mV depending on DIFFV_DIVIDER
-  uint8_t MaxVolCellNbr;        //	1		  MaxVolCellNbr                 #
-  uint8_t MinVolCellNbr;        //	1		  MinVolCellNbr                 #
+  uint16_t CellVolAve;          //	2		  Average cell voltage          mV        0.001 multiplier // show in HTML Cell Data Block
+  uint16_t CellVdifMax;         //	2		  Cell voltage difference       mV        0.001 multiplier or 1 mV depending on DIFFV_DIVIDER // show in HTML Cell Data Block
+  uint8_t MaxVolCellNbr;        //	1		  MaxVolCellNbr                 #         show in HTML Cell Data Block
+  uint8_t MinVolCellNbr;        //	1		  MinVolCellNbr                 #         show in HTML Cell Data Block
   uint16_t CellWireRes[32];     //	64	  32 mal Cell wire resistance   mΩ
   int16_t TempMos;              //	2		  TempMos                       0.1℃     0.1 multiplier, can be negative
   uint32_t CellWireResSta;      //	4		  CellWireResSta                BITMASK   A value of 1 for BIT[n] indicates that the equalization line is alarming.
-  uint32_t BatVol;              //	4		  BatVol                        mV        0.001 multiplier
-  uint32_t BatWatt;             //	4		  BatWatt                       mW        0.001 multiplier
-  int32_t BatCurrent;           //	4		  BatCurrent                    mA        0.001 multiplier, can be negative
-  int16_t TempBat1;             //	2		  TempBat 1                     0.1℃     0.1 multiplier, can be negative
-  int16_t TempBat2;             //	2		  TempBat 2                     0.1℃     0.1 multipler, can be negative
+  uint32_t BatVol;              //	4		  BatVol                        mV        0.001 multiplier // show in HTML Cell Data Block
+  uint32_t BatWatt;             //	4		  BatWatt                       mW        0.001 multiplier // show in HTML Cell Data Block
+  int32_t BatCurrent;           //	4		  BatCurrent                    mA        0.001 multiplier, can be negative // show in HTML Cell Data Block
+  int16_t TempBat1;             //	2		  TempBat 1                     0.1℃     0.1 multiplier, can be negative // show in HTML Cell Data Block
+  int16_t TempBat2;             //	2		  TempBat 2                     0.1℃     0.1 multipler, can be negative // show in HTML Cell Data Block
   uint32_t AlarmBitMask;        //  4     AlarmBitMask                  BITMASK   BIT0: AlarmWireRes (1: Fault; 0: Normal),
                                 //                                                BIT1: AlarmMosOTP (1: Fault; 0: Normal),
                                 //                                                BIT2: AlarmCellQuantity (1: Fault; 0: Normal),
@@ -50,11 +50,11 @@ struct CellData {
                                 //                                                BIT23: PLCModule anomaly (1: Fault; 0: Normal)
   int16_t BalanCurrent;         //	2		  BalanCurrent                  mA        0.001 multiplier, can be negative
   uint8_t BalanSta;             //	1		  BalanSta                      #         2: Discharge; 1: Charge; 0: Off
-  uint8_t SOCStateOfcharge;     //  1     SOCStateOfcharge              %         1 multiplier
-  int32_t SOCCapRemain;         //  4     SOCCapRemain                  mAH       0.001 multiplier, can be negative
+  uint8_t SOCStateOfcharge;     //  1     SOCStateOfcharge              %         1 multiplier // show in HTML Cell Data Block
+  int32_t SOCCapRemain;         //  4     SOCCapRemain                  mAH       0.001 multiplier, can be negative // show in HTML Cell Data Block
   uint32_t SOCFullChargeCap;    //  4     SOCFullChargeCap              mAH	      0.001 multiplier
-  uint32_t SOCCycleCount;       //  4     SOCCycleCount                 #
-  uint32_t SOCCycleCap;         //  4     SOCCycleCap                   mAH       0.001 multiplier
+  uint32_t SOCCycleCount;       //  4     SOCCycleCount                 #   // show in HTML Cell Data Block
+  uint32_t SOCCycleCap;         //  4     SOCCycleCap                   mAH       0.001 multiplier // show in HTML Cell Data Block
   uint8_t SOCSOH;               //  1     SOCSOH                        %
   uint8_t Precharge;            //  1     Precharge                     #         1: On; 0: Off
   uint16_t UserAlarm;           //  2     UserAlarm                     #
@@ -88,24 +88,28 @@ struct CellData {
   uint8_t ChargerPlugged;       //  1     ChargerPlugged                #         1: Inserted; 0: Not inserted
   uint32_t SysRunTicks;         //  4     SysRunTicks                   0.1S      0.1 multiplier
   uint8_t unknown4[4];          //  4		  Reserved
-  int16_t TempBat3;             //  2     TempBat 3                     0.1℃	   0.1 multiplier, can be negative
-  int16_t TempBat4;             //  2     TempBat 4                     0.1℃	   0.1 multiplier, can be negative
-  int16_t TempBat5;             //  2     TempBat 5                     0.1℃	   0.1 multiplier, can be negative
+  int16_t TempBat3;             //  2     TempBat 3                     0.1℃	   0.1 multiplier, can be negative // show in HTML Cell Data Block
+  int16_t TempBat4;             //  2     TempBat 4                     0.1℃	   0.1 multiplier, can be negative // show in HTML Cell Data Block
+  int16_t TempBat5;             //  2     TempBat 5                     0.1℃	   0.1 multiplier, can be negative // show in HTML Cell Data Block
   uint8_t unknown5[2];          //  2		  Reserved
   uint32_t RTCTicks;            //  4     RTCTicks		                  #         The countdown begins on January 1, 2020. RTC ticks, 1 tick = 1/32768 second, will overflow after around 136 years
   uint8_t unknown6[4];          //  4		  Reserved
   uint32_t TimeEnterSleep;      //  4     TimeEnterSleep                s
   uint8_t PCLModuleSta;         //  1     PCLModuleSta                  #         1: On; 0: Off
-  uint8_t unknown7[24];         //  24		Reserved
+  uint8_t unknown7[3];          //  3		  Reserved
+  uint16_t ChargeStatusTime;    //  2     ChargeStatusTime              s
+  uint8_t ChargeStatus;         //  1     ChargeStatus                  #         0x00: Bulk ; 0x01: Absorption ; 0x02: Float
+  uint8_t DryContactMask;       //  1     DryContactMask                BITMASK   0x00: DRY and DRY2 off ; 0x02: DRY1 on ; 0x04: DRY2 on ; 0x06: DRY1 and DRY2 on
+  uint8_t unknown8[17];         //  17		Reserved
   uint8_t Checksum;             //  1     CRC Checksum                  #
   // Total: 300 bytes
-  // Hilfsvariablen für die Ausgabe zu MQTT und InfluxDB
+  // Hilfsvariablen für die Ausgabe zu MQTT
   char CellVol_fmt[32][8];     // Hilfsvariable für die Formatierung der CellVoltages mit 3 Dezimalstellen eg. 3.456 V
   char CellSta_fmt[33];        // Hilfsvariable für die Interpretation des CellSta Bitmasks (32 Zellen + Nullterminator) 00000000 00000000 00000000 00000000
   char CellVolAve_fmt[8];      // Hilfsvariable für die Formatierung der CellVolAve mit 3 Dezimalstellen eg. 3.456 V
   char CellVdifMax_fmt[8];     // Hilfsvariable für die Formatierung der CellVdifMax mit 3 Dezimalstellen eg. 0.123 V or 123 mV depending on DIFFV_DIVIDER
-  char MaxVolCellNbr_fmt[3];   // Hilfsvariable für die Formatierung des MaxVolCellNbr eg. 12
-  char MinVolCellNbr_fmt[3];   // Hilfsvariable für die Formatierung des MinVolCellNbr eg. 5
+  char MaxVolCellNbr_fmt[4];   // Hilfsvariable für die Formatierung des MaxVolCellNbr eg. 12
+  char MinVolCellNbr_fmt[4];   // Hilfsvariable für die Formatierung des MinVolCellNbr eg. 5
   char CellWireRes_fmt[32][8]; // Hilfsvariable für die Formatierung der CellWireRes mit 3 Dezimalstellen eg. 0.123 Ω
   char TempMos_fmt[8];         // Hilfsvariable für die Formatierung der TempMos mit 1 Dezimalstelle eg. 25.3 ℃
   char CellWireResSta_fmt[33]; // Hilfsvariable für die Interpretation des CellWireResSta Bitmasks (32 Zellen + Nullterminator) 00000000 00000000 00000000 00000000
@@ -162,10 +166,17 @@ struct CellData {
   char RTCTicksToSeconds_fmt[16];                                                                                    // Hilfsvariable für die Umrechnung der RTCTicks in Sekunden (1 tick = 1/32768 second) und Formatierung auf 3 Dezimalstellen eg. 123456.789 s
   char TimeEnterSleep_fmt[10];                                                                                       // Hilfsvariable für die Formatierung des TimeEnterSleep eg. 1234 s
   char PCLModuleSta_fmt[4];                                                                                          // Hilfsvariable für die Interpretation des PCLModuleSta (1: On; 0: Off)
-  void prepareOutValues() {
+  char ChargeStatusTime_fmt[10];                                                                                     // Hilfsvariable für die Formatierung des ChargeStatusTime eg. 1234 s
+  char ChargeStatus_fmt[12];                                                                                         // Hilfsvariable für die Interpretation des ChargeStatus (0x00: Bulk ; 0x01: Absorption ; 0x02: Float)
+  char Dry1Contact_fmt[7];                                                                                           // Hilfsvariable für die Interpretation des Dry1Contact Open/closed (0x00: DRY and DRY2 off ; 0x02: DRY1 on ; 0x04: DRY2 on ; 0x06: DRY1 and DRY2 on)
+  char Dry2Contact_fmt[7];                                                                                           // Hilfsvariable für die Interpretation des Dry2Contact Open/closed (0x00: DRY and DRY2 off ; 0x02: DRY1 on ; 0x04: DRY2 on ; 0x06: DRY1 and DRY2 on)
+  bool check_bit(uint8_t mask, uint8_t flag){ return (mask & flag) == flag; }
+  void prepareOutValues()
+  {
     // Aktualisiere die Hilfsvariablen basierend auf den gelesenen Daten
     // CellVoltages von mV in V umrechnen und mit 3 Dezimalstellen formatieren
-    for (int i = 0; i < 32; ++i) {
+    for (int i = 0; i < 32; ++i)
+    {
       dtostrf(CellVol[i] * 0.001, 6, 3, CellVol_fmt[i]);
     }
     // CellSta, CellWireResSta und AlarmBitMask in lesbare Bitmask-Strings umwandeln
@@ -183,7 +194,8 @@ struct CellData {
     snprintf(MaxVolCellNbr_fmt, sizeof(MaxVolCellNbr_fmt), "%d", MaxVolCellNbr);
     snprintf(MinVolCellNbr_fmt, sizeof(MinVolCellNbr_fmt), "%d", MinVolCellNbr);
     // CellWireRes von mΩ in Ω umrechnen und mit 3 Dezimalstellen formatieren
-    for (int i = 0; i < 32; ++i) {
+    for (int i = 0; i < 32; ++i)
+    {
       dtostrf(CellWireRes[i] * 0.001, 6, 3, CellWireRes_fmt[i]);
     }
     // TempMos von 0.1℃ in ℃ umrechnen und mit 1 Dezimalstelle formatieren
@@ -200,19 +212,23 @@ struct CellData {
     // AlarmRaw als Dezimalzahl formatieren
     snprintf(Alarm_raw_fmt, sizeof(Alarm_raw_fmt), "%u", AlarmBitMask);
     // Alarme einzeln interpretieren
-    for (int i = 0; i < 24; ++i) {
+    for (int i = 0; i < 24; ++i)
+    {
       strncpy(AlarmsValue_fmt[i], ((AlarmBitMask & (1 << i)) ? "Fault" : "Normal"), sizeof(AlarmsValue_fmt[i]));
     }
     // BalanCurrent von mA in A umrechnen und mit 3 Dezimalstellen formatieren
     dtostrf(BalanCurrent * 0.001, 7, 3, BalanCurrent_fmt);
     // BalanSta interpretieren (2: Discharge; 1: Charge; 0: Off)
-    if (BalanSta == 2) {
+    if (BalanSta == 2)
+    {
       strncpy(BalanSta_fmt, "Discharge", sizeof(BalanSta_fmt));
     }
-    else if (BalanSta == 1) {
+    else if (BalanSta == 1)
+    {
       strncpy(BalanSta_fmt, "Charge", sizeof(BalanSta_fmt));
     }
-    else {
+    else
+    {
       strncpy(BalanSta_fmt, "Off", sizeof(BalanSta_fmt));
     }
     // SOCStateOfcharge formatieren
@@ -255,7 +271,8 @@ struct CellData {
     // TempSensorAbsentMask interpretieren
     snprintf(TempSensorAbsentMask_fmt, sizeof(TempSensorAbsentMask_fmt), std::bitset<8>(TempSensorAbsentMask).to_string().c_str());
     snprintf(TempSensorAbsent_fmt, sizeof(TempSensorAbsent_fmt), "%d", TempSensorAbsentMask);
-    for (int i = 0; i < 6; ++i) {
+    for (int i = 0; i < 6; ++i)
+    {
       strncpy(TempSensAbsentValues_fmt[i], (TempSensorAbsentMask & (1 << i)) ? "Normal" : "Missing", sizeof(TempSensAbsentValues_fmt[i]));
     }
     // Heating interpretieren (1: On; 0: Off)
@@ -287,12 +304,30 @@ struct CellData {
     snprintf(TimeEnterSleep_fmt, sizeof(TimeEnterSleep_fmt), "%d", TimeEnterSleep);
     // PCLModuleSta interpretieren (1: On; 0: Off)
     strncpy(PCLModuleSta_fmt, PCLModuleSta ? "On" : "Off", sizeof(PCLModuleSta_fmt));
+    // ChargeStatusTime formatieren
+    snprintf(ChargeStatusTime_fmt, sizeof(ChargeStatusTime_fmt), "%d", ChargeStatusTime);
+    // ChargeStatus interpretieren (0x00: Bulk ; 0x01: Absorption ; 0x02: Float)
+    if (ChargeStatus == 0x00)
+    {
+      strncpy(ChargeStatus_fmt, "Bulk", sizeof(ChargeStatus_fmt));
+    }
+    else if (ChargeStatus == 0x01)
+    {
+      strncpy(ChargeStatus_fmt, "Absorption", sizeof(ChargeStatus_fmt));
+    }
+    else if (ChargeStatus == 0x02)
+    {
+      strncpy(ChargeStatus_fmt, "Float", sizeof(ChargeStatus_fmt));
+    }
+    // Dry1Contact_fmt interpretieren (0x00: DRY and DRY2 open ; 0x02: DRY1 closed ; 0x04: DRY2 closed ; 0x06: DRY1 and DRY2 closed)
+    check_bit(DryContactMask, 0x02) ? strncpy(Dry1Contact_fmt, "closed", sizeof(Dry1Contact_fmt)) : strncpy(Dry1Contact_fmt, "open", sizeof(Dry1Contact_fmt));
+    check_bit(DryContactMask, 0x04) ? strncpy(Dry2Contact_fmt, "closed", sizeof(Dry2Contact_fmt)) : strncpy(Dry2Contact_fmt, "open", sizeof(Dry2Contact_fmt));
   }
 } __attribute__((packed)); // Verhindert Padding und sorgt dafür, dass die Struktur genau so im Speicher liegt wie definiert;
 
 // CellDataOld to store the old values for comparison and change detection, it has the same structure as CellData but without the helper fields and the Base64 encoded message
-struct CellDataOld {
-                                        //  bytes Description                   Unit      Multiplier or format
+struct CellDataOld
+{                                       //  bytes Description                   Unit      Multiplier or format
   uint16_t CellVol[32];                 //	64	  Cell voltages                 mV        0.001 multiplier
   uint32_t CellSta;                     //	4		  Enabled cells bitmask         BITMASK   BIT0: Cell1, BIT1: Cell2, ..., BIT31: Cell32
   uint16_t CellVolAve;                  //	2		  Average cell voltage          mV        0.001 multiplier
@@ -345,7 +380,11 @@ struct CellDataOld {
   uint32_t RTCTicks;                    //  4     RTCTicks		                  #         The countdown begins on January 1, 2020. RTC ticks, 1 tick = 1/32768 second, will overflow after around 136 years
   uint32_t TimeEnterSleep;              //  4     TimeEnterSleep                s
   uint8_t PCLModuleSta;                 //  1     PCLModuleSta                  #         1: On; 0: Off
+  uint16_t ChargeStatusTime;            //  2     ChargeStatusTime              s
+  uint8_t ChargeStatus;                 //  1     ChargeStatus                  #         0x00: Bulk ; 0x01: Absorption ; 0x02: Float
+  boolean DryContact1;                  //  1     DryContactMask1               #         Hilfsvariable zur Bestimmung ob sich der DryContact1 Wert geändert hat, da dieser in CellData aufgrund der Formatierung als String nicht direkt mit dem gelesenen Wert verglichen werden kann
+  boolean DryContact2;                  //  1     DryContactMask2               #         Hilfsvariable zur Bestimmung ob sich der DryContact2 Wert geändert hat, da dieser in CellData aufgrund der Formatierung als String nicht direkt mit dem gelesenen Wert verglichen werden kann
   uint32_t RunTime2;                    //  4     Hilfsvariable zur Bestimmung ob ein neuer RunTime Wert vorliegt, da dieser in CellData aufgrund der Formatierung als String nicht direkt mit dem gelesenen Wert verglichen werden kann
 };
 
-#endif // ZD_DATA_STRUCT_H
+#endif // STRUCT_CELL_DATA_H

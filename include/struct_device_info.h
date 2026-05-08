@@ -1,23 +1,25 @@
-#ifndef DATA_STRUCT_DD_H
-#define DATA_STRUCT_DD_H
+#ifndef STRUCT_DEVICE_INFO_H
+#define STRUCT_DEVICE_INFO_H
 #include <Arduino.h>
 
-struct publishItem {
+struct publishItem
+{
   char topic[128];  // Adjust the size as needed
   char payload[33]; // Adjust the size as needed (longest string should be a 32 bit value in binary format as string (00000000000000000000000000000000), which is 32 characters plus null terminator)
 };
 
-// Struktur für die Gerätedaten (DeviceData; FrameType 0x01)
-struct DeviceData {
+// Struktur für die Gerätedaten (DeviceInfo; FrameType 0x01)
+struct DeviceInfo
+{
   uint8_t Header[4];             // 4     Header                        #
   uint8_t FrameType;             // 1     Frame type                    #
   uint8_t FrameCounter;          // 1     Frame counter                 #
-  char ManufacturerDeviceID[16]; // 16    Manufacturer Device ID        /0 terminated String
-  char HardwareVersion[8];       // 8     Hardware Version              /0 terminated String
-  char SoftwareVersion[8];       // 8     Software Version              /0 terminated String
-  uint32_t OddRunTime;           // 4     Odd Run Time                  s
+  char ManufacturerDeviceID[16]; // 16    Manufacturer Device ID        /0 terminated String  //show in HTML Device Info Block
+  char HardwareVersion[8];       // 8     Hardware Version              /0 terminated String  //show in HTML Device Info Block
+  char SoftwareVersion[8];       // 8     Software Version              /0 terminated String  //show in HTML Device Info Block
+  uint32_t OddRunTime;           // 4     Odd Run Time                  s                     //show in HTML Device Info Block (converted to human readable format)
   uint32_t PwrOnTimes;           // 4     Power On Times                #
-  char DeviceName[16];           // 16    Device Name                   /0 terminated String
+  char DeviceName[16];           // 16    Device Name                   /0 terminated String  //show in HTML Device Info Block
   char DevicePasscode[16];       // 16    Device Passcode               /0 terminated String
   char ManufacturingDate[8];     // 8     Manufacturing Date            /0 terminated String
 #ifdef V19                       // it seems in V19 Serial Number is 16 bytes and there is no passcode field
@@ -59,7 +61,8 @@ struct DeviceData {
   // Note: The structure is packed to ensure there is no padding between the fields, which allows us to directly copy the received byte array into this structure.
   // We will also add helper functions to convert the runtime and other relevant fields into human-readable
   // formats when needed.
-  String getOddRunTimeStr() {
+  String getOddRunTimeStr() // Helper function to convert OddRunTime into a human-readable format
+  {
     char OddRunTimeStr[64];
     uint32_t seconds = OddRunTime % 60;
     uint32_t minutes = (OddRunTime / 60) % 60;
@@ -70,4 +73,4 @@ struct DeviceData {
   }
 } __attribute__((packed)); // Verhindert Padding und sorgt dafür, dass die Struktur genau so im Speicher liegt wie definiert
 
-#endif // DATA_STRUCT_DD_H
+#endif // STRUCT_DEVICE_INFO_H
