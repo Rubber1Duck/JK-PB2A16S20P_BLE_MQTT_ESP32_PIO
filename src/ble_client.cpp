@@ -257,7 +257,7 @@ bool connectToBLEServer() {
                 pClient->disconnect();
                 return false;
             }
-            DEBUG_PRINTLN("Subscribed to notifications");
+            DEBUG_PRINTLN("Subscribed to notifications.");
         }
     } else {
         std::string svcUuid = serviceUUID.toString();
@@ -268,7 +268,7 @@ bool connectToBLEServer() {
     if (pRemoteCharacteristic->canWriteNoResponse()) {
         // Sending getdevice info
         pRemoteCharacteristic->writeValue(getdeviceInfo, 20, false);
-        DEBUG_PRINTLN("Sent \"getdeviceInfo\" to the BLE device");
+        DEBUG_PRINTLN("Sent \"getdeviceInfo\" to the BLE device.");
         initial_send_done = false;    // Reset the initial send flag for the new connection
         last_sending_time = millis(); // Update the last sending time to the current time
     } else {
@@ -308,15 +308,15 @@ void ble_loop() {
                 all_notifications_blocked = false; // Unblock notifications
                 DEBUG_PRINTLN("Send getInfo (initial)");
                 pRemoteCharacteristic->writeValue(getInfo, 20,false);
-                DEBUG_PRINTLN("Sent \"getInfo\" to the BLE device");
+                DEBUG_PRINTLN("Sent \"getInfo\" to the BLE device.");
                 last_sending_time = millis(); // Update the last sending time to the current time
                 initial_send_done = true;     // Set the flag to indicate the initial send is done
             }
         } else {
             // Subsequent sends every hour
             if ((millis() - last_sending_time) >= REPEAT_SEND_INTERVAL) {
-                DEBUG_PRINTLN("Send getInfo (hourly)");
-                pRemoteCharacteristic->writeValue(getInfo, 20);
+                DEBUG_PRINTLN("Send getInfo (hourly).");
+                pRemoteCharacteristic->writeValue(getInfo, 20, false);
                 last_sending_time = millis(); // Update the last sending time to the current time
             }
         }
