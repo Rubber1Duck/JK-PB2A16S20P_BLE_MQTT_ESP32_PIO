@@ -263,6 +263,7 @@ bool connectToBLEServer() {
         std::string svcUuid = serviceUUID.toString();
         DEBUG_PRINTF("Failed to find our service UUID: %s\n", svcUuid.c_str());
         pClient->disconnect();
+        return false;
     }
     if (pRemoteCharacteristic->canWriteNoResponse()) {
         // Sending getdevice info
