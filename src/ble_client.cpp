@@ -267,15 +267,10 @@ bool connectToBLEServer() {
     }
     if (pRemoteCharacteristic->canWriteNoResponse()) {
         // Sending getdevice info
-        if (pRemoteCharacteristic->writeValue(getdeviceInfo, 20)) {
-            DEBUG_PRINTLN("Sent \"getdeviceInfo\" to the BLE device");
-            initial_send_done = false;    // Reset the initial send flag for the new connection
-            last_sending_time = millis(); // Update the last sending time to the current time
-        } else {
-            DEBUG_PRINTLN("Failed to send \"getdeviceInfo\" to the BLE device");
-            pClient->disconnect();
-            return false;
-        }
+        pRemoteCharacteristic->writeValue(getdeviceInfo, 20, false);
+        DEBUG_PRINTLN("Sent \"getdeviceInfo\" to the BLE device");
+        initial_send_done = false;    // Reset the initial send flag for the new connection
+        last_sending_time = millis(); // Update the last sending time to the current time
     } else {
         DEBUG_PRINTLN("Characteristic does not support writing with no response");
         pClient->disconnect();
@@ -312,11 +307,8 @@ void ble_loop() {
                 DEBUG_PRINTLN("Start the show, unblock notifications ...");
                 all_notifications_blocked = false; // Unblock notifications
                 DEBUG_PRINTLN("Send getInfo (initial)");
-                if (pRemoteCharacteristic->writeValue(getInfo, 20)) {
-                    DEBUG_PRINTLN("Sent \"getInfo\" to the BLE device");
-                } else {
-                    DEBUG_PRINTLN("Failed to send \"getInfo\" to the BLE device");
-                }
+                pRemoteCharacteristic->writeValue(getInfo, 20,false);
+                DEBUG_PRINTLN("Sent \"getInfo\" to the BLE device");
                 last_sending_time = millis(); // Update the last sending time to the current time
                 initial_send_done = true;     // Set the flag to indicate the initial send is done
             }
