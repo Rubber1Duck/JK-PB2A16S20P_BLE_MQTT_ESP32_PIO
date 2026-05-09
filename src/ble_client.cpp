@@ -267,8 +267,8 @@ bool connectToBLEServer() {
     }
     if (pRemoteCharacteristic->canWriteNoResponse()) {
         // Sending getdevice info
-        pRemoteCharacteristic->writeValue(getdeviceInfo, 20, false);
-        DEBUG_PRINTLN("Sent \"getdeviceInfo\" to the BLE device.");
+        auto result = pRemoteCharacteristic->writeValue(getdeviceInfo, 20, false);
+        DEBUG_PRINTLN("Sent \"getdeviceInfo\" to the BLE device. Result: " + String(result));
         initial_send_done = false;    // Reset the initial send flag for the new connection
         last_sending_time = millis(); // Update the last sending time to the current time
     } else {
