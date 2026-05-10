@@ -35,7 +35,7 @@ static bool g_initialRequestDone = false;
 static unsigned long g_lastWriteMs = 0;
 static constexpr uint32_t kScanTimeMs = 5000;
 static constexpr uint32_t kInitialDelayMs = 3000;
-static constexpr uint32_t kRepeatDelayMs = 60000;
+static constexpr uint32_t kRepeatDelayMs = 5000;
 
 static bool isTargetDevice(const NimBLEAdvertisedDevice *advertisedDevice) {
     if (!advertisedDevice->isAdvertisingService(kServiceUUID)) {
