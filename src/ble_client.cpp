@@ -268,6 +268,7 @@ bool connectToBLEServer() {
                 return false;
             }
             DEBUG_PRINTLN("Subscribed to notifications.");
+            delay(200); // Small delay to ensure subscription is set up before sending the first message
         }
     } else {
         std::string svcUuid = serviceUUID.toString();
