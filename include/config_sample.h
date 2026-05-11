@@ -92,6 +92,7 @@
 // Optional: Home Assistant MQTT Auto-Discovery
 // Default is OFF. Uncomment to publish HA discovery config topics on MQTT connect.
 // #define USE_HA_DISCOVERY
+
 // Optional custom discovery prefix (default: "homeassistant")
 // #define HA_DISCOVERY_PREFIX "homeassistant"
 
