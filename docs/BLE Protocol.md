@@ -1,7 +1,7 @@
 ##Device Info Frame
 
 | BMS      | Index           | Type   | Length | R/W | Content                | Unit    | Note                                |
-|----------|-----------------|--------|--------|-----|------------------------|---------|-------------------------------------|
+|:--------:|:---------------:|:------:|:------:|:---:|:----------------------:|:-------:|:-----------------------------------:|
 | all      | 0x0000 - 0x0003 | Byte   | 4      | R   | Frame header           |         | Fix value: 0x55, 0xAA, 0xEB, 0x90   |
 | all      | 0x0004          | UINT8  | 1      | R   | Frame type             | #       | Device Info Frame = Fix value: 0x03 |
 | all      | 0x0005          | UINT8  | 1      | R   | Frame counter          | #       | Increments with each frame          |
