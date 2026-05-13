@@ -51,11 +51,12 @@ across all environments.
 **Attention:** Do note that you will not be able to connect to the BMS with your smartphone app while the ESP32 is communicating with your BMS.
 
 ## Supported JK BMS Models
-This project has been primarily designed to be used for the JK-PB2A16S20P, however it may work with different models of the **JK Inverter BMS series**.  
+This project has been primarily designed to be used for the JK-PB2A16S20P, however it may work with different models of the **JK PB BMS and B BMS series**, all BMS witch use the so called **JK02_32S** protocol should run.  
 Here is a list of currently evaluated BMS models along with the tested hard- and firmware revisions:
 
 | Model         | HW-Rev. | FW-Ver | Status |
 | ------------- | ------- | ------ | ------ |
+| JK-B2A8S20P   | 11XW    | 11.288 | supported |
 | JK-PB2A16S20P | 15A     | 15.37  | supported |
 | JK-PB2A16S15P | 15A     | 15.38  | supported |
 | JK-PB2A16SxxP | 15H     | 15.41  | supported |
