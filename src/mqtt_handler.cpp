@@ -1,5 +1,6 @@
 #include "mqtt_handler.h"
 #include "publish.h"
+#include "parser.h"
 
 #include <ctype.h>
 
@@ -208,17 +209,17 @@ String formatUptime(time_t uptime)
     return String(buffer);
 }
 
-void toMqttQueue(const char *topic, const char *payload)
+bool toMqttQueue(const char *topic, const char *payload)
 {
     std::lock_guard<std::mutex> lock(mqttQueueMutex);
     if (mqtt_client.state() != MQTT_CONNECTED || !isWifiConnected)
     {
-        return; // Wait until MQTT is connected before pushing topics to publish queue
+        return false; // Wait until MQTT is connected before pushing topics to publish queue
     }
 
     if (topic == nullptr || payload == nullptr)
     {
-        return;
+        return false;
     }
 
     PublishMessage queue_in;
@@ -230,12 +231,15 @@ void toMqttQueue(const char *topic, const char *payload)
     {
         String failMsg = "Failed to send message to queue: " + String(topic);
         DEBUG_PRINTLN(failMsg);
+        return false;
     }
+
+    return true;
 }
 
-void toMqttQueue(String topic, String payload)
+bool toMqttQueue(String topic, String payload)
 {
-    toMqttQueue(topic.c_str(), payload.c_str());
+    return toMqttQueue(topic.c_str(), payload.c_str());
 }
 
 void toMqttQueueRawData(String topic, const char *payload, size_t payloadLen)
@@ -515,6 +519,9 @@ boolean mqtt_reconnect()
     #ifdef USE_HA_DISCOVERY
         publishHomeAssistantDiscovery() || ErrorCnt++;
     #endif
+
+        // Re-publish cached records so HA sensors receive values immediately after reconnect.
+        republishCachedRecords(mqtt_devicename);
 
         if (ErrorCnt > 0)
         {

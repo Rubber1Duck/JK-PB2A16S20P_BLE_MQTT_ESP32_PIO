@@ -168,9 +168,12 @@ void publishIfChanged(T &currentValue, T newValue, const char *publishValue, con
     // Check if the value has changed or MIN_PUB_TIME is greater than 0 and the time has passed since the last publish
     if (currentValue != newValue || (min_pub_time > 0 && (currentTime - lastPublishTimeTopic) >= (static_cast<uint32_t>(min_pub_time) * 1000UL)))
     {
-        toMqttQueue(topic, publishValue);
-        currentValue = newValue;
-        slot.lastPublishTime = currentTime; // Update the last publish time for the topic
+        // Only advance change tracking when the message was really enqueued.
+        if (toMqttQueue(topic, publishValue))
+        {
+            currentValue = newValue;
+            slot.lastPublishTime = currentTime; // Update the last publish time for the topic
+        }
     }
 }
 
@@ -507,10 +510,7 @@ void readCellDataRecord(void *message, const char *devicename)
     // Alarms as raw dezimal, bitmask and resolved alarms according to BMS RS485 ModbusV1.1 2024.02 Page 10
     publishIfChangedWithSuffix(cdOld.AlarmBitMask, celldata.AlarmBitMask, celldata.Alarm_raw_fmt, base_data, "alarms/alarm_raw");
 
-    if (debug_flg)
-    {
-        publishIfChangedWithSuffix(cdOld.AlarmBitMask, celldata.AlarmBitMask, celldata.AlarmBitMask_fmt, base_data, "alarms/alarms_mask");
-    }
+    publishIfChangedWithSuffix(cdOld.AlarmBitMask, celldata.AlarmBitMask, celldata.AlarmBitMask_fmt, base_data, "alarms/alarms_mask");
     for (int i = 0; i < 24; ++i)
     {
         char alarm_topic[192];
@@ -832,4 +832,25 @@ void readConfigInfoRecord(void *message, const char *devicename)
     toMqttQueueWithSuffixNumber(base_config, "tmp_heating_stop", configinfo.TmpHeatingStop);
     // TIMSmartSleep
     toMqttQueueWithSuffixNumber(base_config, "time_smart_sleep", configinfo.TimSmartSleep);
+}
+
+void republishCachedRecords(const char *devicename)
+{
+    if (devicename == nullptr || devicename[0] == '\0')
+    {
+        return;
+    }
+
+    if (has_device_info)
+    {
+        readDeviceInfoRecord(&deviceinfo, devicename);
+    }
+    if (has_config_info)
+    {
+        readConfigInfoRecord(&configinfo, devicename);
+    }
+    if (has_cell_data)
+    {
+        readCellDataRecord(&celldata, devicename);
+    }
 }
