@@ -56,67 +56,67 @@ All RW values are theoreticaly writeable, but this project is not support writin
 | all JK02_32S | 0x012B | UINT8  | 1      | R   | CRC Checksum           | #       |                                     |
 
 (*) possible trigger values
- 0 = OFF
- 1 = Low SOC
- 2 = Battery Over Voltage
- 3 = Battery Under Voltage
- 4 = Battery Cell Over Voltage
- 5 = Battery Cell Under Voltage
- 6 = Charge Over Current
- 7 = Discharge Over Current
- 8 = Battery Over Temperature
- 9 = MOSFET Over Temperature
-10 = System Alarm
-11 = Battery Low Temperature
-12 = Remote Control
-13 = Above SOC
-14 = MOSFET Abnormal
+ -  0 = OFF
+ -  1 = Low SOC
+ -  2 = Battery Over Voltage
+ -  3 = Battery Under Voltage
+ -  4 = Battery Cell Over Voltage
+ -  5 = Battery Cell Under Voltage
+ -  6 = Charge Over Current
+ -  7 = Discharge Over Current
+ -  8 = Battery Over Temperature
+ -  9 = MOSFET Over Temperature
+ - 10 = System Alarm
+ - 11 = Battery Low Temperature
+ - 12 = Remote Control
+ - 13 = Above SOC
+ - 14 = MOSFET Abnormal
 
 (**) possible UART protocols for UART protocol libary version 1 (i only know about libary version 1)
- 0 = 000-4G-GPS Remote module Common protocol
- 1 = 001-JK BMS RS485 Modbus V1.0
- 2 = 002-MIU U SERIES
- 3 = 003-China tower shared batterie cabinet V1.1
- 4 = 004-PACE_RS485_Modbus_V1.3
- 5 = 005-PYLON_low_volage_Protocol_RS485_V... (not complete readable in the app)
- 6 = 006-Growatt_BMS_RS485_Protocol_1xSxxP... (not complete readable in the app)
- 7 = 007-Voltronic_Inverter_and_BMS_485_com... (not complete readable in the app)
- 8 = 008-China tower shared batterie cabinet V.02
- 9 = 009-WOW_RS485_Modbus_V1.3
-10 = 010-JK BMS LCD Protocol V2.0
-11 = 011-UART1 User customization
-12 = 012-UART2 User customization
-13 = 013-(9600)JK BMS RS485 Modbus V1.0
-14 = 014-(9600)PYLON_low_voltage_Protocol_R... (not complete readable in the app)
-15 = 015-JK BMS PBxx SERIES LCD Protocol V1.0
-16 = 016-JKBMS LIN BUS V1.0
-17 = 017-RS485 Protocol 17
-18 = 018-RS485 Protocol 18
-19 = 019-RS485 Protocol 19
-20 = 020-RS485 Protocol 20
+ -  0 = 000-4G-GPS Remote module Common protocol
+ -  1 = 001-JK BMS RS485 Modbus V1.0
+ -  2 = 002-MIU U SERIES
+ -  3 = 003-China tower shared batterie cabinet V1.1
+ -  4 = 004-PACE_RS485_Modbus_V1.3
+ -  5 = 005-PYLON_low_volage_Protocol_RS485_V... (not complete readable in the app)
+ -  6 = 006-Growatt_BMS_RS485_Protocol_1xSxxP... (not complete readable in the app)
+ -  7 = 007-Voltronic_Inverter_and_BMS_485_com... (not complete readable in the app)
+ -  8 = 008-China tower shared batterie cabinet V.02
+ -  9 = 009-WOW_RS485_Modbus_V1.3
+ - 10 = 010-JK BMS LCD Protocol V2.0
+ - 11 = 011-UART1 User customization
+ - 12 = 012-UART2 User customization
+ - 13 = 013-(9600)JK BMS RS485 Modbus V1.0
+ - 14 = 014-(9600)PYLON_low_voltage_Protocol_R... (not complete readable in the app)
+ - 15 = 015-JK BMS PBxx SERIES LCD Protocol V1.0
+ - 16 = 016-JKBMS LIN BUS V1.0
+ - 17 = 017-RS485 Protocol 17
+ - 18 = 018-RS485 Protocol 18
+ - 19 = 019-RS485 Protocol 19
+ - 20 = 020-RS485 Protocol 20
 
 (***) posible CAN protocols for CAN protocol libary version 1 (i only know about libary version 1)
- 0 = 000-JK BMS CAN Protocol (250k) V2.0
- 1 = 001-Deye Low-voltage hybrid inverter CAN c... (not complete readable in the app)
- 2 = 002-PYLON-Low-voltage-V1.2
- 3 = 003-Growatt BMS CAN-Bus-protocol-low-vol... (not complete readable in the app)
- 4 = 004-Victron_CANbus_BMS_protocol_20170... (not complete readable in the app)
- 5 = 005-MEGAREVO_Hybrid_BMSCAN_Protocol... (not complete readable in the app)
- 6 = 006-JK BMS CAN Protocol (500k) V2.0
- 7 = 007-INVT BMS CAN Bus protocol V1.02
- 8 = 008-GoodWe LV BMS Protocol(EX/EM/S-B... (not complete readable in the app)
- 9 = 009-FSS-ConnectingBat-TI-en-10 | Version 1.0
-10 = 010-MUST PV1800F-CAN communication P... (not complete readable in the app)
-11 = 011-LuxpowerTek Battery CAN protocol V01
-12 = 012-CAN BUS User customization
-13 = 013-CAN BUS User customization2
-14 = 014-CAN BUS Protocol 014
-15 = 015-CAN BUS Protocol 015
-16 = 016-CAN BUS Protocol 016
-17 = 017-CAN BUS Protocol 017
-18 = 018-CAN BUS Protocol 018
-19 = 019-CAN BUS Protocol 019
-20 = 020-CAN BUS Protocol 020
+ -  0 = 000-JK BMS CAN Protocol (250k) V2.0
+ -  1 = 001-Deye Low-voltage hybrid inverter CAN c... (not complete readable in the app)
+ -  2 = 002-PYLON-Low-voltage-V1.2
+ -  3 = 003-Growatt BMS CAN-Bus-protocol-low-vol... (not complete readable in the app)
+ -  4 = 004-Victron_CANbus_BMS_protocol_20170... (not complete readable in the app)
+ -  5 = 005-MEGAREVO_Hybrid_BMSCAN_Protocol... (not complete readable in the app)
+ -  6 = 006-JK BMS CAN Protocol (500k) V2.0
+ -  7 = 007-INVT BMS CAN Bus protocol V1.02
+ -  8 = 008-GoodWe LV BMS Protocol(EX/EM/S-B... (not complete readable in the app)
+ -  9 = 009-FSS-ConnectingBat-TI-en-10 | Version 1.0
+ - 10 = 010-MUST PV1800F-CAN communication P... (not complete readable in the app)
+ - 11 = 011-LuxpowerTek Battery CAN protocol V01
+ - 12 = 012-CAN BUS User customization
+ - 13 = 013-CAN BUS User customization2
+ - 14 = 014-CAN BUS Protocol 014
+ - 15 = 015-CAN BUS Protocol 015
+ - 16 = 016-CAN BUS Protocol 016
+ - 17 = 017-CAN BUS Protocol 017
+ - 18 = 018-CAN BUS Protocol 018
+ - 19 = 019-CAN BUS Protocol 019
+ - 20 = 020-CAN BUS Protocol 020
 
 
 ## Device Settings Frame (Frame Type 0x01)
@@ -166,16 +166,7 @@ All RW values are theoreticaly writeable, but this project is not support writin
 | 0X010E | UINT32 | 4      | RW  | DevAddr                      | #    |                                        |
 | 0X0112 | UINT32 | 4      | RW  | TIMProdischarge              | s    |                                        |
 | 0X0116 |        | 4      |     |                              |      | unknown                                |
-| 0X011A | UINT16 | 2      | RW  | HeatEN                       |      | BIT0; 1: On; 0: Off                    |
-|        |        |        | RW  | Disable temp-sensor          |      | BIT1; 1: On; 0: Off                    |
-|        |        |        | RW  | GPS Heartbeat                |      | BIT2; 1: On; 0: Off                    |
-|        |        |        | RW  | Port Switch                  |      | BIT3; 1: RS485; 0: CAN                 |
-|        |        |        | RW  | LCD Always On                |      | BIT4; 1: On; 0: Off                    |
-|        |        |        | RW  | Special Charger              |      | BIT5; 1: On; 0: Off                    |
-|        |        |        | RW  | SmartSleep                   |      | BIT6; 1: On; 0: Off                    |
-|        |        |        | RW  | DisablePCLModule             |      | BIT7; 1: On; 0: Off                    |
-|        |        |        | RW  | TimedStoredData              |      | BIT8; 1: On; 0: Off                    |
-|        |        |        | RW  | ChargingFloatMode            |      | BIT9; 1: On; 0: Off                    |
+| 0X011A | UINT16 | 2      | RW  | Switches BitMask             |      | Bit mask of switches                   |
 | 0X011C | INT8   | 1      | RW  | TMPHeatingStart              | ℃    |                                        |
 | 0X011D | INT8   | 1      | RW  | TMPHeatingStop               | ℃    |                                        |
 | 0X011E | UINT8  | 1      | RW  | TIMSmartSleep                | H    |                                        |
@@ -185,6 +176,19 @@ All RW values are theoreticaly writeable, but this project is not support writin
 | 0X0129 | INT8   | 1      | RW  | Discharge UTPR               | ℃    |                                        |
 | 0X012A |        | 1      |     |                              |      | unknown                                |
 | 0X012B | UINT8  | 1      |     | CRC checksum                 | #    |                                        |
+
+(*) BitMap of Switches
+ - BIT0 = HeatEN; 1: On; 0: Off	
+ - BIT1 = Disable temp-sensor; 1: On; 0: Off	
+ - BIT2 = GPS Heartbeat; 1: On; 0: Off	
+ - BIT3 = Port Switch; 1: RS485; 0: CAN	
+ - BIT4 = LCD Always On; 1: On; 0: Off	
+ - BIT5 = Special Charger; 1: On; 0: Off	
+ - BIT6 = SmartSleep; 1: On; 0: Off	
+ - BIT7 = DisablePCLModule; 1: On; 0: Off	
+ - BIT8 = TimedStoredData; 1: On; 0: Off	
+ - BIT9 = ChargingFloatMode; 1: On; 0: Off	
+
 
 
 ## Cell Info Frame (Frame Type 0x02) also called **realtime data**
@@ -266,35 +270,35 @@ All RW values are theoreticaly writeable, but this project is not support writin
 | 0x012B | UINT8  | 1      | R   | CRC Checksum             |       |                                                                                  |
 
 (*) Alarms Bitmap (1 = Fault; 0 = Normal)
-BIT0 = AlarmWireRes
-BIT1 = AlarmMosOTP
-BIT2 = AlarmCellQuantity
-BIT3 = AlarmCurSensorErr
-BIT4 = AlarmCellOVP
-BIT5 = AlarmBatOVP
-BIT6 = AlarmChOCP
-BIT7 = AlarmChSCP
-BIT8 = AlarmChOTP
-BIT9 = AlarmChUTP
-BIT10 = AlarmCPUAuxCommuErr
-BIT11 = AlarmCellUVP
-BIT12 = AlarmBatUVP
-BIT13 = AlarmDchOCP
-BIT14 = AlarmDchSCP
-BIT15 = AlarmDchOTP
-BIT16 = AlarmChargeMOS
-BIT17 = AlarmDischargeMOS
-BIT18 = GPSDisconneted
-BIT19 = Modify PWD. in time
-BIT20 = Discharge On Failed
-BIT21 = Battery Over Temp Alarm
-BIT22 = Temperature sensor anomaly
-BIT23 = PLCModule anomaly
+ - BIT0 = AlarmWireRes
+ - BIT1 = AlarmMosOTP
+ - BIT2 = AlarmCellQuantity
+ - BIT3 = AlarmCurSensorErr
+ - BIT4 = AlarmCellOVP
+ - BIT5 = AlarmBatOVP
+ - BIT6 = AlarmChOCP
+ - BIT7 = AlarmChSCP
+ - BIT8 = AlarmChOTP
+ - BIT9 = AlarmChUTP
+ - BIT10 = AlarmCPUAuxCommuErr
+ - BIT11 = AlarmCellUVP
+ - BIT12 = AlarmBatUVP
+ - BIT13 = AlarmDchOCP
+ - BIT14 = AlarmDchSCP
+ - BIT15 = AlarmDchOTP
+ - BIT16 = AlarmChargeMOS
+ - BIT17 = AlarmDischargeMOS
+ - BIT18 = GPSDisconneted
+ - BIT19 = Modify PWD. in time
+ - BIT20 = Discharge On Failed
+ - BIT21 = Battery Over Temp Alarm
+ - BIT22 = Temperature sensor anomaly
+ - BIT23 = PLCModule anomaly
 
 (**) TempSensorAbsend Bitmap (1 = Normal; 0 = Missing)
-BIT0 = MOS TempSensorAbsent
-BIT1 = BATTempSensor1Absent
-BIT2 = BATTempSensor2Absent
-BIT3 = BATTempSensor3Absent
-BIT4 = BATTempSensor4Absent
-BIT5 = BATTempSensor5Absent
+ - BIT0 = MOS TempSensorAbsent
+ - BIT1 = BATTempSensor1Absent
+ - BIT2 = BATTempSensor2Absent
+ - BIT3 = BATTempSensor3Absent
+ - BIT4 = BATTempSensor4Absent
+ - BIT5 = BATTempSensor5Absent
