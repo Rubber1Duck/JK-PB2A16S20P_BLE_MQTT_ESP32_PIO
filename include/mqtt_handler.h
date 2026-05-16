@@ -26,8 +26,8 @@ void setState(String key, String value, bool publish);
 String formatUptime(time_t uptime);
 void mqtt_loop();
 void mqtt_init();
-void toMqttQueue(const char *topic, const char *payload);
-void toMqttQueue(String topic, String payload);
+bool toMqttQueue(const char *topic, const char *payload);
+bool toMqttQueue(String topic, String payload);
 void toMqttQueueRawData(String topic, const char *payload, size_t payloadLen);
 
 // MQTT Setting

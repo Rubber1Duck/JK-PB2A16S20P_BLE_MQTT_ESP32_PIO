@@ -38,9 +38,9 @@
 // MQTT Settings
 // #define USE_TLS // uncomment to enable TLS support for MQTT
 
-#define MQTT_SERVER "" // ip or dns name of your MQTT broker
-#define MQTT_USERNAME "" // your MQTT username
-#define MQTT_PASSWORD "" // your MQTT password
+#define MQTT_SERVER "ip or dns name of your MQTT broker"
+#define MQTT_USERNAME "your MQTT username"
+#define MQTT_PASSWORD "your MQTT password"
 #ifndef USE_TLS
 #define MQTT_PORT 1883
 #else // USE_TLS
@@ -92,6 +92,7 @@
 // Optional: Home Assistant MQTT Auto-Discovery
 // Default is OFF. Uncomment to publish HA discovery config topics on MQTT connect.
 // #define USE_HA_DISCOVERY
+
 // Optional custom discovery prefix (default: "homeassistant")
 // #define HA_DISCOVERY_PREFIX "homeassistant"
 

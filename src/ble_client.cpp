@@ -250,6 +250,16 @@ bool connectToBLEServer() {
             return false;
         }
         DEBUG_PRINTLN(" - Found our characteristic");
+        auto charText = pRemoteCharacteristic->toString();
+        DEBUG_PRINTF("Characteristic: %s\n", charText.c_str());
+        DEBUG_PRINTF("Can Broadcast: %s\n", pRemoteCharacteristic->canBroadcast() ? "Yes" : "No");
+        DEBUG_PRINTF("Can Read: %s\n", pRemoteCharacteristic->canRead() ? "Yes" : "No");
+        DEBUG_PRINTF("Can Write No Response: %s\n", pRemoteCharacteristic->canWriteNoResponse() ? "Yes" : "No");
+        DEBUG_PRINTF("Can Write: %s\n", pRemoteCharacteristic->canWrite() ? "Yes" : "No");
+        DEBUG_PRINTF("Can Notify: %s\n", pRemoteCharacteristic->canNotify() ? "Yes" : "No");
+        DEBUG_PRINTF("Can Indicate: %s\n", pRemoteCharacteristic->canIndicate() ? "Yes" : "No");
+        DEBUG_PRINTF("Can Write Signed: %s\n", pRemoteCharacteristic->canWriteSigned() ? "Yes" : "No");
+        DEBUG_PRINTF("Has Extended Props: %s\n", pRemoteCharacteristic->hasExtendedProps() ? "Yes" : "No");
         // Set the notification callback
         if (pRemoteCharacteristic->canNotify()) {
             if (!pRemoteCharacteristic->subscribe(true, notifyCB)) {
@@ -257,24 +267,25 @@ bool connectToBLEServer() {
                 pClient->disconnect();
                 return false;
             }
-            DEBUG_PRINTLN("Subscribed to notifications");
+            DEBUG_PRINTLN("Subscribed to notifications.");
+            delay(200); // Small delay to ensure subscription is set up before sending the first message
         }
     } else {
         std::string svcUuid = serviceUUID.toString();
         DEBUG_PRINTF("Failed to find our service UUID: %s\n", svcUuid.c_str());
         pClient->disconnect();
+        return false;
     }
-    if (pRemoteCharacteristic->canWrite()) {
+    if (pRemoteCharacteristic->canWriteNoResponse()) {
         // Sending getdevice info
-        if (pRemoteCharacteristic->writeValue(getdeviceInfo, 20)) {
-            DEBUG_PRINTLN("Sent \"getdeviceInfo\" to the BLE device");
-            initial_send_done = false;    // Reset the initial send flag for the new connection
-            last_sending_time = millis(); // Update the last sending time to the current time
-        } else {
-            DEBUG_PRINTLN("Failed to send \"getdeviceInfo\" to the BLE device");
-            pClient->disconnect();
-            return false;
-        }
+        boolean result = pRemoteCharacteristic->writeValue(getdeviceInfo, 20, false);
+        DEBUG_PRINTF("Sent \"getdeviceInfo\" to the BLE device. Result: %s\n", result == true ? "Success" : "Failed");
+        initial_send_done = false;    // Reset the initial send flag for the new connection
+        last_sending_time = millis(); // Update the last sending time to the current time
+    } else {
+        DEBUG_PRINTLN("Characteristic does not support writing with no response");
+        pClient->disconnect();
+        return false;
     }
     setState("ble_connection", "connected", true);
     ble_connected = true;
@@ -307,19 +318,16 @@ void ble_loop() {
                 DEBUG_PRINTLN("Start the show, unblock notifications ...");
                 all_notifications_blocked = false; // Unblock notifications
                 DEBUG_PRINTLN("Send getInfo (initial)");
-                if (pRemoteCharacteristic->writeValue(getInfo, 20)) {
-                    DEBUG_PRINTLN("Sent \"getInfo\" to the BLE device");
-                } else {
-                    DEBUG_PRINTLN("Failed to send \"getInfo\" to the BLE device");
-                }
+                pRemoteCharacteristic->writeValue(getInfo, 20,false);
+                DEBUG_PRINTLN("Sent \"getInfo\" to the BLE device.");
                 last_sending_time = millis(); // Update the last sending time to the current time
                 initial_send_done = true;     // Set the flag to indicate the initial send is done
             }
         } else {
             // Subsequent sends every hour
             if ((millis() - last_sending_time) >= REPEAT_SEND_INTERVAL) {
-                DEBUG_PRINTLN("Send getInfo (hourly)");
-                pRemoteCharacteristic->writeValue(getInfo, 20);
+                DEBUG_PRINTLN("Send getInfo (hourly).");
+                pRemoteCharacteristic->writeValue(getInfo, 20, false);
                 last_sending_time = millis(); // Update the last sending time to the current time
             }
         }

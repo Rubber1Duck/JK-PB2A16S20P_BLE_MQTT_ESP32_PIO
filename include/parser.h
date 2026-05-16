@@ -14,6 +14,7 @@
 void readDeviceInfoRecord(void *message, const char *devicename);
 void readCellDataRecord(void *message, const char *devicename);
 void readConfigInfoRecord(void *message, const char *devicename);
+void republishCachedRecords(const char *devicename);
 String getLocalTimeString();
 
 extern DeviceInfo deviceinfo;

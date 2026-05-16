@@ -1,6 +1,10 @@
 # JK Inverter BMS Bluetooth to MQTT gateway
 
 ## Description
+This project is initaly made by Waldmensch1 (see [Waldmensch1/JK-PB2A16S20P_BLE_MQTT_ESP32_PIO](https://github.com/Waldmensch1/JK-PB2A16S20P_BLE_MQTT_ESP32_PIO). Since he apparently no longer maintains his repo, I have decided to continue the project in this fork.
+
+Thanks Waldmensch1 for your grat work!
+
 This project is inspired by the Akkudoktor.net forum and especially by this thread: [JKBMS auslesen über BLE Bluetooth oder RS485 Adapter mittels EPS IoBroker](https://akkudoktor.net/t/jkbms-auslesen-uber-ble-bluetooth-oder-rs485-adapter-mittels-eps-iobroker/722). As the the code there did not work properly with my JK-PB2A16S20P (these are delivered with a lot of DIY battery boxes), this project has been raised. For details on supported JK inverter BMS models see [table below](#supported-jk-bms-models).  
 The communication between the BMS and the ESP32 is primarily designed for bluetooth, thus an ESP32 model with BT support is required.  
 If you use more than one ESP32 it is shown as a structure in MQTT:  
@@ -47,19 +51,19 @@ across all environments.
 **Attention:** Do note that you will not be able to connect to the BMS with your smartphone app while the ESP32 is communicating with your BMS.
 
 ## Supported JK BMS Models
-This project has been primarily designed to be used for the JK-PB2A16S20P, however it may work with different models of the **JK Inverter BMS series**.  
+This project has been primarily designed to be used for the JK-PB2A16S20P, however it may work with different models of the **JK PB BMS and B BMS series**, all BMS witch use the so called **JK02_32S** protocol should run.  
 Here is a list of currently evaluated BMS models along with the tested hard- and firmware revisions:
 
 | Model         | HW-Rev. | FW-Ver | Status |
 | ------------- | ------- | ------ | ------ |
+| JK-B2A8S20P   | 11XW    | 11.288 | supported |
 | JK-PB2A16S20P | 15A     | 15.37  | supported |
 | JK-PB2A16S15P | 15A     | 15.38  | supported |
 | JK-PB2A16SxxP | 15H     | 15.41  | supported |
 | JK-B2A8S20P   | 19H     | 19.26  | supported (*)|
-| JK-PB2A16SxxP | 19      | *      | *not* supported (**) |
+| JK-PB2A16S20P | 19A     | 19.26  | supported (*)|
 
 (*) for V19 BMS uncomment "//define V19" in config file
-(**) no data received at all, but this must rechecked! (normaly this should work with firmware >=19.26) (no PB2A16SxxP for testing availible)
 
 Hardware rev. 14 of the JK inverter BMS will most probably also work with a recent firmware installed.  
 **Note:** The most promising precondition to successfully use this project is probably by running a **recent firmware** on your BMS. You may check [Andy's homepage](https://off-grid-garage.com/battery-management-systems-bms/) for firmware updates for the JK inverter BMS series.
