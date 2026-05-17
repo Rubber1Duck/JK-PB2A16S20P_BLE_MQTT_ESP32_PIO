@@ -325,10 +325,7 @@ void ble_loop() {
         } else {
             // Subsequent sends every hour
             if ((millis() - last_sending_time) >= REPEAT_SEND_INTERVAL) {
-                boolean result = pRemoteCharacteristic->writeValue(getdeviceInfo, 20, false);
-                DEBUG_PRINTF("Sent getdeviceInfo (hourly) to the BLE device. Result: %s\n", result == true ? "Success" : "Failed");
-            }
-            if ((millis() - last_sending_time) >= (REPEAT_SEND_INTERVAL + INITIAL_SEND_INTERVAL)) {
+                DEBUG_PRINTLN("Send getInfo (hourly).");
                 boolean result = pRemoteCharacteristic->writeValue(getInfo, 20, false);
                 DEBUG_PRINTF("Sent getInfo (hourly) to the BLE device. Result: %s\n", result == true ? "Success" : "Failed");
                 last_sending_time = millis(); // Update the last sending time to the current time
