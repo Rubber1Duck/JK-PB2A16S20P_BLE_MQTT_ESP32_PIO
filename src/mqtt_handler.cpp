@@ -359,6 +359,12 @@ void publishStatesTask(void *pvParameters)
         setStateU32("rawdata_drop_pool_exhausted", rawdata_drop_pool_exhausted_count, false);
         setStateU32("rawdata_drop_queue_full", rawdata_drop_queue_full_count, false);
         publishStates();
+        // Publish parameter topics periodically
+        toMqttQueue(topic_debug_active, debug_flg ? "true" : "false");
+        toMqttQueue(topic_debug_active_full, debug_flg_full ? "true" : "false");
+        toMqttQueue(topic_publish_delay, String(publish_delay).c_str());
+        toMqttQueue(topic_min_pub_time, String(min_pub_time).c_str());
+        toMqttQueue(topic_publish_interval, String(publishInterval).c_str());
         // Warte min_pub_time Sekunden, aber in kleineren Schritten
         uint32_t total_delay = min_pub_time * 1000;
         uint32_t chunk_delay = 1000; // 1 Sekunde Chunks
