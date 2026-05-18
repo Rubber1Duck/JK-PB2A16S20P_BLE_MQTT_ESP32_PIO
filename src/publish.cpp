@@ -122,15 +122,14 @@ void publishTask(void *pvParameters)
 
     while (true)
     {
-        while (mqtt_client.state() != MQTT_CONNECTED || !isWifiConnected)
-        {
-            vTaskDelay(pdMS_TO_TICKS(100)); // Wait until MQTT is connected
-        }
-        // Receive data from the queue
-        if (xQueueReceive(publishQueue, &queue_out, 0) == pdTRUE)
+        // publish messages from the queue as long as MQTT is connected, WiFi is available and there are messages in the queue
+        // if not, wait until connection is back before trying to publish again
+        while (mqtt_client.state() == MQTT_CONNECTED && isWifiConnected && xQueueReceive(publishQueue, &queue_out, 0) == pdTRUE)
         {
             uint8_t currentQueueSize = uxQueueMessagesWaiting(publishQueue);
-            maxUsedQueueSize = max(maxUsedQueueSize, currentQueueSize); // to track max used queue size for debugging purposes, this musst be under 150
+            maxUsedQueueSize = max(maxUsedQueueSize, currentQueueSize); // to track max used queue size for debugging purposes,
+            // this musst be under PUBLISH_QUEUE_COUNT, if you see this value is close to the defined PUBLISH_QUEUE_COUNT,
+            // you should consider increasing the queue size or publish interval to avoid dropping messages
             if (maxUsedQueueSize > oldMaxUsedQueueSize)
             {
                 oldMaxUsedQueueSize = maxUsedQueueSize;
@@ -144,15 +143,20 @@ void publishTask(void *pvParameters)
                 String failMsg = "MQTT publish failed: " + String(queue_out.topic);
                 DEBUG_PRINTLN(failMsg);
             }
+            vTaskDelay(pdMS_TO_TICKS(publishInterval)); // time between publish attempts, can be adjust via MQTT, default is 50ms,
+            // which means max 20 publishes per second, adjust if you have a lot of messages to publish and the queue is filling up,
+            // but be careful with too low values as it can cause stability issues with the MQTT client
         }
-        vTaskDelay(pdMS_TO_TICKS(publishInterval)); // time between publish attempts, can be adjust via MQTT, default is 50ms, which means max 20 publishes per second, adjust if you have a lot of messages to publish and the queue is filling up, but be careful with too low values as it can cause stability issues with the MQTT client  
+        vTaskDelay(pdMS_TO_TICKS(100)); // Wait a bit before checking the queue again to avoid busy looping when MQTT is not connected or WiFi is down  
     }
 }
 
 void publish_init()
 {
     // Create the publishqueue
-    publishQueue = xQueueCreate(150u, sizeof(PublishMessage)); // Queue can hold 150 messages, adjust as needed
+    publishQueue = xQueueCreate(PUBLISH_QUEUE_COUNT, sizeof(PublishMessage)); // Queue can hold PUBLISH_QUEUE_COUNT messages, adjust as needed
+    // PUBLISH_QUEUE_COUNT is defined in the header and can be adjusted, but be careful with too high values as it can cause
+    // stability issues with the MQTT client if the queue is filling up
     if (publishQueue == NULL)
     {
         DEBUG_PRINTLN("Failed to create publish queue"); //without this, the system cannot function properly, so we restart to try again

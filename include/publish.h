@@ -5,6 +5,9 @@
 #include "mqtt_handler.h"
 #include "struct_MQTT_Queue.h"
 
+#define PUBLISH_QUEUE_COUNT 200u // Publish queue can hold 200 messages, adjust as needed,
+// be careful with too high values as it can cause stability issues with the MQTT client if the queue is filling up
+// (max value is 255 due to uint8_t queue size tracking), monitor the max used queue size via MQTT and adjust if needed
 void publish_init();
 bool ensureRawPublishInfraInitialized();
 bool rawDataPoolAllocSlot(uint16_t *slotIndex, TickType_t waitTicks);
