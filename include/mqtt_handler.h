@@ -29,6 +29,7 @@ void mqtt_init();
 bool toMqttQueue(const char *topic, const char *payload);
 bool toMqttQueue(String topic, String payload);
 void toMqttQueueRawData(String topic, const char *payload, size_t payloadLen);
+bool waitForTimeSync(uint32_t timeoutMs = 30000);
 
 // MQTT Setting
 // MQTT Client name used when connecting to broker

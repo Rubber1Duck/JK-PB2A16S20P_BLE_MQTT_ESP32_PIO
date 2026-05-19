@@ -49,6 +49,49 @@ static uint32_t rawdata_drop_oversize_count = 0;
 static uint32_t rawdata_drop_pool_exhausted_count = 0;
 static uint32_t rawdata_drop_queue_full_count = 0;
 
+// Wait for NTP time synchronization before TLS connection
+// This prevents SSL certificate verification errors that occur when system time is incorrect (e.g., 1970)
+bool waitForTimeSync(uint32_t timeoutMs)
+{
+#ifdef NTPSERVER
+    DEBUG_PRINTLN("Waiting for NTP time synchronization...");
+    time_t now = time(nullptr);
+    uint32_t startTime = millis();
+    
+    // Time is typically 1970-01-01 (epoch) when not synchronized
+    // We check if time is after year 2020 (1577836800 seconds since epoch)
+    while (now < 1577836800)
+    {
+        delay(100);
+        now = time(nullptr);
+        uint32_t elapsed = millis() - startTime;
+        
+        if (elapsed % 1000 == 0)
+        {
+            DEBUG_PRINTF("Waiting for time sync... (%ld ms elapsed)\n", elapsed);
+        }
+        
+        if (elapsed > timeoutMs)
+        {
+            DEBUG_PRINTLN("ERROR: NTP time synchronization timeout!");
+            return false;
+        }
+    }
+    
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo))
+    {
+        DEBUG_PRINT("NTP time sync successful: ");
+        DEBUG_PRINTLN(asctime(&timeinfo));
+    }
+    return true;
+#else
+    // NTP not configured, proceed without waiting
+    DEBUG_PRINTLN("NTP not configured, skipping time sync wait");
+    return true;
+#endif
+}
+
 #ifdef USE_HA_DISCOVERY
 #ifndef HA_DISCOVERY_PREFIX
 #define HA_DISCOVERY_PREFIX "homeassistant"
