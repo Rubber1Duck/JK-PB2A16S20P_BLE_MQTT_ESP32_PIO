@@ -61,10 +61,16 @@ extern PubSubClient mqtt_client;
 void mqtt_tls_stop()
 {
     std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
-    mqtt_client.disconnect();
+    if (mqtt_client.connected())
+    {
+        mqtt_client.disconnect();
+    }
 #ifdef USE_TLS
-    secure_wifi_client.stop();
-    DEBUG_PRINTLN("TLS socket stopped, ready for clean reconnect.");
+    if (secure_wifi_client.connected())
+    {
+        secure_wifi_client.stop();
+        DEBUG_PRINTLN("TLS socket stopped, ready for clean reconnect.");
+    }
 #endif
 }
 
@@ -637,23 +643,24 @@ boolean mqtt_reconnect()
 // MQTT Check
 void mqtt_loop()
 {
+    static bool lastConnected = false;
+
     bool connected = false;
     {
         std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
         connected = mqtt_client.connected();
     }
 
+    // Only clean up TLS state after an actual connection-loss transition.
+    if (!connected && lastConnected)
+    {
+        mqtt_tls_stop();
+    }
+
+    lastConnected = connected;
+
     if (!connected)
     {
-        // Ensure the TLS socket is cleanly stopped before reconnect.
-        // This prevents MBEDTLS_ERR_NET_SEND_FAILED (-0x004E) after WiFi reconnect.
-        static bool tlsStopPending = true;
-        if (tlsStopPending)
-        {
-            mqtt_tls_stop();
-            tlsStopPending = false;
-        }
-
         if (!isWifiConnected)
         {
             static uint32_t lastWifiWaitLog = 0;
@@ -674,7 +681,6 @@ void mqtt_loop()
             if (mqtt_reconnect())
             {
                 lastReconnectAttempt = 0;
-                tlsStopPending = true;  // arm for next disconnect
                 DEBUG_PRINTLN("MQTT Reconnected.");
             }
         }
