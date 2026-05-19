@@ -50,8 +50,24 @@ static uint32_t rawdata_drop_oversize_count = 0;
 static uint32_t rawdata_drop_pool_exhausted_count = 0;
 static uint32_t rawdata_drop_queue_full_count = 0;
 
-// Wait for NTP time synchronization before TLS connection
-// This prevents SSL certificate verification errors that occur when system time is incorrect (e.g., 1970)
+// Forward declaration: defined later in this file after PubSubClient constructor
+#ifdef USE_TLS
+extern WiFiClientSecure secure_wifi_client;
+#endif
+extern PubSubClient mqtt_client;
+
+// Disconnect MQTT and stop the TLS socket so the next reconnect gets a clean TLS handshake.
+// Must be called whenever the underlying TCP/WiFi connection is lost.
+void mqtt_tls_stop()
+{
+    std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+    mqtt_client.disconnect();
+#ifdef USE_TLS
+    secure_wifi_client.stop();
+    DEBUG_PRINTLN("TLS socket stopped, ready for clean reconnect.");
+#endif
+}
+
 bool waitForTimeSync(uint32_t timeoutMs)
 {
 #ifdef NTPSERVER
@@ -629,6 +645,15 @@ void mqtt_loop()
 
     if (!connected)
     {
+        // Ensure the TLS socket is cleanly stopped before reconnect.
+        // This prevents MBEDTLS_ERR_NET_SEND_FAILED (-0x004E) after WiFi reconnect.
+        static bool tlsStopPending = true;
+        if (tlsStopPending)
+        {
+            mqtt_tls_stop();
+            tlsStopPending = false;
+        }
+
         if (!isWifiConnected)
         {
             static uint32_t lastWifiWaitLog = 0;
@@ -649,6 +674,7 @@ void mqtt_loop()
             if (mqtt_reconnect())
             {
                 lastReconnectAttempt = 0;
+                tlsStopPending = true;  // arm for next disconnect
                 DEBUG_PRINTLN("MQTT Reconnected.");
             }
         }

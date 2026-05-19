@@ -126,6 +126,8 @@ void WiFiEvent(WiFiEvent_t event)
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
         isWifiConnected = false;
         DEBUG_PRINTLN("WLAN Verbindung verloren! Reconnect...");
+        // Stop MQTT/TLS immediately so no more send attempts hit the dead socket
+        mqtt_tls_stop();
         WiFi.reconnect(); // Versucht automatisch neu zu verbinden
         break;
     default:

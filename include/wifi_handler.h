@@ -12,5 +12,6 @@ void wifi_loop();
 #define WIFI_DHCPNAME TEXTIFY(CLTNAME)
 
 extern void setState(String key, String value, bool publish);
+extern void mqtt_tls_stop();
 
 #endif
