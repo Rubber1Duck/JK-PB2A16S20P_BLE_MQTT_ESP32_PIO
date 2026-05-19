@@ -37,6 +37,7 @@ bool waitForTimeSync(uint32_t timeoutMs = 30000);
 extern String mqttname;
 extern String mqtt_main_topic;
 extern PubSubClient mqtt_client;
+extern std::mutex mqttClientIoMutex;
 extern QueueHandle_t publishQueue;
 extern QueueHandle_t rawPublishQueue;
 extern boolean isWifiConnected;

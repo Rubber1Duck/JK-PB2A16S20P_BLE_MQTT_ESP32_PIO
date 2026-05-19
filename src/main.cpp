@@ -61,12 +61,14 @@ void setup()
 
     init_wifi();
 #ifdef USE_TLS
-    secure_wifi_client.setCACert(root_ca_cert);
-    #ifdef MQTT_SKIP_CERT_VERIFY
-    // Skip hostname verification but still use ROOT CA for certificate pinning
+    secure_wifi_client.setTimeout(15000);
+#ifdef MQTT_SKIP_CERT_VERIFY
+    // Debug mode: disable certificate validation completely.
     secure_wifi_client.setInsecure();
-    Serial.println("WARNING: SSL/TLS hostname verification disabled!");
-    #endif
+    Serial.println("WARNING: SSL/TLS certificate verification disabled!");
+#else
+    secure_wifi_client.setCACert(root_ca_cert);
+#endif
 #endif
 
 #ifdef NTPSERVER

@@ -35,6 +35,7 @@ std::map<String, String> stateMap;
 
 // Define toMqttQueue mutex
 std::mutex mqttQueueMutex;
+std::mutex mqttClientIoMutex;
 
 // Pre-computed MQTT topics to avoid repeated allocations
 String topic_debug_active;
@@ -255,9 +256,12 @@ String formatUptime(time_t uptime)
 bool toMqttQueue(const char *topic, const char *payload)
 {
     std::lock_guard<std::mutex> lock(mqttQueueMutex);
-    if (mqtt_client.state() != MQTT_CONNECTED || !isWifiConnected)
     {
-        return false; // Wait until MQTT is connected before pushing topics to publish queue
+        std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+        if (mqtt_client.state() != MQTT_CONNECTED || !isWifiConnected)
+        {
+            return false; // Wait until MQTT is connected before pushing topics to publish queue
+        }
     }
 
     if (topic == nullptr || payload == nullptr)
@@ -295,9 +299,12 @@ void toMqttQueueRawData(String topic, const char *payload, size_t payloadLen)
     }
 
     std::lock_guard<std::mutex> lock(mqttQueueMutex);
-    if (mqtt_client.state() != MQTT_CONNECTED || !isWifiConnected)
     {
-        return; // Wait until MQTT is connected before pushing topics to publish queue
+        std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+        if (mqtt_client.state() != MQTT_CONNECTED || !isWifiConnected)
+        {
+            return; // Wait until MQTT is connected before pushing topics to publish queue
+        }
     }
 
     if (payload == nullptr || payloadLen == 0)
@@ -532,7 +539,10 @@ uint32_t lastMQTTreconnectAttempt = 0;
 // Reconnect to MQTT broker
 boolean mqtt_reconnect()
 {
-    mqtt_buffer_maxed = mqtt_client.setBufferSize(MQTT_BUFFER_SIZE);
+    {
+        std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+        mqtt_buffer_maxed = mqtt_client.setBufferSize(MQTT_BUFFER_SIZE);
+    }
     reconnect_attempts++;
 
 #ifdef USE_RANDOM_CLIENT_ID
@@ -544,26 +554,36 @@ boolean mqtt_reconnect()
 
     DEBUG_PRINTLN("Attempting MQTT connection... " + random_client_id + " (Attempt " + String(reconnect_attempts) + ")");
     // Attempt to reconnect to the MQTT broker
-    if (mqtt_client.connect(random_client_id.c_str(), mqtt_username, mqtt_password, willTopic.c_str(), willQoS, willRetain, willMessage.c_str(), true))
+    {
+        std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+        if (!mqtt_client.connect(random_client_id.c_str(), mqtt_username, mqtt_password, willTopic.c_str(), willQoS, willRetain, willMessage.c_str(), true))
+        {
+            DEBUG_PRINTLN("MQTT connect failed, state=" + String(mqtt_client.state()));
+            return false;
+        }
+    }
     {
 
         int ErrorCnt = 0;
         String debug_flg_status = debug_flg ? "true" : "false";
-        mqtt_client.publish(topic_debug_active.c_str(), debug_flg_status.c_str()) || ErrorCnt++;
-        mqtt_client.subscribe(topic_debug_active.c_str()) || ErrorCnt++; // debug_flg
+        {
+            std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+            mqtt_client.publish(topic_debug_active.c_str(), debug_flg_status.c_str()) || ErrorCnt++;
+            mqtt_client.subscribe(topic_debug_active.c_str()) || ErrorCnt++; // debug_flg
 
-        String debug_flg_full_log_status = debug_flg_full ? "true" : "false";
-        mqtt_client.publish(topic_debug_active_full.c_str(), debug_flg_full_log_status.c_str()) || ErrorCnt++;
-        mqtt_client.subscribe(topic_debug_active_full.c_str()) || ErrorCnt++; // debug_flg_full
+            String debug_flg_full_log_status = debug_flg_full ? "true" : "false";
+            mqtt_client.publish(topic_debug_active_full.c_str(), debug_flg_full_log_status.c_str()) || ErrorCnt++;
+            mqtt_client.subscribe(topic_debug_active_full.c_str()) || ErrorCnt++; // debug_flg_full
 
-        mqtt_client.publish(topic_publish_delay.c_str(), String(publish_delay).c_str()) || ErrorCnt++;
-        mqtt_client.subscribe(topic_publish_delay.c_str()) || ErrorCnt++; // publish_delay
+            mqtt_client.publish(topic_publish_delay.c_str(), String(publish_delay).c_str()) || ErrorCnt++;
+            mqtt_client.subscribe(topic_publish_delay.c_str()) || ErrorCnt++; // publish_delay
 
-        mqtt_client.publish(topic_min_pub_time.c_str(), String(min_pub_time).c_str()) || ErrorCnt++;
-        mqtt_client.subscribe(topic_min_pub_time.c_str()) || ErrorCnt++; // min_pub_time
+            mqtt_client.publish(topic_min_pub_time.c_str(), String(min_pub_time).c_str()) || ErrorCnt++;
+            mqtt_client.subscribe(topic_min_pub_time.c_str()) || ErrorCnt++; // min_pub_time
 
-        mqtt_client.publish(topic_publish_interval.c_str(), String(publishInterval).c_str()) || ErrorCnt++;
-        mqtt_client.subscribe(topic_publish_interval.c_str()) || ErrorCnt++; // publish_interval
+            mqtt_client.publish(topic_publish_interval.c_str(), String(publishInterval).c_str()) || ErrorCnt++;
+            mqtt_client.subscribe(topic_publish_interval.c_str()) || ErrorCnt++; // publish_interval
+        }
 
     #ifdef USE_HA_DISCOVERY
         publishHomeAssistantDiscovery() || ErrorCnt++;
@@ -576,7 +596,10 @@ boolean mqtt_reconnect()
         {
             String errorMsg = "Connected to broker but initial publish or subscriptions failed, error count: " + String(ErrorCnt);
             DEBUG_PRINTLN(errorMsg);
-            mqtt_client.disconnect();
+            {
+                std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+                mqtt_client.disconnect();
+            }
             DEBUG_PRINTLN("Disconnected from broker.");
             return false;
         }
@@ -589,13 +612,22 @@ boolean mqtt_reconnect()
         set_led(LedState::LED_FLASH);
 #endif
     }
-    return mqtt_client.connected();
+    {
+        std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+        return mqtt_client.connected();
+    }
 }
 
 // MQTT Check
 void mqtt_loop()
 {
-    if (!mqtt_client.connected())
+    bool connected = false;
+    {
+        std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+        connected = mqtt_client.connected();
+    }
+
+    if (!connected)
     {
         if (!isWifiConnected)
         {
@@ -623,12 +655,23 @@ void mqtt_loop()
     }
     else
     {
-        mqtt_client.loop();
+        bool loopOk = false;
+        {
+            std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+            loopOk = mqtt_client.loop();
+        }
+        if (!loopOk)
+        {
+            DEBUG_PRINTLN("MQTT loop failed, reconnect scheduled. state=" + String(mqtt_client.state()));
+        }
     }
 }
 
 void mqtt_init()
 {
+    mqtt_client.setKeepAlive(30);
+    mqtt_client.setSocketTimeout(15);
+
     // Initialize pre-computed topic strings once
     topic_debug_active = mqttname + "/parameter/debugging_active";
     topic_debug_active_full = mqttname + "/parameter/debugging_active_full";

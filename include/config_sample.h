@@ -127,7 +127,7 @@
 
 // SSL/TLS Configuration for MQTT
 // Uncomment if you have SSL certificate verification issues (e.g., "SSL - Verification of the message MAC failed")
-// This disables hostname verification but keeps certificate pinning via ROOT CA
+// Debug only: this disables certificate verification entirely (insecure)
 // #define MQTT_SKIP_CERT_VERIFY
 
 ///////////////////////////// End Settings //////////////////////////////////

@@ -54,8 +54,17 @@ void publishRawTask(void *pvParameters)
 
     while (true)
     {
-        while (mqtt_client.state() != MQTT_CONNECTED || !isWifiConnected)
+        while (true)
         {
+            bool mqttConnected = false;
+            {
+                std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+                mqttConnected = (mqtt_client.state() == MQTT_CONNECTED);
+            }
+            if (mqttConnected && isWifiConnected)
+            {
+                break;
+            }
             vTaskDelay(pdMS_TO_TICKS(100)); // Wait until MQTT is connected
         }
 
@@ -64,11 +73,19 @@ void publishRawTask(void *pvParameters)
             const uint8_t *payloadPtr = rawDataPoolSlotPtr(queue_out.slot_index);
             if (payloadPtr != nullptr)
             {
-                bool success = mqtt_client.publish(queue_out.topic, payloadPtr, queue_out.payload_len);
+                bool success = false;
+                {
+                    std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+                    success = mqtt_client.publish(queue_out.topic, payloadPtr, queue_out.payload_len);
+                }
                 if (!success)
                 {
                     String failMsg = "MQTT rawdata publish failed: " + String(queue_out.topic);
                     DEBUG_PRINTLN(failMsg);
+                    {
+                        std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+                        mqtt_client.disconnect();
+                    }
                 }
             }
 
@@ -122,9 +139,15 @@ void publishTask(void *pvParameters)
 
     while (true)
     {
+        bool mqttConnected = false;
+        {
+            std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+            mqttConnected = (mqtt_client.state() == MQTT_CONNECTED);
+        }
+
         // publish messages from the queue as long as MQTT is connected, WiFi is available and there are messages in the queue
         // if not, wait until connection is back before trying to publish again
-        while (mqtt_client.state() == MQTT_CONNECTED && isWifiConnected && xQueueReceive(publishQueue, &queue_out, 0) == pdTRUE)
+        while (mqttConnected && isWifiConnected && xQueueReceive(publishQueue, &queue_out, 0) == pdTRUE)
         {
             uint8_t currentQueueSize = uxQueueMessagesWaiting(publishQueue);
             maxUsedQueueSize = max(maxUsedQueueSize, currentQueueSize); // to track max used queue size for debugging purposes,
@@ -137,11 +160,25 @@ void publishTask(void *pvParameters)
             }
             
             //  Call the publish function
-            bool success = mqtt_client.publish(queue_out.topic, queue_out.payload);
+            bool success = false;
+            {
+                std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+                success = mqtt_client.publish(queue_out.topic, queue_out.payload);
+            }
             if (!success)
             {
                 String failMsg = "MQTT publish failed: " + String(queue_out.topic);
                 DEBUG_PRINTLN(failMsg);
+                {
+                    std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+                    mqtt_client.disconnect();
+                }
+                break;
+            }
+
+            {
+                std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+                mqttConnected = (mqtt_client.state() == MQTT_CONNECTED);
             }
             vTaskDelay(pdMS_TO_TICKS(publishInterval)); // time between publish attempts, can be adjust via MQTT, default is 50ms,
             // which means max 20 publishes per second, adjust if you have a lot of messages to publish and the queue is filling up,
