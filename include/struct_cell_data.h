@@ -120,12 +120,12 @@ struct CellData
   char TempBat2_fmt[8];        // Hilfsvariable für die Formatierung der TempBat2 mit 1 Dezimalstelle eg. 25.3 ℃
   char Alarm_raw_fmt[11];      // Hilfsvariable für die Formatierung des Alarm_raw als Dezimalzahl eg. 1234567890
   char AlarmBitMask_fmt[33];   // Hilfsvariable für die Interpretation des AlarmBitMask Bitmasks (24 Alarme + Nullterminator) 00000000 00000000 00000000 00000000
-  char AlarmsValue_fmt[24][8]; // Hilfsvariable für die Interpretation der einzelnen Alarme 1: Fault; 0: Normal for every Alarm
+  char AlarmsValue_fmt[29][8]; // Hilfsvariable für die Interpretation der einzelnen Alarme 1: Fault; 0: Normal for every Alarm
   const char *AlarmsTopics[29] = {"WireRes", "MosOTP", "CellQuantity", "CurSensorErr", "CellOVP", "BatOVP", "ChOCP", "ChSCP", "ChOTP",
                                   "ChUTP", "CPUAuxCommuErr", "CellUVP", "BatUVP", "DchOCP", "DchSCP", "DchOTP", "ChargeMOS", "DischargeMOS",
-                                  "GPSDisconneted", "ModifyPWD_in_time", "DischargeOnFailed", "BatteryOverTempAlarm", "TemperatureSensorAnomaly",
-                                  "PLCModuleAnomaly", "SCP release failed", "Discharge OCP II", "Discharge OCP III",
-                                  "Discharge undertemperature alarm", "GPS remote lock"}; // Hilfsvariable für die Bereitstellung der MQTT Topics für die einzelnen Alarme
+                                  "GPSDisconneted", "ModifyPWDInTime", "DischargeOnFailed", "BatteryOverTempAlarm", "TemperatureSensorAnomaly",
+                                  "PLCModuleAnomaly", "SCPReleaseFailed", "DischargeOCPII", "DischargeOCPIII",
+                                  "DischargeUnderTemperature", "GPSRemoteLock"}; // Hilfsvariable für die Bereitstellung der MQTT Topics für die einzelnen Alarme
   char BalanCurrent_fmt[8];                                                                                                                                                                                                       // Hilfsvariable für die Formatierung der BalanCurrent mit 3 Dezimalstellen eg. -12.345 A
   char BalanSta_fmt[10];                                                                                                                                                                                                          // Hilfsvariable für die Interpretation des BalanSta (2: Discharge; 1: Charge; 0: Off)
   char SOCStateOfcharge_fmt[4];                                                                                                                                                                                                   // Hilfsvariable für die Formatierung der SOCStateOfcharge eg. 85 %
