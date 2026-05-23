@@ -61,7 +61,14 @@ void setup()
 
     init_wifi();
 #ifdef USE_TLS
+    secure_wifi_client.setTimeout(15000);
+#ifdef MQTT_SKIP_CERT_VERIFY
+    // Debug mode: disable certificate validation completely.
+    secure_wifi_client.setInsecure();
+    Serial.println("WARNING: SSL/TLS certificate verification disabled!");
+#else
     secure_wifi_client.setCACert(root_ca_cert);
+#endif
 #endif
 
 #ifdef NTPSERVER
@@ -73,6 +80,13 @@ void setup()
     DEBUG_PRINTLN("NTP-Time synced");
     DEBUG_PRINTLN("Current time: " + getLocalTimeString());
 #endif
+
+    // Wait for NTP time synchronization before attempting MQTT connection
+    // This prevents SSL certificate verification errors
+    if (!waitForTimeSync())
+    {
+        DEBUG_PRINTLN("WARNING: Proceeding without confirmed NTP sync - SSL/TLS may fail");
+    }
 
     DEBUG_PRINTLN("\n--- ESP32 Reset History ---");
     uint8_t currentReason = (uint8_t)esp_reset_reason();

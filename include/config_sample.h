@@ -125,4 +125,9 @@
 // #define GMTOFFSET 3600  // OPTIONAL config w/o TIMEZONE (CET, UTC+1)
 // #define DLOFFSET 3600   // OPTIONAL config w/o TIMEZONE (CEST, UTC+2)
 
+// SSL/TLS Configuration for MQTT
+// Uncomment if you have SSL certificate verification issues (e.g., "SSL - Verification of the message MAC failed")
+// Debug only: this disables certificate verification entirely (insecure)
+// #define MQTT_SKIP_CERT_VERIFY
+
 ///////////////////////////// End Settings //////////////////////////////////

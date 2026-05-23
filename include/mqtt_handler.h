@@ -29,6 +29,8 @@ void mqtt_init();
 bool toMqttQueue(const char *topic, const char *payload);
 bool toMqttQueue(String topic, String payload);
 void toMqttQueueRawData(String topic, const char *payload, size_t payloadLen);
+bool waitForTimeSync(uint32_t timeoutMs = 30000);
+void mqtt_tls_stop();
 
 // MQTT Setting
 // MQTT Client name used when connecting to broker
@@ -36,6 +38,7 @@ void toMqttQueueRawData(String topic, const char *payload, size_t payloadLen);
 extern String mqttname;
 extern String mqtt_main_topic;
 extern PubSubClient mqtt_client;
+extern std::mutex mqttClientIoMutex;
 extern QueueHandle_t publishQueue;
 extern QueueHandle_t rawPublishQueue;
 extern boolean isWifiConnected;

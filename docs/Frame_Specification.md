@@ -294,6 +294,11 @@ All RW values are theoreticaly writeable, but this project is not support writin
  - BIT21 = Battery Over Temp Alarm
  - BIT22 = Temperature sensor anomaly
  - BIT23 = PLCModule anomaly
+ - BIT24 = SCP release failed
+ - BIT25 = Discharge OCP II
+ - BIT26 = Discharge OCP III
+ - BIT27 = Discharge undertemperature alarm
+ - BIT28 = GPS remote lock
 
 (**) TempSensorAbsend Bitmap (1 = Normal; 0 = Missing)
  - BIT0 = MOS TempSensorAbsent

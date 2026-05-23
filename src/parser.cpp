@@ -511,7 +511,7 @@ void readCellDataRecord(void *message, const char *devicename)
     publishIfChangedWithSuffix(cdOld.AlarmBitMask, celldata.AlarmBitMask, celldata.Alarm_raw_fmt, base_data, "alarms/alarm_raw");
 
     publishIfChangedWithSuffix(cdOld.AlarmBitMask, celldata.AlarmBitMask, celldata.AlarmBitMask_fmt, base_data, "alarms/alarms_mask");
-    for (int i = 0; i < 24; ++i)
+    for (int i = 0; i < 29; ++i)
     {
         char alarm_topic[192];
         snprintf(alarm_topic, sizeof(alarm_topic), "%salarms/%s", base_data, celldata.AlarmsTopics[i]);

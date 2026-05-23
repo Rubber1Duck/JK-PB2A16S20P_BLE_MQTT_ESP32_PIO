@@ -16,6 +16,12 @@ void write_setting(const char *setting_name, uint16_t value)
 {
     // "storage" is the namespace
     prefs.begin("storage", false);
+    // first read the current value to check if it has changed, if not, we can skip writing to flash
+    uint16_t current_value = prefs.getUShort(setting_name, value);
+    if (current_value == value) {
+        prefs.end();
+        return;
+    }
     // Save the uint16_t value
     prefs.putUShort(setting_name, value);
     prefs.end();
@@ -26,6 +32,13 @@ void write_setting(const char *setting_name, uint16_t value)
 void write_setting(const char *setting_name, bool value)
 {
     prefs.begin("storage", false);
+    // first read the current value to check if it has changed, if not, we can skip writing to flash
+    uint8_t current_value = prefs.getUChar(setting_name, value ? 1 : 0);
+    if (current_value == (value ? 1 : 0)) {
+        prefs.end();
+        return;
+    }
+    // Save the bool value as uint8_t (1 for true, 0 for false)
     prefs.putUChar(setting_name, value ? 1 : 0);
     prefs.end();
     DEBUG_PRINTF("Value for %s changed to %s\n", setting_name, value ? "true" : "false");

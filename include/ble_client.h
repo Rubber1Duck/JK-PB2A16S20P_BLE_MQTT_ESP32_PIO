@@ -12,9 +12,9 @@
 
 
 #define BUFFER_SIZE 300 // Size of the buffer to store incoming BLE data, adjust as needed
-#define REPEAT_SEND_INTERVAL 3600000UL // Define the interval for sending data (1 hour)
-#define INITIAL_SEND_INTERVAL 3000UL   // Define the interval for the initial send (3 seconds)
+#define INITIAL_SEND_INTERVAL 5000UL   // Define the interval for the initial send (5 seconds)
 #define BLE_RSSI_INTERVAL 60000UL // Define the interval for reading BLE RSSI (1 minute)
+#define MINIMUM_RECIVE_INTERVAL_DEVICEINFO_AND_CONFIGINFO 900000UL // Minimum interval between processing received device info and config info (15 minutes)
 
 
 void ble_setup();

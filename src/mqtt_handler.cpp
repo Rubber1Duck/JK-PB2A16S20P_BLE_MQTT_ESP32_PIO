@@ -35,6 +35,7 @@ std::map<String, String> stateMap;
 
 // Define toMqttQueue mutex
 std::mutex mqttQueueMutex;
+std::mutex mqttClientIoMutex;
 
 // Pre-computed MQTT topics to avoid repeated allocations
 String topic_debug_active;
@@ -48,6 +49,71 @@ static uint32_t rawdata_drop_init_failed_count = 0;
 static uint32_t rawdata_drop_oversize_count = 0;
 static uint32_t rawdata_drop_pool_exhausted_count = 0;
 static uint32_t rawdata_drop_queue_full_count = 0;
+
+// Forward declaration: defined later in this file after PubSubClient constructor
+#ifdef USE_TLS
+extern WiFiClientSecure secure_wifi_client;
+#endif
+extern PubSubClient mqtt_client;
+
+// Disconnect MQTT and stop the TLS socket so the next reconnect gets a clean TLS handshake.
+// Must be called whenever the underlying TCP/WiFi connection is lost.
+void mqtt_tls_stop()
+{
+    std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+    if (mqtt_client.connected())
+    {
+        mqtt_client.disconnect();
+    }
+#ifdef USE_TLS
+    if (secure_wifi_client.connected())
+    {
+        secure_wifi_client.stop();
+        DEBUG_PRINTLN("TLS socket stopped, ready for clean reconnect.");
+    }
+#endif
+}
+
+bool waitForTimeSync(uint32_t timeoutMs)
+{
+#ifdef NTPSERVER
+    DEBUG_PRINTLN("Waiting for NTP time synchronization...");
+    time_t now = time(nullptr);
+    uint32_t startTime = millis();
+    
+    // Time is typically 1970-01-01 (epoch) when not synchronized
+    // We check if time is after year 2020 (1577836800 seconds since epoch)
+    while (now < 1577836800)
+    {
+        delay(100);
+        now = time(nullptr);
+        uint32_t elapsed = millis() - startTime;
+        
+        if (elapsed % 1000 == 0)
+        {
+            DEBUG_PRINTF("Waiting for time sync... (%ld ms elapsed)\n", elapsed);
+        }
+        
+        if (elapsed > timeoutMs)
+        {
+            DEBUG_PRINTLN("ERROR: NTP time synchronization timeout!");
+            return false;
+        }
+    }
+    
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo))
+    {
+        DEBUG_PRINT("NTP time sync successful: ");
+        DEBUG_PRINTLN(asctime(&timeinfo));
+    }
+    return true;
+#else
+    // NTP not configured, proceed without waiting
+    DEBUG_PRINTLN("NTP not configured, skipping time sync wait");
+    return true;
+#endif
+}
 
 #ifdef USE_HA_DISCOVERY
 #ifndef HA_DISCOVERY_PREFIX
@@ -212,9 +278,12 @@ String formatUptime(time_t uptime)
 bool toMqttQueue(const char *topic, const char *payload)
 {
     std::lock_guard<std::mutex> lock(mqttQueueMutex);
-    if (mqtt_client.state() != MQTT_CONNECTED || !isWifiConnected)
     {
-        return false; // Wait until MQTT is connected before pushing topics to publish queue
+        std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+        if (mqtt_client.state() != MQTT_CONNECTED || !isWifiConnected)
+        {
+            return false; // Wait until MQTT is connected before pushing topics to publish queue
+        }
     }
 
     if (topic == nullptr || payload == nullptr)
@@ -252,9 +321,12 @@ void toMqttQueueRawData(String topic, const char *payload, size_t payloadLen)
     }
 
     std::lock_guard<std::mutex> lock(mqttQueueMutex);
-    if (mqtt_client.state() != MQTT_CONNECTED || !isWifiConnected)
     {
-        return; // Wait until MQTT is connected before pushing topics to publish queue
+        std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+        if (mqtt_client.state() != MQTT_CONNECTED || !isWifiConnected)
+        {
+            return; // Wait until MQTT is connected before pushing topics to publish queue
+        }
     }
 
     if (payload == nullptr || payloadLen == 0)
@@ -359,6 +431,12 @@ void publishStatesTask(void *pvParameters)
         setStateU32("rawdata_drop_pool_exhausted", rawdata_drop_pool_exhausted_count, false);
         setStateU32("rawdata_drop_queue_full", rawdata_drop_queue_full_count, false);
         publishStates();
+        // Publish parameter topics periodically
+        toMqttQueue(topic_debug_active, debug_flg ? "true" : "false");
+        toMqttQueue(topic_debug_active_full, debug_flg_full ? "true" : "false");
+        toMqttQueue(topic_publish_delay, String(publish_delay).c_str());
+        toMqttQueue(topic_min_pub_time, String(min_pub_time).c_str());
+        toMqttQueue(topic_publish_interval, String(publishInterval).c_str());
         // Warte min_pub_time Sekunden, aber in kleineren Schritten
         uint32_t total_delay = min_pub_time * 1000;
         uint32_t chunk_delay = 1000; // 1 Sekunde Chunks
@@ -483,7 +561,10 @@ uint32_t lastMQTTreconnectAttempt = 0;
 // Reconnect to MQTT broker
 boolean mqtt_reconnect()
 {
-    mqtt_buffer_maxed = mqtt_client.setBufferSize(MQTT_BUFFER_SIZE);
+    {
+        std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+        mqtt_buffer_maxed = mqtt_client.setBufferSize(MQTT_BUFFER_SIZE);
+    }
     reconnect_attempts++;
 
 #ifdef USE_RANDOM_CLIENT_ID
@@ -495,26 +576,36 @@ boolean mqtt_reconnect()
 
     DEBUG_PRINTLN("Attempting MQTT connection... " + random_client_id + " (Attempt " + String(reconnect_attempts) + ")");
     // Attempt to reconnect to the MQTT broker
-    if (mqtt_client.connect(random_client_id.c_str(), mqtt_username, mqtt_password, willTopic.c_str(), willQoS, willRetain, willMessage.c_str(), true))
+    {
+        std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+        if (!mqtt_client.connect(random_client_id.c_str(), mqtt_username, mqtt_password, willTopic.c_str(), willQoS, willRetain, willMessage.c_str(), true))
+        {
+            DEBUG_PRINTLN("MQTT connect failed, state=" + String(mqtt_client.state()));
+            return false;
+        }
+    }
     {
 
         int ErrorCnt = 0;
         String debug_flg_status = debug_flg ? "true" : "false";
-        mqtt_client.publish(topic_debug_active.c_str(), debug_flg_status.c_str()) || ErrorCnt++;
-        mqtt_client.subscribe(topic_debug_active.c_str()) || ErrorCnt++; // debug_flg
+        {
+            std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+            mqtt_client.publish(topic_debug_active.c_str(), debug_flg_status.c_str()) || ErrorCnt++;
+            mqtt_client.subscribe(topic_debug_active.c_str()) || ErrorCnt++; // debug_flg
 
-        String debug_flg_full_log_status = debug_flg_full ? "true" : "false";
-        mqtt_client.publish(topic_debug_active_full.c_str(), debug_flg_full_log_status.c_str()) || ErrorCnt++;
-        mqtt_client.subscribe(topic_debug_active_full.c_str()) || ErrorCnt++; // debug_flg_full
+            String debug_flg_full_log_status = debug_flg_full ? "true" : "false";
+            mqtt_client.publish(topic_debug_active_full.c_str(), debug_flg_full_log_status.c_str()) || ErrorCnt++;
+            mqtt_client.subscribe(topic_debug_active_full.c_str()) || ErrorCnt++; // debug_flg_full
 
-        mqtt_client.publish(topic_publish_delay.c_str(), String(publish_delay).c_str()) || ErrorCnt++;
-        mqtt_client.subscribe(topic_publish_delay.c_str()) || ErrorCnt++; // publish_delay
+            mqtt_client.publish(topic_publish_delay.c_str(), String(publish_delay).c_str()) || ErrorCnt++;
+            mqtt_client.subscribe(topic_publish_delay.c_str()) || ErrorCnt++; // publish_delay
 
-        mqtt_client.publish(topic_min_pub_time.c_str(), String(min_pub_time).c_str()) || ErrorCnt++;
-        mqtt_client.subscribe(topic_min_pub_time.c_str()) || ErrorCnt++; // min_pub_time
+            mqtt_client.publish(topic_min_pub_time.c_str(), String(min_pub_time).c_str()) || ErrorCnt++;
+            mqtt_client.subscribe(topic_min_pub_time.c_str()) || ErrorCnt++; // min_pub_time
 
-        mqtt_client.publish(topic_publish_interval.c_str(), String(publishInterval).c_str()) || ErrorCnt++;
-        mqtt_client.subscribe(topic_publish_interval.c_str()) || ErrorCnt++; // publish_interval
+            mqtt_client.publish(topic_publish_interval.c_str(), String(publishInterval).c_str()) || ErrorCnt++;
+            mqtt_client.subscribe(topic_publish_interval.c_str()) || ErrorCnt++; // publish_interval
+        }
 
     #ifdef USE_HA_DISCOVERY
         publishHomeAssistantDiscovery() || ErrorCnt++;
@@ -527,7 +618,10 @@ boolean mqtt_reconnect()
         {
             String errorMsg = "Connected to broker but initial publish or subscriptions failed, error count: " + String(ErrorCnt);
             DEBUG_PRINTLN(errorMsg);
-            mqtt_client.disconnect();
+            {
+                std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+                mqtt_client.disconnect();
+            }
             DEBUG_PRINTLN("Disconnected from broker.");
             return false;
         }
@@ -540,13 +634,32 @@ boolean mqtt_reconnect()
         set_led(LedState::LED_FLASH);
 #endif
     }
-    return mqtt_client.connected();
+    {
+        std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+        return mqtt_client.connected();
+    }
 }
 
 // MQTT Check
 void mqtt_loop()
 {
-    if (!mqtt_client.connected())
+    static bool lastConnected = false;
+
+    bool connected = false;
+    {
+        std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+        connected = mqtt_client.connected();
+    }
+
+    // Only clean up TLS state after an actual connection-loss transition.
+    if (!connected && lastConnected)
+    {
+        mqtt_tls_stop();
+    }
+
+    lastConnected = connected;
+
+    if (!connected)
     {
         if (!isWifiConnected)
         {
@@ -574,12 +687,23 @@ void mqtt_loop()
     }
     else
     {
-        mqtt_client.loop();
+        bool loopOk = false;
+        {
+            std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+            loopOk = mqtt_client.loop();
+        }
+        if (!loopOk)
+        {
+            DEBUG_PRINTLN("MQTT loop failed, reconnect scheduled. state=" + String(mqtt_client.state()));
+        }
     }
 }
 
 void mqtt_init()
 {
+    mqtt_client.setKeepAlive(30);
+    mqtt_client.setSocketTimeout(15);
+
     // Initialize pre-computed topic strings once
     topic_debug_active = mqttname + "/parameter/debugging_active";
     topic_debug_active_full = mqttname + "/parameter/debugging_active_full";

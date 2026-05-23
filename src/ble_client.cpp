@@ -6,32 +6,36 @@ const char *devicename = DEVICENAME;
 // status flags
 bool ble_connected = false; // Flag to track BLE connection status
 bool capturing = false; // Flag to indicate if we are currently capturing data after detecting the start sequence
-bool initial_send_done = false; // Flag to indicate if the initial send has occurred
+bool getConfigInfo_blocked = false; // Flag to block sending getInfo if we haven't received a response for the previous request
+bool getDeviceInfo_blocked = false; // Flag to block sending getDeviceInfo if we haven't received a response for the previous request
 
 // BLE
 static NimBLEUUID serviceUUID("ffe0"); // The remote service we wish to connect to.
 static NimBLEUUID charUUID("ffe1");    // The characteristic of the remote service we are interested in.
 static const NimBLEAdvertisedDevice *myDevice;
-static bool doConnect = false;
+static boolean doConnect = false;
 static uint32_t scanTimeMs = 5000; /** scan time in milliseconds, 0 = scan forever */
 static NimBLERemoteService *pRemoteService = nullptr;
 static NimBLERemoteCharacteristic *pRemoteCharacteristic = nullptr;
+static NimBLEClient *pClient = nullptr;
 
 // messages
-byte getdeviceInfo[20] = {0xaa, 0x55, 0x90, 0xeb, 0x97, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11}; // Device Infos
-byte getInfo[20] = {0xaa, 0x55, 0x90, 0xeb, 0x96, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10};       // Cell Data
+byte getDeviceInfo[20] = {0xaa, 0x55, 0x90, 0xeb, 0x97, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11}; // Device Infos
+byte getConfigInfo[20] = {0xaa, 0x55, 0x90, 0xeb, 0x96, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10}; // Cell Data
 
 // Buffer
 std::mutex bufferMutex;
 uint8_t ble_buffer[BUFFER_SIZE];
-int ble_buffer_index = 0;
+uint16_t ble_buffer_index = 0;
 const uint8_t start_sequence[4] = {0x55, 0xaa, 0xeb, 0x90}; // Start sequence to detect the beginning of a message
 const uint8_t pos_of_FrameType = 4;       // position of FrameType in the message
 boolean all_notifications_blocked = true; // Flag to track if all notifications are currently blocked
 
 // Time variables
-unsigned long last_sending_time = 0; // Timestamp of the last time we sent a message to the BLE device
-unsigned long last_rssi_time = 0;
+uint32_t last_rssi_time = 0;
+uint32_t last_received_device_info_time = 0;
+uint32_t last_received_config_info_time = 0;
+uint32_t time_device_info_sent = 0;
 
 #ifdef DUALCORE
 // Define the queue handle
@@ -45,12 +49,18 @@ void parser(void *message) {
 
     switch (type) {
     case 0x01:
+        DEBUG_PRINTLN("Received Config Info from BLE device.");
+        last_received_config_info_time = millis(); // Update the last received config info time
+        getConfigInfo_blocked = false; // Unblock sending getInfo since we received a response for the previous request    
         readConfigInfoRecord(message, devicename);
         break;
     case 0x02:
         readCellDataRecord(message, devicename);
         break;
     case 0x03:
+        DEBUG_PRINTLN("Received Device Info from BLE device.");
+        last_received_device_info_time = millis(); // Update the last received device info time
+        getDeviceInfo_blocked = false; // Unblock sending getDeviceInfo since we received a response for the previous request
         readDeviceInfoRecord(message, devicename);
         break;
     default:
@@ -179,7 +189,6 @@ void notifyCB(NimBLERemoteCharacteristic *pRemoteCharacteristic, uint8_t *pData,
 }
 
 bool connectToBLEServer() {
-    NimBLEClient *pClient = nullptr;
     /** Check if we have a client we should reuse first **/
     if (NimBLEDevice::getCreatedClientCount()) {
         /**
@@ -277,11 +286,8 @@ bool connectToBLEServer() {
         return false;
     }
     if (pRemoteCharacteristic->canWriteNoResponse()) {
-        // Sending getdevice info
-        boolean result = pRemoteCharacteristic->writeValue(getdeviceInfo, 20, false);
-        DEBUG_PRINTF("Sent \"getdeviceInfo\" to the BLE device. Result: %s\n", result == true ? "Success" : "Failed");
-        initial_send_done = false;    // Reset the initial send flag for the new connection
-        last_sending_time = millis(); // Update the last sending time to the current time
+        DEBUG_PRINTLN("Start the show, unblock notifications ...");
+        all_notifications_blocked = false; // Unblock notifications
     } else {
         DEBUG_PRINTLN("Characteristic does not support writing with no response");
         pClient->disconnect();
@@ -311,27 +317,22 @@ void ble_loop() {
     }
 
     if (ble_connected) {
-        // request cell data 5 seconds after request for device data
-        if (!initial_send_done) {
-            // Initial send after INITIAL_SEND_INTERVAL
-            if ((millis() - last_sending_time) >= INITIAL_SEND_INTERVAL) {
-                DEBUG_PRINTLN("Start the show, unblock notifications ...");
-                all_notifications_blocked = false; // Unblock notifications
-                DEBUG_PRINTLN("Send getInfo (initial)");
-                pRemoteCharacteristic->writeValue(getInfo, 20,false);
-                DEBUG_PRINTLN("Sent \"getInfo\" to the BLE device.");
-                last_sending_time = millis(); // Update the last sending time to the current time
-                initial_send_done = true;     // Set the flag to indicate the initial send is done
-            }
-        } else {
-            // Subsequent sends every hour
-            if ((millis() - last_sending_time) >= REPEAT_SEND_INTERVAL) {
-                DEBUG_PRINTLN("Send getInfo (hourly).");
-                pRemoteCharacteristic->writeValue(getInfo, 20, false);
-                last_sending_time = millis(); // Update the last sending time to the current time
+        if ((last_received_device_info_time == 0 || (millis() - last_received_device_info_time) >= MINIMUM_RECIVE_INTERVAL_DEVICEINFO_AND_CONFIGINFO)) {
+            if (!getDeviceInfo_blocked) {
+                boolean result = pRemoteCharacteristic->writeValue(getDeviceInfo, 20, false);
+                DEBUG_PRINTF("Sent getDeviceInfo to the BLE device. Result: %s\n", result == true ? "Success" : "Failed");
+                time_device_info_sent = millis(); // Update the time when we sent the device info request
+                getDeviceInfo_blocked = true; // Block sending getDeviceInfo until we receive a response
             }
         }
-
+        if ((last_received_config_info_time == 0 || (millis() - last_received_config_info_time) >= MINIMUM_RECIVE_INTERVAL_DEVICEINFO_AND_CONFIGINFO) && (millis() - time_device_info_sent) >= INITIAL_SEND_INTERVAL) {
+            if (!getConfigInfo_blocked) {
+                boolean result = pRemoteCharacteristic->writeValue(getConfigInfo, 20, false);
+                DEBUG_PRINTF("Sent getConfigInfo to the BLE device. Result: %s\n", result == true ? "Success" : "Failed");
+                getConfigInfo_blocked = true; // Block sending getConfigInfo until we receive a response
+            }
+        }
+        
         if (last_rssi_time == 0 || (millis() - last_rssi_time) >= BLE_RSSI_INTERVAL) {
             last_rssi_time = millis();
             char rssiVal[12];
@@ -342,30 +343,6 @@ void ble_loop() {
 }
 
 #ifdef DUALCORE
-
-// Define the BLE client task
-void bleClientTask(void *pvParameters) {
-    
-    DEBUG_PRINTLN("Starting NimBLE Client\n");
-    /** Initialize NimBLE and set the device name */
-    NimBLEDevice::init("NimBLE-Client");
-    NimBLEDevice::setPower(ESP_PWR_LVL_P6);            // +6dbm
-    NimBLEScan *pBLEScan = NimBLEDevice::getScan();    // Create a new scan
-    pBLEScan->setScanCallbacks(&scanCallbacks, false); // Set the callback handlers to be called when we receive a result and when the scan is complete.
-    pBLEScan->setInterval(100);
-    pBLEScan->setWindow(100);
-    pBLEScan->setActiveScan(true);
-
-    /** Start scanning for advertisers */
-    pBLEScan->start(scanTimeMs);
-
-    DEBUG_PRINTF("Scan for our Server \"%s\"\n", devicename);
-
-    // Keep the task running
-    while (true) {
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-    }
-}
 
 // Define the parser task
 void parserTask(void *pvParameters) {
@@ -389,20 +366,17 @@ void ble_setup() {
     bleQueue = xQueueCreate(20, sizeof(uint8_t[BUFFER_SIZE]));
     DEBUG_PRINTLN("BLE queue created");
 
-    // Create the BLE client task on core 1
-    xTaskCreate(bleClientTask, "BLE Client Task", 8192, NULL, 1, NULL);
-    DEBUG_PRINTLN("BLE Client Task created");
-
-    // Create the parser task on core 0
-    xTaskCreate(parserTask, "Parser Task", 8192, NULL, 1, NULL);
+    // Create the parser task on core 1
+    xTaskCreatePinnedToCore(parserTask, "Parser Task", 8192, NULL, 1, NULL, 1);
     DEBUG_PRINTLN("Parser Task created");
 
-#else
+#endif
 
+    DEBUG_PRINTLN("Starting NimBLE Client\n");
     /** Initialize NimBLE and set the device name */
     NimBLEDevice::init("NimBLE-Client");
-    NimBLEDevice::setPower(ESP_PWR_LVL_P6);            // +6dbm
-    NimBLEScan *pBLEScan = NimBLEDevice::getScan();    // Create a new scan
+    NimBLEDevice::setPower(ESP_PWR_LVL_P9);            // +9dbm
+    NimBLEScan *pBLEScan = NimBLEDevice::getScan();    // Create a new scan    
     pBLEScan->setScanCallbacks(&scanCallbacks, false); // Set the callback handlers to be called when we receive a result and when the scan is complete.
 
     DEBUG_PRINTLN("BLE client started");
@@ -415,6 +389,4 @@ void ble_setup() {
     pBLEScan->start(scanTimeMs);
 
     DEBUG_PRINTF("Scan for our Server \"%s\"\n", devicename);
-
-#endif
 }
