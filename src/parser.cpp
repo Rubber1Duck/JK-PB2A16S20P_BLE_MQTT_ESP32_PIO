@@ -629,7 +629,7 @@ void readCellDataRecord(void *message, const char *devicename)
     }
 
     // RTC Ticks
-    publishIfChangedWithSuffix(cdOld.RTCTicks, celldata.RTCTicks, celldata.RTCTicksToSeconds_fmt, base_data, "rtc_ticks");
+    publishIfChangedWithSuffix(cdOld.RTCTicks, celldata.RTCTicks, celldata.RTCTicks_fmt, base_data, "rtc_ticks");
 
     // TimeEnterSleep
     publishIfChangedWithSuffix(cdOld.TimeEnterSleep, celldata.TimeEnterSleep, celldata.TimeEnterSleep_fmt, base_data, "time_enter_sleep");
