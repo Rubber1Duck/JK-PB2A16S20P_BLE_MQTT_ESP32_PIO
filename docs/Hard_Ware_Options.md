@@ -1,0 +1,14 @@
+C / CAN: Integrierter CAN-Bus-Chip. Ermöglicht der Batterie, direkt per Datenleitung mit kompatiblen Solar-Wechselrichtern (z. B. Victron, Deye) zu kommunizieren, um Ladeströme dynamisch zu regeln.
+D / Detection / RS485: Signalisiert die erweiterten Kommunikations- und Erkennungspfade. Bei diesen Versionen ist neben Bluetooth standardmäßig ein RS485-Anschluss verbaut (wichtig für PC-Software oder externe Displays).
+H / Heating: Steht für den dedizierten Heizungsanschluss (Heating Port). Das BMS besitzt ein internes Relais/Leistungsschalter, um externe 12V/24V-Heizmatten anzusteuern. Fällt die Zelltemperatur unter den Gefrierpunkt, leitet das BMS den Ladestrom zuerst in die Heizmatten, um die Zellen aufzuwärmen, bevor die eigentliche Ladung freigegeben wird (Schutz vor Lithium-Plating).
+-E: Steht bei manchen Modellen für Economy oder Enhanced. Häufiger signalisiert es jedoch die "ESS"-Variante (Energy Storage System), die für stationäre Heimspeicher optimiert ist.
+-Q: Findet man vereinzelt bei Modellen, die einen integrierten Quarz-Oszillator bzw. eine besonders präzise Echtzeit-Uhr (RTC) für erweitertes Daten-Logging besitzen.
+-X: Wird von JKBMS manchmal als Platzhalter für Sonderanfertigungen (Customized Boards) genutzt, die z. B. abweichende Kabellängen oder modifizierte MOS-Fets besitzen.
+-G / GPS: Kennzeichnet die Vorbereitung oder den Lieferumfang mit einem GPS-Modul (wichtig für Flottenfahrzeuge, E-Roller oder Diebstahlschutz, um den Standort des Akkus zu tracken).
+C (= CAN-Bus): Integrierte CAN-Schnittstelle zur direkten Kommunikation mit Wechselrichtern (wie Pylontech-Protokoll, Victron, Deye etc.).
+E (= Economy / ESS Optimized): Kennzeichnet die Optimierung für stationäre Energiespeicher (Energy Storage Systems) im Heimbereich.
+H (= Heating): Dedizierter Anschluss für Akku-Heizmatten zur automatischen Frost-Erwärmung der Zellen vor dem Laden.
+M (= Multi-Communication / Master-Slave): Steht für die erweiterte Modbus- und Kaskadier-Fähigkeit über die integrierten DIP-Schalter. Hiermit lassen sich bis zu 15 oder 16 dieser Batteriepacks im Master-Slave-Verbund zusammenschalten.
+P (= Parallel Current Limiting): Das BMS besitzt einen physischen, hardwareseitigen Parallel-Ladestrom-Begrenzer (meist 10 A). Dieser verhindert schädliche, extrem hohe Ausgleichsströme, wenn Packs mit unterschiedlichen Ladeständen parallel geschaltet werden.
+R (= Relays / Dry Contacts): Die Platine besitzt zwei programmierbare Trockenkontakte (Dry Contacts / Relais). Damit lassen sich externe Signalgeber, Lüfter oder automatische Notausschalter ansteuern.
+T (= Two RS485 / Temperature): Signalisiert die doppelte RS485-Schnittstelle (RS485-1 und RS485-2) sowie die erweiterte 4-Kanal-Temperaturüberwachung direkt an den Zellen.

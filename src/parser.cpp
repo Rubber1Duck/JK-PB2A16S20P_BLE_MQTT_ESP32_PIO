@@ -284,6 +284,7 @@ void readDeviceInfoRecord(void *message, const char *devicename)
     deviceinfo.HardwareVersion[sizeof(deviceinfo.HardwareVersion) - 1] = '\0';
     deviceinfo.SoftwareVersion[sizeof(deviceinfo.SoftwareVersion) - 1] = '\0';
     deviceinfo.DeviceName[sizeof(deviceinfo.DeviceName) - 1] = '\0';
+    deviceinfo.HardwareOptions[sizeof(deviceinfo.HardwareOptions) - 1] = '\0';
 
     ensureCellTopicCache(devicename);
     const char *base_device = cellTopicCache.base_device;
@@ -296,6 +297,7 @@ void readDeviceInfoRecord(void *message, const char *devicename)
 
     // Publish Hardware Version and Software Version
     toMqttQueueWithSuffix(base_device, "hw_revision", deviceinfo.HardwareVersion);
+    toMqttQueueWithSuffix(base_device, "hardware_options", deviceinfo.HardwareOptions);
     toMqttQueueWithSuffix(base_device, "sw_version", deviceinfo.SoftwareVersion);
 
     // Publish Uptime in seconds and in human-readable format (days, hours, minutes, seconds)

@@ -11,51 +11,52 @@ struct publishItem
 // Struktur für die Gerätedaten (DeviceInfo; FrameType 0x01)
 struct DeviceInfo
 {
-  uint8_t Header[4];             // 4     Header                        #
-  uint8_t FrameType;             // 1     Frame type                    #
-  uint8_t FrameCounter;          // 1     Frame counter                 #
-  char ManufacturerDeviceID[16]; // 16    Manufacturer Device ID        /0 terminated String  //show in HTML Device Info Block
-  char HardwareVersion[8];       // 8     Hardware Version              /0 terminated String  //show in HTML Device Info Block
-  char SoftwareVersion[8];       // 8     Software Version              /0 terminated String  //show in HTML Device Info Block
-  uint32_t OddRunTime;           // 4     Odd Run Time                  s                     //show in HTML Device Info Block (converted to human readable format)
-  uint32_t PwrOnTimes;           // 4     Power On Times                #
-  char DeviceName[16];           // 16    Device Name                   /0 terminated String  //show in HTML Device Info Block
-  char DevicePasscode[16];       // 16    Device Passcode               /0 terminated String
-  char ManufacturingDate[8];     // 8     Manufacturing Date            /0 terminated String
+  uint8_t Header[4];             // 4     Header                        index 0 - 3 #
+  uint8_t FrameType;             // 1     Frame type                    index 4 #
+  uint8_t FrameCounter;          // 1     Frame counter                 index 5 #
+  char ManufacturerDeviceID[16]; // 16    Manufacturer Device ID        index 6 - 21 /0 terminated String  //show in HTML Device Info Block
+  char HardwareVersion[8];       // 8     Hardware Version              index 22 - 29 /0 terminated String  //show in HTML Device Info Block
+  char SoftwareVersion[8];       // 8     Software Version              index 30 - 37 /0 terminated String  //show in HTML Device Info Block
+  uint32_t OddRunTime;           // 4     Odd Run Time                  index 38 - 41 s                     //show in HTML Device Info Block (converted to human readable format)
+  uint32_t PwrOnTimes;           // 4     Power On Times                index 42 - 45 #
+  char DeviceName[16];           // 16    Device Name                   index 46 - 61 /0 terminated String  //show in HTML Device Info Block
+  char DevicePasscode[16];       // 16    Device Passcode               index 62 - 77 /0 terminated String
+  char ManufacturingDate[8];     // 8     Manufacturing Date            index 78 - 85 /0 terminated String
 #ifdef V19                       // it seems in V19 Serial Number is 16 bytes and there is no passcode field
-  char SerialNumber[16];         // 16    Serial Number                 /0 terminated String
+  char SerialNumber[16];         // 16    Serial Number                 index 86 - 101 /0 terminated String
 #else
-  char SerialNumber[12]; // 12    Serial Number                 /0 terminated String
-  char Passcode[4];      // 4     Passcode                      /0 terminated String
+  char SerialNumber[12]; // 12    Serial Number                         index 86 - 97 /0 terminated String
+  char Passcode[4];      // 4     Passcode                              index 98 - 101 /0 terminated String
 #endif
-  char UserData[16];             // 16    User Data                     /0 terminated String
-  char SetupPasscode[16];        // 16    Setup Passcode                /0 terminated String
-  char UserData2[16];            // 16    User Data 2                   /0 terminated String
-  uint8_t unknown1[34];          // 34    Unknown                       #
-  uint8_t UART1MPRTOLNbr;        // 1     UART1 Protocol Number         #
-  uint8_t CANMPRTOLNbr;          // 1     CAN Protocol Number           #
-  uint8_t UART1MPRTOLEnable;     // 1     UART1 Protocol Enable         #
-  uint8_t unknown2[15];          // 15    Unknown                       #
-  uint16_t UARTMPRTOLEnable0_15; // 2     UART Protocol Enable 0-15     #
-  uint8_t unknown3[14];          // 14    Unknown                       #
-  uint8_t UART2MPRTOLNbr;        // 1     UART2 Protocol Number         #
-  uint8_t UART2MPRTOLEnable;     // 1     UART2 Protocol Enable         #
-  uint8_t unknown4[14];          // 14    Unknown                       #
-  uint8_t LCDBuzzerTrigger;      // 1     LCD Buzzer Trigger            #
-  uint8_t DRY1Trigger;           // 1     Dry1 Trigger                  #
-  uint8_t DRY2Trigger;           // 1     Dry2 Trigger                  #
-  uint8_t UARTMPTLVer;           // 1     UART Protocol Version         #
-  uint32_t LCDBuzzerTriggerVal;  // 4     LCD Buzzer Trigger Value      #
-  uint32_t LCDBuzzerReleaseVal;  // 4     LCD Buzzer Release Value      #
-  uint32_t DRY1TriggerVal;       // 4     Dry1 Trigger Value            #
-  uint32_t DRY1ReleaseVal;       // 4     Dry1 Release Value            #
-  uint32_t DRY2TriggerVal;       // 4     Dry2 Trigger Value            #
-  uint32_t DRY2ReleaseVal;       // 4     Dry2 Release Value            #
-  uint32_t DataStoredPeriod;     // 4     Data Stored Period            #
-  uint8_t RCVTime;               // 1     Receive Time                  #
-  uint8_t RFVTime;               // 1     RFV Time                      #
-  uint8_t CANMPTLVer;            // 1     CAN Protocol Version          #
-  uint8_t unknown5[30];          // 30    Unknown                       #
+  char UserData[16];             // 16    User Data                     index 102 - 117 /0 terminated String
+  char SetupPasscode[16];        // 16    Setup Passcode                index 118 - 133 /0 terminated String
+  char UserData2[16];            // 16    User Data 2                   index 134 - 149 /0 terminated String
+  uint8_t unknown1[34];          // 34    Unknown                       index 150 - 183 #
+  uint8_t UART1MPRTOLNbr;        // 1     UART1 Protocol Number         index 184 #
+  uint8_t CANMPRTOLNbr;          // 1     CAN Protocol Number           index 185 #
+  uint8_t UART1MPRTOLEnable;     // 1     UART1 Protocol Enable         index 186 #
+  uint8_t unknown2[3];           // 3     Unknown                       index 187 - 189 #
+  char HardwareOptions[12];      // 12    Hardware Options              index 190 - 201 /0 terminated String
+  uint16_t UARTMPRTOLEnable0_15; // 2     UART Protocol Enable 0-15     index 202 - 203 #
+  uint8_t unknown3[14];          // 14    Unknown                       index 204 - 217 #
+  uint8_t UART2MPRTOLNbr;        // 1     UART2 Protocol Number         index 218 #
+  uint8_t UART2MPRTOLEnable;     // 1     UART2 Protocol Enable         index 219 #
+  uint8_t unknown4[14];          // 14    Unknown                       index 220 - 233 #
+  uint8_t LCDBuzzerTrigger;      // 1     LCD Buzzer Trigger            index 234 #
+  uint8_t DRY1Trigger;           // 1     Dry1 Trigger                  index 235 #
+  uint8_t DRY2Trigger;           // 1     Dry2 Trigger                  index 236 #
+  uint8_t UARTMPTLVer;           // 1     UART Protocol Version         index 237 #
+  uint32_t LCDBuzzerTriggerVal;  // 4     LCD Buzzer Trigger Value      index 238 - 241 #
+  uint32_t LCDBuzzerReleaseVal;  // 4     LCD Buzzer Release Value      index 242 - 245 #
+  uint32_t DRY1TriggerVal;       // 4     Dry1 Trigger Value            index 246 - 249 #
+  uint32_t DRY1ReleaseVal;       // 4     Dry1 Release Value            index 250 - 253 #
+  uint32_t DRY2TriggerVal;       // 4     Dry2 Trigger Value            index 254 - 257 #
+  uint32_t DRY2ReleaseVal;       // 4     Dry2 Release Value            index 258 - 261 #
+  uint32_t DataStoredPeriod;     // 4     Data Stored Period            index 262 - 265 #
+  uint8_t RCVTime;               // 1     Receive Time                  index 266 #
+  uint8_t RFVTime;               // 1     RFV Time                      index 267 #
+  uint8_t CANMPTLVer;            // 1     CAN Protocol Version          index 268 #
+  uint8_t unknown5[30];          // 30    Unknown                       index 269 - 298 #
   uint8_t Checksum;              // 1     Checksum                      #
   // Total: 300 bytes
   // Note: The structure is packed to ensure there is no padding between the fields, which allows us to directly copy the received byte array into this structure.
