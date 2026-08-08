@@ -29,7 +29,8 @@ All RW values are theoreticaly writeable, but this project is not support writin
 | all JK02_32S | 0x00B8 | UINT8  | 1      | RW  | UART1MPRTOLNbr         | #       | Depend on Protocol Version see **   |
 | all JK02_32S | 0x00B9 | UINT8  | 1      | RW  | CANMPRTOLNbr           | #       | Depend on Protocol Version see ***  |
 | all JK02_32S | 0x00BA | UINT8  | 1      | R   | UART1MPRTOLEnable      | BITMASK |                                     |
-| all JK02_32S | 0x00BB |        | 15     |     |                        |         | unknown                             |
+| all JK02_32S | 0x00BB |        | 3      |     |                        |         | unknown                             |
+| all JK02_32S | 0x00BE | ASCII  | 12     | R   | HardwareOptions        | TEXT    | Null-terminated string              |
 | all JK02_32S | 0x00CA | UINT16 | 2      | RW  | UARTMPRTOLEnable[0-15] | BITMASK |                                     |
 | all JK02_32S | 0x00CC |        | 14     |     |                        |         | unknown                             |
 | all JK02_32S | 0x00DA | UINT8  | 1      | RW  | UART2MPRTOLNbr         | #       | Depend on Protocol Version see **   |
@@ -73,50 +74,50 @@ All RW values are theoreticaly writeable, but this project is not support writin
  - 14 = MOSFET Abnormal
 
 (**) possible UART protocols for UART protocol libary version 1 (i only know about libary version 1)
- -  0 = 000-4G-GPS Remote module Common protocol
- -  1 = 001-JK BMS RS485 Modbus V1.0
- -  2 = 002-MIU U SERIES
- -  3 = 003-China tower shared batterie cabinet V1.1
- -  4 = 004-PACE_RS485_Modbus_V1.3
- -  5 = 005-PYLON_low_volage_Protocol_RS485_V... (not complete readable in the app)
- -  6 = 006-Growatt_BMS_RS485_Protocol_1xSxxP... (not complete readable in the app)
- -  7 = 007-Voltronic_Inverter_and_BMS_485_com... (not complete readable in the app)
- -  8 = 008-China tower shared batterie cabinet V.02
- -  9 = 009-WOW_RS485_Modbus_V1.3
- - 10 = 010-JK BMS LCD Protocol V2.0
- - 11 = 011-UART1 User customization
- - 12 = 012-UART2 User customization
- - 13 = 013-(9600)JK BMS RS485 Modbus V1.0
- - 14 = 014-(9600)PYLON_low_voltage_Protocol_R... (not complete readable in the app)
- - 15 = 015-JK BMS PBxx SERIES LCD Protocol V1.0
- - 16 = 016-JKBMS LIN BUS V1.0
- - 17 = 017-RS485 Protocol 17
- - 18 = 018-RS485 Protocol 18
- - 19 = 019-RS485 Protocol 19
- - 20 = 020-RS485 Protocol 20
+ -  0 = 4G-GPS Remote module Common protocol V4.2
+ -  1 = JK BMS RS485 Modbus V1.0
+ -  2 = NIU U SERIES
+ -  3 = China tower shared battery cabinet V1.1
+ -  4 = PACE_RS485_Modbus_V1.3
+ -  5 = PYLON_low_voltage_Protocol_RS485_V3.5
+ -  6 = Growatt_BMS_RS485_Protocol_1xSxxP_ESS_Rev2.01
+ -  7 = Voltronic_Inverter_and_BMS_485_communication_protocol_20200325
+ -  8 = China tower shared battery cabinet V2.0
+ -  9 = WOW_RS485_Modbus_V1.3
+ - 10 = JK BMS LCD Protocol V2.0
+ - 11 = UART1 User customization
+ - 12 = UART2 User customization
+ - 13 = (9600) JK BMS RS485 Modbus V1.0
+ - 14 = (9600) PYLON_low_voltage_Protocol_RS485_V3.5
+ - 15 = JK BMS PBxx SERIES LCD Protocol V1.0
+ - 16 = JK BMS LIN BUS V1.0
+ - 17 = RS485 Protocol 17
+ - 18 = RS485 Protocol 18
+ - 19 = RS485 Protocol 19
+ - 20 = RS485 Protocol 20
 
 (***) posible CAN protocols for CAN protocol libary version 1 (i only know about libary version 1)
- -  0 = 000-JK BMS CAN Protocol (250k) V2.0
- -  1 = 001-Deye Low-voltage hybrid inverter CAN c... (not complete readable in the app)
- -  2 = 002-PYLON-Low-voltage-V1.2
- -  3 = 003-Growatt BMS CAN-Bus-protocol-low-vol... (not complete readable in the app)
- -  4 = 004-Victron_CANbus_BMS_protocol_20170... (not complete readable in the app)
- -  5 = 005-MEGAREVO_Hybrid_BMSCAN_Protocol... (not complete readable in the app)
- -  6 = 006-JK BMS CAN Protocol (500k) V2.0
- -  7 = 007-INVT BMS CAN Bus protocol V1.02
- -  8 = 008-GoodWe LV BMS Protocol(EX/EM/S-B... (not complete readable in the app)
- -  9 = 009-FSS-ConnectingBat-TI-en-10 | Version 1.0
- - 10 = 010-MUST PV1800F-CAN communication P... (not complete readable in the app)
- - 11 = 011-LuxpowerTek Battery CAN protocol V01
- - 12 = 012-CAN BUS User customization
- - 13 = 013-CAN BUS User customization2
- - 14 = 014-CAN BUS Protocol 014
- - 15 = 015-CAN BUS Protocol 015
- - 16 = 016-CAN BUS Protocol 016
- - 17 = 017-CAN BUS Protocol 017
- - 18 = 018-CAN BUS Protocol 018
- - 19 = 019-CAN BUS Protocol 019
- - 20 = 020-CAN BUS Protocol 020
+ -  0 = JK BMS CAN Protocol (250K) V2.0"
+ -  1 = Deye Low-voltage hybrid inverter CAN communication protocol V1.0
+ -  2 = PYLON-Low-voltage-V1.2
+ -  3 = Growatt BMS CAN-Bus-protocol-low-voltage_Rev_05
+ -  4 = Victron_CANbus_BMS_protocol_20170717
+ -  5 = MEGAREVO_Hybird_BMSCAN_Protocol_V1.0
+ -  6 = JK BMS CAN Protocol (500K) V2.0
+ -  7 = INVT BMS CAN Bus protocol V1.02
+ -  8 = GoodWe LV BMS Protocol (EX/EM/S-BP/BP)
+ -  9 = FSS-ConnectingBat-TI-en-10 Version 1.0
+ - 10 = MUST PV1800F-CAN communication Protocol1.04.04
+ - 11 = LuxpowerTek Battery CAN protocol V01
+ - 12 = CAN BUS User customization
+ - 13 = CAN BUS User customization2
+ - 14 = CAN BUS Protocol 014
+ - 15 = CAN BUS Protocol 015
+ - 16 = CAN BUS Protocol 016
+ - 17 = CAN BUS Protocol 017
+ - 18 = CAN BUS Protocol 018
+ - 19 = CAN BUS Protocol 019
+ - 20 = CAN BUS Protocol 020
 
 
 ## Device Settings Frame (Frame Type 0x01)
