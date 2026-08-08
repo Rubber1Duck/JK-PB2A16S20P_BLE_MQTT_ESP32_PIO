@@ -2,7 +2,10 @@
 #define STRUCT_CELL_DATA_H
 #include <Arduino.h>
 #include "arduino_base64.hpp"
+#include <time.h>
 #include <bitset>
+
+const int32_t TIMEBASE = 1577833200; // 2020-01-01 00:00:00 UTC
 
 // Struktur für die Zellendaten (LiveDaten) (CellData; FrameType 0x02)
 struct CellData
@@ -92,7 +95,7 @@ struct CellData
   int16_t TempBat4;             //  2     TempBat 4                     0.1℃	   0.1 multiplier, can be negative // show in HTML Cell Data Block
   int16_t TempBat5;             //  2     TempBat 5                     0.1℃	   0.1 multiplier, can be negative // show in HTML Cell Data Block
   uint8_t unknown5[2];          //  2		  Reserved
-  uint32_t RTCTicks;            //  4     RTCTicks		                  #         The countdown begins on January 1, 2020. RTC ticks, 1 tick = 1/32768 second, will overflow after around 136 years
+  uint32_t RTCTicks;            //  4     RTCTicks		                  #         The countdown begins on January 1, 2020.
   uint8_t unknown6[4];          //  4		  Reserved
   uint32_t TimeEnterSleep;      //  4     TimeEnterSleep                s
   uint8_t PCLModuleSta;         //  1     PCLModuleSta                  #         1: On; 0: Off
@@ -113,9 +116,9 @@ struct CellData
   char CellWireRes_fmt[32][8]; // Hilfsvariable für die Formatierung der CellWireRes mit 3 Dezimalstellen eg. 0.123 Ω
   char TempMos_fmt[8];         // Hilfsvariable für die Formatierung der TempMos mit 1 Dezimalstelle eg. 25.3 ℃
   char CellWireResSta_fmt[33]; // Hilfsvariable für die Interpretation des CellWireResSta Bitmasks (32 Zellen + Nullterminator) 00000000 00000000 00000000 00000000
-  char BatVol_fmt[8];          // Hilfsvariable für die Formatierung der BatVol mit 3 Dezimalstellen eg. 48.123 V
-  char BatWatt_fmt[10];        // Hilfsvariable für die Formatierung der BatWatt mit 3 Dezimalstellen eg. 1234.567 W
-  char BatCurrent_fmt[10];     // Hilfsvariable für die Formatierung der BatCurrent mit 3 Dezimalstellen eg. -12.345 A
+  char BatVol_fmt[16];         // Hilfsvariable für die Formatierung der BatVol mit 3 Dezimalstellen eg. 48.123 V
+  char BatWatt_fmt[16];        // Hilfsvariable für die Formatierung der BatWatt mit 3 Dezimalstellen eg. 1234.567 W
+  char BatCurrent_fmt[16];     // Hilfsvariable für die Formatierung der BatCurrent mit 3 Dezimalstellen eg. -12.345 A
   char TempBat1_fmt[8];        // Hilfsvariable für die Formatierung der TempBat1 mit 1 Dezimalstelle eg. 25.3 ℃
   char TempBat2_fmt[8];        // Hilfsvariable für die Formatierung der TempBat2 mit 1 Dezimalstelle eg. 25.3 ℃
   char Alarm_raw_fmt[11];      // Hilfsvariable für die Formatierung des Alarm_raw als Dezimalzahl eg. 1234567890
@@ -129,14 +132,14 @@ struct CellData
   char BalanCurrent_fmt[8];                                                                                                                                                                                                       // Hilfsvariable für die Formatierung der BalanCurrent mit 3 Dezimalstellen eg. -12.345 A
   char BalanSta_fmt[10];                                                                                                                                                                                                          // Hilfsvariable für die Interpretation des BalanSta (2: Discharge; 1: Charge; 0: Off)
   char SOCStateOfcharge_fmt[4];                                                                                                                                                                                                   // Hilfsvariable für die Formatierung der SOCStateOfcharge eg. 85 %
-  char SOCCapRemain_fmt[10];                                                                                                                                                                                                      // Hilfsvariable für die Formatierung der SOCCapRemain mit 3 Dezimalstellen eg. 1.234 Ah
-  char SOCFullChargeCap_fmt[10];                                                                                                                                                                                                  // Hilfsvariable für die Formatierung der SOCFullChargeCap mit 3 Dezimalstellen eg. 12.345 Ah
-  char SOCCycleCount_fmt[10];                                                                                                                                                                                                     // Hilfsvariable für die Formatierung der SOCCycleCount eg. 1234
-  char SOCCycleCap_fmt[10];                                                                                                                                                                                                       // Hilfsvariable für die Formatierung der SOCCycleCap mit 3 Dezimalstellen eg. 1.234 Ah
+  char SOCCapRemain_fmt[16];                                                                                                                                                                                                      // Hilfsvariable für die Formatierung der SOCCapRemain mit 3 Dezimalstellen eg. 1.234 Ah
+  char SOCFullChargeCap_fmt[16];                                                                                                                                                                                                  // Hilfsvariable für die Formatierung der SOCFullChargeCap mit 3 Dezimalstellen eg. 12.345 Ah
+  char SOCCycleCount_fmt[16];                                                                                                                                                                                                     // Hilfsvariable für die Formatierung der SOCCycleCount eg. 1234
+  char SOCCycleCap_fmt[16];                                                                                                                                                                                                       // Hilfsvariable für die Formatierung der SOCCycleCap mit 3 Dezimalstellen eg. 1.234 Ah
   char SOCSOH_fmt[4];                                                                                                                                                                                                             // Hilfsvariable für die Formatierung derSOCSOH eg. 85 %
   char Precharge_fmt[4];                                                                                                                                                                                                          // Hilfsvariable für die Interpretation des Precharge (1: On; 0: Off)
   char UserAlarm_fmt[10];                                                                                                                                                                                                         // Hilfsvariable für die Formatierung des UserAlarm eg. 1234
-  char RunTime_fmt[10];                                                                                                                                                                                                           // Hilfsvariable für die Formatierung des RunTime eg. 123456 s
+  char RunTime_fmt[16];                                                                                                                                                                                                           // Hilfsvariable für die Formatierung des RunTime eg. 123456 s
   char RunTime_fmt_dhms[20];                                                                                                                                                                                                      // Hilfsvariable für die Formatierung des RunTime im Tage Stunden:Minuten:Sekunden Format eg. 23 days 14:17:36
   char Charge_fmt[4];                                                                                                                                                                                                             // Hilfsvariable für die Interpretation des Charge (1: On; 0: Off)
   char Discharge_fmt[4];                                                                                                                                                                                                          // Hilfsvariable für die Interpretation des Discharge (1: On; 0: Off)
@@ -157,22 +160,30 @@ struct CellData
   char BatDisCurCorrect_fmt[10];                                                                                     // Hilfsvariable für die Formatierung des BatDisCurCorrect eg. 1.234
   char VolChargCur_fmt[10];                                                                                          // Hilfsvariable für die Formatierung des VolChargCur eg. 1.234 V
   char VolDischargCur_fmt[10];                                                                                       // Hilfsvariable für die Formatierung des VolDischargCur eg. 1.234 V
-  char BatVolCorrect_fmt[10];                                                                                        // Hilfsvariable für die Formatierung des BatVolCorrect mit 3 Dezimalstellen eg. 1.234 V
+  char BatVolCorrect_fmt[16];                                                                                        // Hilfsvariable für die Formatierung des BatVolCorrect mit 3 Dezimalstellen eg. 1.234 V
   char BatVol2_fmt[10];                                                                                              // Hilfsvariable für die Formatierung des BatVol2 mit 2 Dezimalstellen eg. 48.12 V
   char HeatCurrent_fmt[10];                                                                                          // Hilfsvariable für die Formatierung des HeatCurrent mit 3 Dezimalstellen eg. 1.234 A
   char ChargerPlugged_fmt[13];                                                                                       // Hilfsvariable für die Interpretation des ChargerPlugged (1: Inserted; 0: Not inserted)
-  char SysRunTicks_fmt[10];                                                                                          // Hilfsvariable für die Formatierung des SysRunTicks mit 1 Dezimalstelle eg. 123456.7 S
+  char SysRunTicks_fmt[16];                                                                                          // Hilfsvariable für die Formatierung des SysRunTicks mit 1 Dezimalstelle eg. 123456.7 S
   char TempBat3_fmt[8];                                                                                              // Hilfsvariable für die Formatierung der TempBat3 mit 1 Dezimalstelle eg. 25.3 ℃
   char TempBat4_fmt[8];                                                                                              // Hilfsvariable für die Formatierung der TempBat4 mit 1 Dezimalstelle eg. 25.3 ℃
   char TempBat5_fmt[8];                                                                                              // Hilfsvariable für die Formatierung der TempBat5 mit 1 Dezimalstelle eg. 25.3 ℃
-  char RTCTicksToSeconds_fmt[16];                                                                                    // Hilfsvariable für die Umrechnung der RTCTicks in Sekunden (1 tick = 1/32768 second) und Formatierung auf 3 Dezimalstellen eg. 123456.789 s
-  char TimeEnterSleep_fmt[10];                                                                                       // Hilfsvariable für die Formatierung des TimeEnterSleep eg. 1234 s
+  char RTCTicks_fmt[32];                                                                                             // Hilfsvariable für die Formatierung der RTCTicks eg. 123456789
+  char TimeEnterSleep_fmt[16];                                                                                       // Hilfsvariable für die Formatierung des TimeEnterSleep eg. 1234 s
   char PCLModuleSta_fmt[4];                                                                                          // Hilfsvariable für die Interpretation des PCLModuleSta (1: On; 0: Off)
   char ChargeStatusTime_fmt[10];                                                                                     // Hilfsvariable für die Formatierung des ChargeStatusTime eg. 1234 s
   char ChargeStatus_fmt[12];                                                                                         // Hilfsvariable für die Interpretation des ChargeStatus (0x00: Bulk ; 0x01: Absorption ; 0x02: Float)
   char Dry1Contact_fmt[7];                                                                                           // Hilfsvariable für die Interpretation des Dry1Contact Open/closed (0x00: DRY and DRY2 off ; 0x02: DRY1 on ; 0x04: DRY2 on ; 0x06: DRY1 and DRY2 on)
   char Dry2Contact_fmt[7];                                                                                           // Hilfsvariable für die Interpretation des Dry2Contact Open/closed (0x00: DRY and DRY2 off ; 0x02: DRY1 on ; 0x04: DRY2 on ; 0x06: DRY1 and DRY2 on)
   bool check_bit(uint8_t mask, uint8_t flag){ return (mask & flag) == flag; }
+  const char* convertUnixTimeToString(uint32_t unixTime)
+  {
+    time_t rawTime = unixTime + TIMEBASE; // Add the base time to get the actual Unix time
+    struct tm *timeInfo = gmtime(&rawTime);
+    static char buffer[32];
+    strftime(buffer, sizeof(buffer), "%d.%m.%Y %H:%M:%S", timeInfo);
+    return buffer;
+  }
   void prepareOutValues()
   {
     // Aktualisiere die Hilfsvariablen basierend auf den gelesenen Daten
@@ -202,12 +213,11 @@ struct CellData
     }
     // TempMos von 0.1℃ in ℃ umrechnen und mit 1 Dezimalstelle formatieren
     dtostrf(TempMos * 0.1, 5, 1, TempMos_fmt);
-    // BatVol von mV in V umrechnen und mit 3 Dezimalstellen formatieren
-    dtostrf(BatVol * 0.001, 7, 3, BatVol_fmt);
-    // BatWatt von mW in W umrechnen und mit 3 Dezimalstellen formatieren
-    dtostrf(BatWatt * 0.001, 7, 3, BatWatt_fmt);
-    // BatCurrent von mA in A umrechnen und mit 3 Dezimalstellen formatieren
-    dtostrf(BatCurrent * 0.001, 7, 3, BatCurrent_fmt);
+    // BatVol/BatWatt/BatCurrent mit fester Genauigkeit und begrenzter Ausgabe formatieren.
+    // snprintf verhindert Buffer-Ueberlaeufe bei grossen 32-bit Werten.
+    snprintf(BatVol_fmt, sizeof(BatVol_fmt), "%.3f", static_cast<double>(BatVol) * 0.001);
+    snprintf(BatWatt_fmt, sizeof(BatWatt_fmt), "%.3f", static_cast<double>(BatWatt) * 0.001);
+    snprintf(BatCurrent_fmt, sizeof(BatCurrent_fmt), "%.3f", static_cast<double>(BatCurrent) * 0.001);
     // TempBat1 und TempBat2 von 0.1℃ in ℃ umrechnen und mit 1 Dezimalstelle formatieren
     dtostrf(TempBat1 * 0.1, 5, 1, TempBat1_fmt);
     dtostrf(TempBat2 * 0.1, 5, 1, TempBat2_fmt);
@@ -216,22 +226,26 @@ struct CellData
     // Alarme einzeln interpretieren
     for (int i = 0; i < 29; ++i)
     {
-      strncpy(AlarmsValue_fmt[i], ((AlarmBitMask & (1 << i)) ? "Fault" : "Normal"), sizeof(AlarmsValue_fmt[i]));
+      strncpy(AlarmsValue_fmt[i], ((AlarmBitMask & (1 << i)) ? "Fault" : "Normal"), sizeof(AlarmsValue_fmt[i]) - 1);
+      AlarmsValue_fmt[i][sizeof(AlarmsValue_fmt[i]) - 1] = '\0';
     }
     // BalanCurrent von mA in A umrechnen und mit 3 Dezimalstellen formatieren
     dtostrf(BalanCurrent * 0.001, 7, 3, BalanCurrent_fmt);
     // BalanSta interpretieren (2: Discharge; 1: Charge; 0: Off)
     if (BalanSta == 2)
     {
-      strncpy(BalanSta_fmt, "Discharge", sizeof(BalanSta_fmt));
+      strncpy(BalanSta_fmt, "Discharge", sizeof(BalanSta_fmt) - 1);
+      BalanSta_fmt[sizeof(BalanSta_fmt) - 1] = '\0';
     }
     else if (BalanSta == 1)
     {
-      strncpy(BalanSta_fmt, "Charge", sizeof(BalanSta_fmt));
+      strncpy(BalanSta_fmt, "Charge", sizeof(BalanSta_fmt) - 1);
+      BalanSta_fmt[sizeof(BalanSta_fmt) - 1] = '\0';
     }
     else
     {
-      strncpy(BalanSta_fmt, "Off", sizeof(BalanSta_fmt));
+      strncpy(BalanSta_fmt, "Off", sizeof(BalanSta_fmt) - 1);
+      BalanSta_fmt[sizeof(BalanSta_fmt) - 1] = '\0';
     }
     // SOCStateOfcharge formatieren
     snprintf(SOCStateOfcharge_fmt, sizeof(SOCStateOfcharge_fmt), "%d", SOCStateOfcharge);
@@ -240,7 +254,7 @@ struct CellData
     // SOCFullChargeCap von mAH in AH umrechnen und mit 3 Dezimalstellen formatieren
     snprintf(SOCFullChargeCap_fmt, sizeof(SOCFullChargeCap_fmt), "%.3f", SOCFullChargeCap * 0.001);
     // SOCCycleCount formatieren
-    snprintf(SOCCycleCount_fmt, sizeof(SOCCycleCount_fmt), "%d", SOCCycleCount);
+    snprintf(SOCCycleCount_fmt, sizeof(SOCCycleCount_fmt), "%lu", static_cast<unsigned long>(SOCCycleCount));
     // SOCCycleCap von mAH in AH umrechnen und mit 3 Dezimalstellen formatieren
     snprintf(SOCCycleCap_fmt, sizeof(SOCCycleCap_fmt), "%.3f", SOCCycleCap * 0.001);
     // SOCSOH formatieren
@@ -250,7 +264,7 @@ struct CellData
     // UserAlarm formatieren
     snprintf(UserAlarm_fmt, sizeof(UserAlarm_fmt), "%d", UserAlarm);
     // RunTime formatieren
-    snprintf(RunTime_fmt, sizeof(RunTime_fmt), "%d", RunTime);
+    snprintf(RunTime_fmt, sizeof(RunTime_fmt), "%lu", static_cast<unsigned long>(RunTime));
     // RunTime im Tage Stunden:Minuten:Sekunden Format umrechnen
     int days = RunTime / 86400;
     int hours = (RunTime % 86400) / 3600;
@@ -287,7 +301,7 @@ struct CellData
     dtostrf(VolChargCur * 0.001, 7, 3, VolChargCur_fmt);
     dtostrf(VolDischargCur * 0.001, 7, 3, VolDischargCur_fmt);
     // BatVolCorrect mit 3 Dezimalstellen formatieren
-    dtostrf(BatVolCorrect, 7, 3, BatVolCorrect_fmt);
+    snprintf(BatVolCorrect_fmt, sizeof(BatVolCorrect_fmt), "%.3f", static_cast<double>(BatVolCorrect));
     // BatVol2 von mV in V umrechnen und mit 2 Dezimalstellen formatieren
     dtostrf(BatVol2 * 0.01, 7, 2, BatVol2_fmt);
     // HeatCurrent von mA in A umrechnen und mit 3 Dezimalstellen formatieren
@@ -295,15 +309,17 @@ struct CellData
     // ChargerPlugged interpretieren (1: Inserted; 0: Not inserted)
     strncpy(ChargerPlugged_fmt, ChargerPlugged ? "Inserted" : "Not inserted", sizeof(ChargerPlugged_fmt));
     // SysRunTicks von 0.1s in s umrechnen und mit 1 Dezimalstelle formatieren
-    dtostrf(SysRunTicks * 0.1, 9, 1, SysRunTicks_fmt);
+    // Use bounded snprintf to avoid overflowing into adjacent format buffers.
+    snprintf(SysRunTicks_fmt, sizeof(SysRunTicks_fmt), "%.1f", static_cast<double>(SysRunTicks) * 0.1);
     // TempBat3, TempBat4 und TempBat5 von 0.1℃ in ℃ umrechnen und mit 1 Dezimalstelle formatieren
     dtostrf(TempBat3 * 0.1, 5, 1, TempBat3_fmt);
     dtostrf(TempBat4 * 0.1, 5, 1, TempBat4_fmt);
     dtostrf(TempBat5 * 0.1, 5, 1, TempBat5_fmt);
-    // RTCTicks in Sekunden umrechnen (1 tick = 1/32768 second)
-    dtostrf(RTCTicks * (1.0 / 32768.0), 9, 3, RTCTicksToSeconds_fmt);
+    // RTCTicks 
+    strncpy(RTCTicks_fmt, convertUnixTimeToString(RTCTicks), sizeof(RTCTicks_fmt) - 1); // RTCTicks in lesbares Datum und Uhrzeit umrechnen
+    RTCTicks_fmt[sizeof(RTCTicks_fmt) - 1] = '\0';
     // TimeEnterSleep formatieren
-    snprintf(TimeEnterSleep_fmt, sizeof(TimeEnterSleep_fmt), "%d", TimeEnterSleep);
+    snprintf(TimeEnterSleep_fmt, sizeof(TimeEnterSleep_fmt), "%lu", static_cast<unsigned long>(TimeEnterSleep));
     // PCLModuleSta interpretieren (1: On; 0: Off)
     strncpy(PCLModuleSta_fmt, PCLModuleSta ? "On" : "Off", sizeof(PCLModuleSta_fmt));
     // ChargeStatusTime formatieren
@@ -311,19 +327,24 @@ struct CellData
     // ChargeStatus interpretieren (0x00: Bulk ; 0x01: Absorption ; 0x02: Float)
     if (ChargeStatus == 0x00)
     {
-      strncpy(ChargeStatus_fmt, "Bulk", sizeof(ChargeStatus_fmt));
+      strncpy(ChargeStatus_fmt, "Bulk", sizeof(ChargeStatus_fmt) - 1);
+      ChargeStatus_fmt[sizeof(ChargeStatus_fmt) - 1] = '\0';
     }
     else if (ChargeStatus == 0x01)
     {
-      strncpy(ChargeStatus_fmt, "Absorption", sizeof(ChargeStatus_fmt));
+      strncpy(ChargeStatus_fmt, "Absorption", sizeof(ChargeStatus_fmt) - 1);
+      ChargeStatus_fmt[sizeof(ChargeStatus_fmt) - 1] = '\0';
     }
     else if (ChargeStatus == 0x02)
     {
-      strncpy(ChargeStatus_fmt, "Float", sizeof(ChargeStatus_fmt));
+      strncpy(ChargeStatus_fmt, "Float", sizeof(ChargeStatus_fmt) - 1);
+      ChargeStatus_fmt[sizeof(ChargeStatus_fmt) - 1] = '\0';
     }
     // Dry1Contact_fmt interpretieren (0x00: DRY and DRY2 open ; 0x02: DRY1 closed ; 0x04: DRY2 closed ; 0x06: DRY1 and DRY2 closed)
-    check_bit(DryContactMask, 0x02) ? strncpy(Dry1Contact_fmt, "closed", sizeof(Dry1Contact_fmt)) : strncpy(Dry1Contact_fmt, "open", sizeof(Dry1Contact_fmt));
-    check_bit(DryContactMask, 0x04) ? strncpy(Dry2Contact_fmt, "closed", sizeof(Dry2Contact_fmt)) : strncpy(Dry2Contact_fmt, "open", sizeof(Dry2Contact_fmt));
+    check_bit(DryContactMask, 0x02) ? strncpy(Dry1Contact_fmt, "closed", sizeof(Dry1Contact_fmt) - 1) : strncpy(Dry1Contact_fmt, "open", sizeof(Dry1Contact_fmt) - 1);
+    Dry1Contact_fmt[sizeof(Dry1Contact_fmt) - 1] = '\0';
+    check_bit(DryContactMask, 0x04) ? strncpy(Dry2Contact_fmt, "closed", sizeof(Dry2Contact_fmt) - 1) : strncpy(Dry2Contact_fmt, "open", sizeof(Dry2Contact_fmt) - 1);
+    Dry2Contact_fmt[sizeof(Dry2Contact_fmt) - 1] = '\0';
   }
 } __attribute__((packed)); // Verhindert Padding und sorgt dafür, dass die Struktur genau so im Speicher liegt wie definiert;
 
@@ -379,7 +400,7 @@ struct CellDataOld
   int16_t TempBat3;                     //  2     TempBat 3                     0.1℃	   0.1 multiplier, can be negative
   int16_t TempBat4;                     //  2     TempBat 4                     0.1℃	   0.1 multiplier, can be negative
   int16_t TempBat5;                     //  2     TempBat 5                     0.1℃	   0.1 multiplier, can be negative
-  uint32_t RTCTicks;                    //  4     RTCTicks		                  #         The countdown begins on January 1, 2020. RTC ticks, 1 tick = 1/32768 second, will overflow after around 136 years
+  uint32_t RTCTicks;                    //  4     RTCTicks		                  #         The countdown begins on January 1, 2020.
   uint32_t TimeEnterSleep;              //  4     TimeEnterSleep                s
   uint8_t PCLModuleSta;                 //  1     PCLModuleSta                  #         1: On; 0: Off
   uint16_t ChargeStatusTime;            //  2     ChargeStatusTime              s

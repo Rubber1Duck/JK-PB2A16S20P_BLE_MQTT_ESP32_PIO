@@ -43,69 +43,70 @@ struct CellTopicCache
 
 CellTopicCache cellTopicCache = {};
 
-char uart_protocol_number_str[][50]= {
-    "000-4G-GPS Remote module Common protocol",
-    "001-JK BMS RS485 Modbus V1.0",
-    "002-MIU U SERIES",
-    "003-China tower shared batterie cabinet V1.1",
-    "004-PACE_RS485_Modbus_V1.3",
-    "005-PYLON_low_volage_Protocol_RS485_V...",
-    "006-Growatt_BMS_RS485_Protocol_1xSxxP...",
-    "007-Voltronic_Inverter_and_BMS_485_com...",
-    "008-China tower shared batterie cabinet V.02",
-    "009-WOW_RS485_Modbus_V1.3",
-    "010-JK BMS LCD Protocol V2.0",
-    "011-UART1 User customization",
-    "012-UART2 User customization",
-    "013-(9600)JK BMS RS485 Modbus V1.0",
-    "014-(9600)PYLON_low_voltage_Protocol_R...",
-    "015-JK BMS PBxx SERIES LCD Protocol V1.0",
-    "016-JKBMS LIN BUS V1.0",
-    "017-RS485 Protocol 17",
-    "018-RS485 Protocol 18",
-    "019-RS485 Protocol 19",
-    "020-RS485 Protocol 20"};
-
-char can_protocol_number_str[][50]= {
-    "000-JK BMS CAN Protocol (250k) V2.0",
-    "001-Deye Low-voltage hybrid inverter CAN c...",
-    "002-PYLON-Low-voltage-V1.2",
-    "003-Growatt BMS CAN-Bus-protocol-low-vol...",
-    "004-Victron_CANbus_BMS_protocol_20170...",
-    "005-MEGAREVO_Hybrid_BMSCAN_Protocol...",
-    "006-JK BMS CAN Protocol (500k) V2.0",
-    "007-INVT BMS CAN Bus protocol V1.02",
-    "008-GoodWe LV BMS Protocol(EX/EM/S-B...",
-    "009-FSS-ConnectingBat-TI-en-10 | Version 1.0",
-    "010-MUST PV1800F-CAN communication P...",
-    "011-LuxpowerTek Battery CAN protocol V01",
-    "012-CAN BUS User customization",
-    "013-CAN BUS User customization2",
-    "014-CAN BUS Protocol 014",
-    "015-CAN BUS Protocol 015",
-    "016-CAN BUS Protocol 016",
-    "017-CAN BUS Protocol 017",
-    "018-CAN BUS Protocol 018",
-    "019-CAN BUS Protocol 019",
-    "020-CAN BUS Protocol 020"
+char uart_protocol_number_str[][63]= {
+    "4G-GPS Remote module Common protocol V4.2",
+    "JK BMS RS485 Modbus V1.0",
+    "NIU U SERIES",
+    "China tower shared battery cabinet V1.1",
+    "PACE_RS485_Modbus_V1.3",
+    "PYLON_low_voltage_Protocol_RS485_V3.5",
+    "Growatt_BMS_RS485_Protocol_1xSxxP_ESS_Rev2.01",
+    "Voltronic_Inverter_and_BMS_485_communication_protocol_20200325",
+    "China tower shared battery cabinet V2.0",
+    "WOW_RS485_Modbus_V1.3",
+    "JK BMS LCD Protocol V2.0",
+    "UART1 User customization",
+    "UART2 User customization",
+    "(9600) JK BMS RS485 Modbus V1.0",
+    "(9600) PYLON_low_voltage_Protocol_RS485_V3.5",
+    "JK BMS PBxx SERIES LCD Protocol V1.0",
+    "JK BMS LIN BUS V1.0",
+    "RS485 Protocol 17",
+    "RS485 Protocol 18",
+    "RS485 Protocol 19",
+    "RS485 Protocol 20"
 };
 
-char Trigger_values_str[][30] = {
-    "00-OFF",
-    "01-Low SOC",
-    "02-Battery Over Voltage",
-    "03-Battery Under Voltage",
-    "04-Battery Cell Over Voltage",
-    "05-Battery Cell Under Voltage",
-    "06-Charge Over Current",
-    "07-Discharge Over Current",
-    "08-Battery Over Temperature",
-    "09-MOSFET Over Temperature",
-    "10-System Alarm",
-    "11-Battery Low Temperature",
-    "12-Remote Control",
-    "13-Above SOC",
-    "14-MOSFET Abnormal"
+char can_protocol_number_str[][65]= {
+    "JK BMS CAN Protocol (250K) V2.0",
+    "Deye Low-voltage hybrid inverter CAN communication protocol V1.0",
+    "PYLON-Low-voltage-V1.2",
+    "Growatt BMS CAN-Bus-protocol-low-voltage_Rev_05",
+    "Victron_CANbus_BMS_protocol_20170717",
+    "MEGAREVO_Hybird_BMSCAN_Protocol_V1.0",
+    "JK BMS CAN Protocol (500K) V2.0",
+    "INVT BMS CAN Bus protocol V1.02",
+    "GoodWe LV BMS Protocol (EX/EM/S-BP/BP)",
+    "FSS-ConnectingBat-TI-en-10 Version 1.0",
+    "MUST PV1800F-CAN communication Protocol1.04.04",
+    "LuxpowerTek Battery CAN protocol V01",
+    "CAN BUS User customization 1",
+    "CAN BUS User customization 2",
+    "CAN BUS Protocol 014",
+    "CAN BUS Protocol 015",
+    "CAN BUS Protocol 016",
+    "CAN BUS Protocol 017",
+    "CAN BUS Protocol 018",
+    "CAN BUS Protocol 019",
+    "CAN BUS Protocol 020"
+};
+
+char Trigger_values_str[][27] = {
+    "OFF",
+    "Low SOC",
+    "Battery Over Voltage",
+    "Battery Under Voltage",
+    "Battery Cell Over Voltage",
+    "Battery Cell Under Voltage",
+    "Charge Over Current",
+    "Discharge Over Current",
+    "Battery Over Temperature",
+    "MOSFET Over Temperature",
+    "System Alarm",
+    "Battery Low Temperature",
+    "Remote Control",
+    "Above SOC",
+    "MOSFET Abnormal"
 };
 
 
@@ -628,7 +629,7 @@ void readCellDataRecord(void *message, const char *devicename)
     }
 
     // RTC Ticks
-    publishIfChangedWithSuffix(cdOld.RTCTicks, celldata.RTCTicks, celldata.RTCTicksToSeconds_fmt, base_data, "rtc_ticks");
+    publishIfChangedWithSuffix(cdOld.RTCTicks, celldata.RTCTicks, celldata.RTCTicks_fmt, base_data, "rtc_ticks");
 
     // TimeEnterSleep
     publishIfChangedWithSuffix(cdOld.TimeEnterSleep, celldata.TimeEnterSleep, celldata.TimeEnterSleep_fmt, base_data, "time_enter_sleep");
