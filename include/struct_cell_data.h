@@ -92,7 +92,7 @@ struct CellData
   int16_t TempBat4;             //  2     TempBat 4                     0.1℃	   0.1 multiplier, can be negative // show in HTML Cell Data Block
   int16_t TempBat5;             //  2     TempBat 5                     0.1℃	   0.1 multiplier, can be negative // show in HTML Cell Data Block
   uint8_t unknown5[2];          //  2		  Reserved
-  uint32_t RTCTicks;            //  4     RTCTicks		                  #         The countdown begins on January 1, 2020. RTC ticks, 1 tick = 1/32768 second, will overflow after around 136 years
+  uint32_t RTCTicks;            //  4     RTCTicks		                  #         The countdown begins on January 1, 2020.
   uint8_t unknown6[4];          //  4		  Reserved
   uint32_t TimeEnterSleep;      //  4     TimeEnterSleep                s
   uint8_t PCLModuleSta;         //  1     PCLModuleSta                  #         1: On; 0: Off
@@ -165,7 +165,7 @@ struct CellData
   char TempBat3_fmt[8];                                                                                              // Hilfsvariable für die Formatierung der TempBat3 mit 1 Dezimalstelle eg. 25.3 ℃
   char TempBat4_fmt[8];                                                                                              // Hilfsvariable für die Formatierung der TempBat4 mit 1 Dezimalstelle eg. 25.3 ℃
   char TempBat5_fmt[8];                                                                                              // Hilfsvariable für die Formatierung der TempBat5 mit 1 Dezimalstelle eg. 25.3 ℃
-  char RTCTicksToSeconds_fmt[16];                                                                                    // Hilfsvariable für die Umrechnung der RTCTicks in Sekunden (1 tick = 1/32768 second) und Formatierung auf 3 Dezimalstellen eg. 123456.789 s
+  char RTCTicks_fmt[16];                                                                                             // Hilfsvariable für die Formatierung der RTCTicks eg. 123456789
   char TimeEnterSleep_fmt[10];                                                                                       // Hilfsvariable für die Formatierung des TimeEnterSleep eg. 1234 s
   char PCLModuleSta_fmt[4];                                                                                          // Hilfsvariable für die Interpretation des PCLModuleSta (1: On; 0: Off)
   char ChargeStatusTime_fmt[10];                                                                                     // Hilfsvariable für die Formatierung des ChargeStatusTime eg. 1234 s
@@ -300,8 +300,8 @@ struct CellData
     dtostrf(TempBat3 * 0.1, 5, 1, TempBat3_fmt);
     dtostrf(TempBat4 * 0.1, 5, 1, TempBat4_fmt);
     dtostrf(TempBat5 * 0.1, 5, 1, TempBat5_fmt);
-    // RTCTicks in Sekunden umrechnen (1 tick = 1/32768 second)
-    dtostrf(RTCTicks * (1.0 / 32768.0), 9, 3, RTCTicksToSeconds_fmt);
+    // RTCTicks 
+    dtostrf(RTCTicks, 9, 0, RTCTicks_fmt);
     // TimeEnterSleep formatieren
     snprintf(TimeEnterSleep_fmt, sizeof(TimeEnterSleep_fmt), "%d", TimeEnterSleep);
     // PCLModuleSta interpretieren (1: On; 0: Off)
@@ -379,7 +379,7 @@ struct CellDataOld
   int16_t TempBat3;                     //  2     TempBat 3                     0.1℃	   0.1 multiplier, can be negative
   int16_t TempBat4;                     //  2     TempBat 4                     0.1℃	   0.1 multiplier, can be negative
   int16_t TempBat5;                     //  2     TempBat 5                     0.1℃	   0.1 multiplier, can be negative
-  uint32_t RTCTicks;                    //  4     RTCTicks		                  #         The countdown begins on January 1, 2020. RTC ticks, 1 tick = 1/32768 second, will overflow after around 136 years
+  uint32_t RTCTicks;                    //  4     RTCTicks		                  #         The countdown begins on January 1, 2020.
   uint32_t TimeEnterSleep;              //  4     TimeEnterSleep                s
   uint8_t PCLModuleSta;                 //  1     PCLModuleSta                  #         1: On; 0: Off
   uint16_t ChargeStatusTime;            //  2     ChargeStatusTime              s
