@@ -164,7 +164,7 @@ struct CellData
   char BatVol2_fmt[10];                                                                                              // Hilfsvariable für die Formatierung des BatVol2 mit 2 Dezimalstellen eg. 48.12 V
   char HeatCurrent_fmt[10];                                                                                          // Hilfsvariable für die Formatierung des HeatCurrent mit 3 Dezimalstellen eg. 1.234 A
   char ChargerPlugged_fmt[13];                                                                                       // Hilfsvariable für die Interpretation des ChargerPlugged (1: Inserted; 0: Not inserted)
-  char SysRunTicks_fmt[10];                                                                                          // Hilfsvariable für die Formatierung des SysRunTicks mit 1 Dezimalstelle eg. 123456.7 S
+  char SysRunTicks_fmt[16];                                                                                          // Hilfsvariable für die Formatierung des SysRunTicks mit 1 Dezimalstelle eg. 123456.7 S
   char TempBat3_fmt[8];                                                                                              // Hilfsvariable für die Formatierung der TempBat3 mit 1 Dezimalstelle eg. 25.3 ℃
   char TempBat4_fmt[8];                                                                                              // Hilfsvariable für die Formatierung der TempBat4 mit 1 Dezimalstelle eg. 25.3 ℃
   char TempBat5_fmt[8];                                                                                              // Hilfsvariable für die Formatierung der TempBat5 mit 1 Dezimalstelle eg. 25.3 ℃
@@ -310,7 +310,8 @@ struct CellData
     // ChargerPlugged interpretieren (1: Inserted; 0: Not inserted)
     strncpy(ChargerPlugged_fmt, ChargerPlugged ? "Inserted" : "Not inserted", sizeof(ChargerPlugged_fmt));
     // SysRunTicks von 0.1s in s umrechnen und mit 1 Dezimalstelle formatieren
-    dtostrf(SysRunTicks * 0.1, 9, 1, SysRunTicks_fmt);
+    // Use bounded snprintf to avoid overflowing into adjacent format buffers.
+    snprintf(SysRunTicks_fmt, sizeof(SysRunTicks_fmt), "%.1f", static_cast<double>(SysRunTicks) * 0.1);
     // TempBat3, TempBat4 und TempBat5 von 0.1℃ in ℃ umrechnen und mit 1 Dezimalstelle formatieren
     dtostrf(TempBat3 * 0.1, 5, 1, TempBat3_fmt);
     dtostrf(TempBat4 * 0.1, 5, 1, TempBat4_fmt);
