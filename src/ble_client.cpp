@@ -263,16 +263,6 @@ bool connectToBLEServer() {
             return false;
         }
         DEBUG_PRINTLN(" - Found our characteristic");
-        auto charText = pRemoteCharacteristic->toString();
-        DEBUG_PRINTF("Characteristic: %s\n", charText.c_str());
-        DEBUG_PRINTF("Can Broadcast: %s\n", pRemoteCharacteristic->canBroadcast() ? "Yes" : "No");
-        DEBUG_PRINTF("Can Read: %s\n", pRemoteCharacteristic->canRead() ? "Yes" : "No");
-        DEBUG_PRINTF("Can Write No Response: %s\n", pRemoteCharacteristic->canWriteNoResponse() ? "Yes" : "No");
-        DEBUG_PRINTF("Can Write: %s\n", pRemoteCharacteristic->canWrite() ? "Yes" : "No");
-        DEBUG_PRINTF("Can Notify: %s\n", pRemoteCharacteristic->canNotify() ? "Yes" : "No");
-        DEBUG_PRINTF("Can Indicate: %s\n", pRemoteCharacteristic->canIndicate() ? "Yes" : "No");
-        DEBUG_PRINTF("Can Write Signed: %s\n", pRemoteCharacteristic->canWriteSigned() ? "Yes" : "No");
-        DEBUG_PRINTF("Has Extended Props: %s\n", pRemoteCharacteristic->hasExtendedProps() ? "Yes" : "No");
         // Set the notification callback
         if (pRemoteCharacteristic->canNotify()) {
             if (!pRemoteCharacteristic->subscribe(true, notifyCB)) {
