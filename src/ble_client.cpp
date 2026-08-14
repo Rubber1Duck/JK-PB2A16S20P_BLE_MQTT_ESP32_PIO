@@ -49,10 +49,11 @@ QueueHandle_t bleQueue;
 void parser(void *message) {
     uint8_t *msg = static_cast<uint8_t *>(message);
     uint8_t type = msg[4]; // 4. Byte decides the message type
+    uint8_t frameCounter = msg[5]; // 5. Byte is the frame counter
 
     switch (type) {
     case 0x01:
-        DEBUG_PRINTLN("Received Config Info from BLE device.");
+        DEBUG_PRINTF("Received Config Info from BLE device. Frame Counter: %d\n", frameCounter);
         lastRcvdCITime = millis(); // Update the last received config info time
         getConfigInfo_blocked = false; // Unblock sending getInfo since we received a response for the previous request    
         readConfigInfoRecord(message, devicename);
@@ -61,7 +62,7 @@ void parser(void *message) {
         readCellDataRecord(message, devicename);
         break;
     case 0x03:
-        DEBUG_PRINTLN("Received Device Info from BLE device.");
+        DEBUG_PRINTF("Received Device Info from BLE device. Frame Counter: %d\n", frameCounter);
         lastRcvdDITime = millis(); // Update the last received device info time
         getDeviceInfo_blocked = false; // Unblock sending getDeviceInfo since we received a response for the previous request
         readDeviceInfoRecord(message, devicename);
