@@ -10,8 +10,10 @@
 // Uncomment to enable debug output to syslog server (UDP) and serial console
 // #define USE_SYSLOG
 #ifdef USE_SYSLOG
-#define SYSLOG_SERVER "192.168.178.52"
+#define SYSLOG_SERVER "ip or dns name of your syslog server"
 #define SYSLOG_PORT 514
+#define SYSLOG_APP "what ever you want to see in the syslog message as app name"
+#define SYSLOG_HOST "what ever you want to see in the syslog message as hostname"
 #endif
 
 // Uncomment if Hardware is V19

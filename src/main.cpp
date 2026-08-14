@@ -67,10 +67,9 @@ void setup()
 #ifdef USE_SYSLOG
     syslog.server = SYSLOG_SERVER;
     syslog.port = SYSLOG_PORT;
-    syslog.app = "Petri-BMS";
+    syslog.app = SYSLOG_APP;
     syslog.default_loglevel = PicoSyslog::LogLevel::information;
-    syslog.host = DEVICENAME;
-    syslog.forward_to = &Serial;
+    syslog.host = SYSLOG_HOST;
 
 #endif
 #ifdef USE_TLS
