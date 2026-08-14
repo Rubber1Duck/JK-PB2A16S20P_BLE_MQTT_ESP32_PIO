@@ -320,6 +320,8 @@ void ble_loop() {
     }
 
     if (ble_connected) {
+        // Handle sending getDeviceInfo and getConfigInfo messages with timing and blocking logic
+        // Send initial getDeviceInfo message if not already sent
         if (!initial_DI_send_done) {
             if (!getDeviceInfo_blocked) {
                 boolean result = pRemoteCharacteristic->writeValue(getDeviceInfo, 20, false);
@@ -329,6 +331,7 @@ void ble_loop() {
                 initial_DI_send_done = true; // Mark that the initial Device Info send has been done
             }
         }
+        // Send initial getConfigInfo message if not already sent and INITIAL_SEND_INTERVAL seconds after initial getDeviceInfo has been sent
         if (!initial_CI_send_done && initial_DI_send_done && ((millis() - time_device_info_sent) >= INITIAL_SEND_INTERVAL)) {
             if (!getConfigInfo_blocked) {
                 boolean result = pRemoteCharacteristic->writeValue(getConfigInfo, 20, false);
@@ -338,14 +341,17 @@ void ble_loop() {
                 initial_CI_send_done = true; // Mark that the initial Config Info send has been done
             }
         }
+        // After both initial messages have been sent, check if we can send them again based on the minimum receive interval
         if (initial_DI_send_done && initial_CI_send_done) {
             if ((lastRcvdDITime == 0 || (millis() - lastRcvdDITime) >= MIN_RCV_ITV_DI_AND_CI_INFO)) {
+                // Check if we are currently blocked from sending getDeviceInfo and unblock if the timeout has passed
                 if (getDeviceInfo_blocked) {
                     if ((millis() - time_device_info_sent) >= WAIT_FOR_RESPONSE_TIMEOUT) {
                         getDeviceInfo_blocked = false; // Unblock if timeout has passed
                         DEBUG_PRINTLN("Timeout waiting for getDeviceInfo response. Unblocking getDeviceInfo.");
                     }
                 } else {
+                    // Send getDeviceInfo message if not blocked
                     boolean result = pRemoteCharacteristic->writeValue(getDeviceInfo, 20, false);
                     DEBUG_PRINTF("Sent getDeviceInfo to the BLE device. Result: %s\n", result == true ? "Success" : "Failed");
                     time_device_info_sent = millis(); // Update the time when we sent the device info request
@@ -353,12 +359,14 @@ void ble_loop() {
                 }
             }
             if ((lastRcvdCITime == 0 || (millis() - lastRcvdCITime) >= MIN_RCV_ITV_DI_AND_CI_INFO)) {
+                // Check if we are currently blocked from sending getConfigInfo and unblock if the timeout has passed
                 if (getConfigInfo_blocked) {
                     if ((millis() - time_config_info_sent) >= WAIT_FOR_RESPONSE_TIMEOUT) {
                         getConfigInfo_blocked = false; // Unblock if timeout has passed
                         DEBUG_PRINTLN("Timeout waiting for getConfigInfo response. Unblocking getConfigInfo.");
                     }
                 } else {
+                    // Send getConfigInfo message if not blocked
                     boolean result = pRemoteCharacteristic->writeValue(getConfigInfo, 20, false);
                     DEBUG_PRINTF("Sent getConfigInfo to the BLE device. Result: %s\n", result == true ? "Success" : "Failed");
                     time_config_info_sent = millis(); // Update the time when we sent the config info request
