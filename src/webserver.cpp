@@ -232,6 +232,7 @@ void handleEspReset()
     DEBUG_PRINT("Get Restart from Website by client ");
     DEBUG_PRINT(server.client().remoteIP());
     DEBUG_PRINTLN("...Restarting ESP32...");
+    delay(1000);
     ESP.restart();
 }
 } // namespace
