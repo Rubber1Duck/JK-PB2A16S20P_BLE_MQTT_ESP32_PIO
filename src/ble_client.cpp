@@ -8,6 +8,8 @@ bool ble_connected = false; // Flag to track BLE connection status
 bool capturing = false; // Flag to indicate if we are currently capturing data after detecting the start sequence
 bool getConfigInfo_blocked = false; // Flag to block sending getInfo if we haven't received a response for the previous request
 bool getDeviceInfo_blocked = false; // Flag to block sending getDeviceInfo if we haven't received a response for the previous request
+bool initial_DI_send_done = false; // Flag to indicate if the initial Device Info send has been done
+bool initial_CI_send_done = false; // Flag to indicate if the initial Config Info send has been done
 
 // BLE
 static NimBLEUUID serviceUUID("ffe0"); // The remote service we wish to connect to.
@@ -33,9 +35,10 @@ boolean all_notifications_blocked = true; // Flag to track if all notifications 
 
 // Time variables
 uint32_t last_rssi_time = 0;
-uint32_t last_received_device_info_time = 0;
-uint32_t last_received_config_info_time = 0;
+uint32_t lastRcvdDITime = 0;
+uint32_t lastRcvdCITime = 0;
 uint32_t time_device_info_sent = 0;
+uint32_t time_config_info_sent = 0;
 
 #ifdef DUALCORE
 // Define the queue handle
@@ -50,7 +53,7 @@ void parser(void *message) {
     switch (type) {
     case 0x01:
         DEBUG_PRINTLN("Received Config Info from BLE device.");
-        last_received_config_info_time = millis(); // Update the last received config info time
+        lastRcvdCITime = millis(); // Update the last received config info time
         getConfigInfo_blocked = false; // Unblock sending getInfo since we received a response for the previous request    
         readConfigInfoRecord(message, devicename);
         break;
@@ -59,7 +62,7 @@ void parser(void *message) {
         break;
     case 0x03:
         DEBUG_PRINTLN("Received Device Info from BLE device.");
-        last_received_device_info_time = millis(); // Update the last received device info time
+        lastRcvdDITime = millis(); // Update the last received device info time
         getDeviceInfo_blocked = false; // Unblock sending getDeviceInfo since we received a response for the previous request
         readDeviceInfoRecord(message, devicename);
         break;
@@ -317,19 +320,50 @@ void ble_loop() {
     }
 
     if (ble_connected) {
-        if ((last_received_device_info_time == 0 || (millis() - last_received_device_info_time) >= MINIMUM_RECIVE_INTERVAL_DEVICEINFO_AND_CONFIGINFO)) {
+        if (!initial_DI_send_done) {
             if (!getDeviceInfo_blocked) {
                 boolean result = pRemoteCharacteristic->writeValue(getDeviceInfo, 20, false);
-                DEBUG_PRINTF("Sent getDeviceInfo to the BLE device. Result: %s\n", result == true ? "Success" : "Failed");
+                DEBUG_PRINTF("Sent initial getDeviceInfo to the BLE device. Result: %s\n", result == true ? "Success" : "Failed");
                 time_device_info_sent = millis(); // Update the time when we sent the device info request
                 getDeviceInfo_blocked = true; // Block sending getDeviceInfo until we receive a response
+                initial_DI_send_done = true; // Mark that the initial Device Info send has been done
             }
         }
-        if ((last_received_config_info_time == 0 || (millis() - last_received_config_info_time) >= MINIMUM_RECIVE_INTERVAL_DEVICEINFO_AND_CONFIGINFO) && (millis() - time_device_info_sent) >= INITIAL_SEND_INTERVAL) {
+        if (!initial_CI_send_done && initial_DI_send_done && ((millis() - time_device_info_sent) >= INITIAL_SEND_INTERVAL)) {
             if (!getConfigInfo_blocked) {
                 boolean result = pRemoteCharacteristic->writeValue(getConfigInfo, 20, false);
-                DEBUG_PRINTF("Sent getConfigInfo to the BLE device. Result: %s\n", result == true ? "Success" : "Failed");
+                DEBUG_PRINTF("Sent initial getConfigInfo to the BLE device. Result: %s\n", result == true ? "Success" : "Failed");
+                time_config_info_sent = millis(); // Update the time when we sent the config info request
                 getConfigInfo_blocked = true; // Block sending getConfigInfo until we receive a response
+                initial_CI_send_done = true; // Mark that the initial Config Info send has been done
+            }
+        }
+        if (initial_DI_send_done && initial_CI_send_done) {
+            if ((lastRcvdDITime == 0 || (millis() - lastRcvdDITime) >= MIN_RCV_ITV_DI_AND_CI_INFO)) {
+                if (getDeviceInfo_blocked) {
+                    if ((millis() - time_device_info_sent) >= WAIT_FOR_RESPONSE_TIMEOUT) {
+                        getDeviceInfo_blocked = false; // Unblock if timeout has passed
+                        DEBUG_PRINTLN("Timeout waiting for getDeviceInfo response. Unblocking getDeviceInfo.");
+                    }
+                } else {
+                    boolean result = pRemoteCharacteristic->writeValue(getDeviceInfo, 20, false);
+                    DEBUG_PRINTF("Sent getDeviceInfo to the BLE device. Result: %s\n", result == true ? "Success" : "Failed");
+                    time_device_info_sent = millis(); // Update the time when we sent the device info request
+                    getDeviceInfo_blocked = true; // Block sending getDeviceInfo until we receive a response
+                }
+            }
+            if ((lastRcvdCITime == 0 || (millis() - lastRcvdCITime) >= MIN_RCV_ITV_DI_AND_CI_INFO)) {
+                if (getConfigInfo_blocked) {
+                    if ((millis() - time_config_info_sent) >= WAIT_FOR_RESPONSE_TIMEOUT) {
+                        getConfigInfo_blocked = false; // Unblock if timeout has passed
+                        DEBUG_PRINTLN("Timeout waiting for getConfigInfo response. Unblocking getConfigInfo.");
+                    }
+                } else {
+                    boolean result = pRemoteCharacteristic->writeValue(getConfigInfo, 20, false);
+                    DEBUG_PRINTF("Sent getConfigInfo to the BLE device. Result: %s\n", result == true ? "Success" : "Failed");
+                    time_config_info_sent = millis(); // Update the time when we sent the config info request
+                    getConfigInfo_blocked = true; // Block sending getConfigInfo until we receive a response
+                }
             }
         }
         
