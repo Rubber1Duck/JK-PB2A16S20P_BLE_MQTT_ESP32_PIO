@@ -229,6 +229,7 @@ void handleEspReset()
 {
     server.send(200, "text/html", "<html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='3;url=/'></head><body><p>ESP32 wird neu gestartet...</p><p><a href='/'>Zur&#252;ck</a></p></body></html>");
     delay(150);
+    DEBUG_PRINTLN("Get Restart from Website...Restarting ESP32...");
     ESP.restart();
 }
 } // namespace
