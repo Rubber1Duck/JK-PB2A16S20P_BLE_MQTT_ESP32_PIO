@@ -14,4 +14,4 @@ void wifi_loop();
 extern void setState(String key, String value, bool publish);
 extern void mqtt_tls_stop();
 
-#endif
+#endif // WIFI_HANDLER_H

@@ -110,12 +110,12 @@ static const char *wifi_event_to_text(WiFiEvent_t event)
 // Event-Handler Funktion
 void WiFiEvent(WiFiEvent_t event)
 {
-    DEBUG_PRINTF("[WiFi-event] Event: %s (%d)\n", wifi_event_to_text(event), event);
+    Serial.printf("[WiFi-event] Event: %s (%d)\n", wifi_event_to_text(event), event);
     switch (event)
     {
     case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-        DEBUG_PRINT("IP-Adresse: ");
-        DEBUG_PRINTLN(WiFi.localIP());
+        Serial.print("IP-Adresse: ");
+        Serial.println(WiFi.localIP());
         {
             char rssi_buf[12];
             snprintf(rssi_buf, sizeof(rssi_buf), "%d", WiFi.RSSI());
@@ -125,7 +125,7 @@ void WiFiEvent(WiFiEvent_t event)
         break;
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
         isWifiConnected = false;
-        DEBUG_PRINTLN("WLAN Verbindung verloren! Reconnect...");
+        Serial.println("WLAN Verbindung verloren! Reconnect...");
         // Stop MQTT/TLS immediately so no more send attempts hit the dead socket
         mqtt_tls_stop();
         WiFi.reconnect(); // Versucht automatisch neu zu verbinden
@@ -170,7 +170,8 @@ void init_wifi()
         delay(1000);
         if (++wifi_retry >= 20)
         { // Nach 20 Versuchen abbrechen
-            DEBUG_PRINTLN("\nFailed to connect to WiFi. Reboot ESP...");
+            Serial.println("\nFailed to connect to WiFi. Reboot ESP after 3 seconds...");
+            delay(3000);
             ESP.restart(); // Neustart des ESP, um es erneut zu versuchen
         }
     }
