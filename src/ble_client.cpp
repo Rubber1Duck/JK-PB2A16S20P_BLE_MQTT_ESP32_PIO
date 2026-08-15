@@ -334,7 +334,7 @@ void ble_loop() {
         }
         // After both initial messages have been sent, check if we can send them again based on the minimum receive interval
         if (initial_DI_send_done && initial_CI_send_done) {
-            if ((lastRcvdDITime == 0 || (millis() - lastRcvdDITime) >= MIN_RCV_ITV_DI_AND_CI_INFO)) {
+            if ((millis() - lastRcvdDITime) >= MIN_RCV_ITV_DI_AND_CI_INFO) {
                 // Check if we are currently blocked from sending getDeviceInfo and unblock if the timeout has passed
                 if (getDeviceInfo_blocked) {
                     if ((millis() - time_device_info_sent) >= WAIT_FOR_RESPONSE_TIMEOUT) {
@@ -349,7 +349,7 @@ void ble_loop() {
                     getDeviceInfo_blocked = true; // Block sending getDeviceInfo until we receive a response
                 }
             }
-            if ((lastRcvdCITime == 0 || (millis() - lastRcvdCITime) >= MIN_RCV_ITV_DI_AND_CI_INFO)) {
+            if ((millis() - lastRcvdCITime) >= MIN_RCV_ITV_DI_AND_CI_INFO) {
                 // Check if we are currently blocked from sending getConfigInfo and unblock if the timeout has passed
                 if (getConfigInfo_blocked) {
                     if ((millis() - time_config_info_sent) >= WAIT_FOR_RESPONSE_TIMEOUT) {
