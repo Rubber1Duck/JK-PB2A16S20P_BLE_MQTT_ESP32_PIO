@@ -39,6 +39,7 @@ uint32_t lastRcvdDITime = 0;
 uint32_t lastRcvdCITime = 0;
 uint32_t time_device_info_sent = 0;
 uint32_t time_config_info_sent = 0;
+uint32_t send_interval_timer = 0; // Timer for sending getDeviceInfo and getConfigInfo messages
 
 #ifdef DUALCORE
 // Define the queue handle
@@ -341,9 +342,10 @@ void ble_loop() {
                         getDeviceInfo_blocked = false; // Unblock if timeout has passed
                         DEBUG_PRINTLN("Timeout waiting for getDeviceInfo response. Unblocking getDeviceInfo.");
                     }
-                } else {
+                } else if ((millis() - send_interval_timer) >= SEND_INTERVAL) {
                     // Send getDeviceInfo message if not blocked
                     boolean result = pRemoteCharacteristic->writeValue(getDeviceInfo, 20, false);
+                    send_interval_timer = millis(); // Update the send interval timer
                     DEBUG_PRINTF("Sent getDeviceInfo to the BLE device. Result: %s\n", result == true ? "Success" : "Failed");
                     time_device_info_sent = millis(); // Update the time when we sent the device info request
                     getDeviceInfo_blocked = true; // Block sending getDeviceInfo until we receive a response
@@ -356,9 +358,10 @@ void ble_loop() {
                         getConfigInfo_blocked = false; // Unblock if timeout has passed
                         DEBUG_PRINTLN("Timeout waiting for getConfigInfo response. Unblocking getConfigInfo.");
                     }
-                } else {
+                } else if ((millis() - send_interval_timer) >= SEND_INTERVAL) {
                     // Send getConfigInfo message if not blocked
                     boolean result = pRemoteCharacteristic->writeValue(getConfigInfo, 20, false);
+                    send_interval_timer = millis(); // Update the send interval timer
                     DEBUG_PRINTF("Sent getConfigInfo to the BLE device. Result: %s\n", result == true ? "Success" : "Failed");
                     time_config_info_sent = millis(); // Update the time when we sent the config info request
                     getConfigInfo_blocked = true; // Block sending getConfigInfo until we receive a response

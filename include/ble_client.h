@@ -12,7 +12,8 @@
 
 
 #define BUFFER_SIZE 300 // Size of the buffer to store incoming BLE data, adjust as needed
-#define INITIAL_SEND_INTERVAL 5000UL   // Define the interval for the initial send (5 seconds)
+#define INITIAL_SEND_INTERVAL 1000UL   // Define the interval for the initial send (1 second)
+#define SEND_INTERVAL 500UL // Define the interval for sending getDeviceInfo and getConfigInfo (0.5 second)
 #define BLE_RSSI_INTERVAL 60000UL // Define the interval for reading BLE RSSI (1 minute)
 #define MIN_RCV_ITV_DI_AND_CI_INFO 900000UL // Minimum interval between processing received device info and config info (15 minutes)
 #define WAIT_FOR_RESPONSE_TIMEOUT 10000UL // Timeout for waiting for a response after sending getDeviceInfo or getConfigInfo (10 seconds)
