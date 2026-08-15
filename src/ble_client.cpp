@@ -24,20 +24,8 @@ static NimBLEClient *pClient = nullptr;
 // messages
 const byte getDeviceInfo[20] = {0xaa, 0x55, 0x90, 0xeb, 0x97, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11}; // Device Info
 const byte getConfigInfo[20] = {0xaa, 0x55, 0x90, 0xeb, 0x96, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10}; // Config Info
-char getDeviceInfo_str[sizeof(getDeviceInfo) * 3]; // Buffer to hold the hex string representation of getDeviceInfo
-char getConfigInfo_str[sizeof(getConfigInfo) * 3]; // Buffer to hold the hex string representation of getConfigInfo
-
-void byteToHexBuffer(const uint8_t* data, size_t len, char* outStr) {
-  for (size_t i = 0; i < len; i++) {
-    // Schreibt direkt in das Ziel-Array
-    // %02X erzeugt Großbuchstaben, %02x Kleinbuchstaben
-    snprintf(&outStr[i * 3], 4, "%02X:", data[i]);
-  }
-  // Ersetzt den letzten, überflüssigen Doppelpunkt durch das String-Ende \0
-  if (len > 0) {
-    outStr[(len * 3) - 1] = '\0';
-  }
-}
+const char *getDeviceInfo_str = "AA:55:90:EB:97:00:00:00:00:00:00:00:00:00:00:00:00:00:00:11"; // hex string representation of getDeviceInfo
+const char *getConfigInfo_str = "AA:55:90:EB:96:00:00:00:00:00:00:00:00:00:00:00:00:00:00:10"; // hex string representation of getConfigInfo
 
 // Buffer
 std::mutex bufferMutex;
@@ -414,12 +402,7 @@ void parserTask(void *pvParameters) {
 #endif
 
 void ble_setup() {
-    byteToHexBuffer(getDeviceInfo, sizeof(getDeviceInfo), getDeviceInfo_str);
-    DEBUG_PRINTF("getDeviceInfo: %s\n", getDeviceInfo_str);
-    byteToHexBuffer(getConfigInfo, sizeof(getConfigInfo), getConfigInfo_str);
-    DEBUG_PRINTF("getConfigInfo: %s\n", getConfigInfo_str);
-
-
+    
 #ifdef DUALCORE
     // Create the queue
     bleQueue = xQueueCreate(20, sizeof(uint8_t[BUFFER_SIZE]));
