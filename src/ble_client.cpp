@@ -415,7 +415,10 @@ void parserTask(void *pvParameters) {
 
 void ble_setup() {
     byteToHexBuffer(getDeviceInfo, sizeof(getDeviceInfo), getDeviceInfo_str);
+    DEBUG_PRINTF("getDeviceInfo: %s\n", getDeviceInfo_str);
     byteToHexBuffer(getConfigInfo, sizeof(getConfigInfo), getConfigInfo_str);
+    DEBUG_PRINTF("getConfigInfo: %s\n", getConfigInfo_str);
+
 
 #ifdef DUALCORE
     // Create the queue
