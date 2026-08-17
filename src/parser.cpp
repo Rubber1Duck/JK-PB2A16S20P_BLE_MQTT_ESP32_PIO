@@ -684,7 +684,7 @@ void readCellDataRecord(void *message, const char *devicename)
         setState("parser_heap_delta_avg", valueBuf, false);
 
         DEBUG_PRINTF(
-            "Parser perf %lu s: frames=%lu heap_before_min=%lu heap_after_min=%lu heap_delta_max=%ld heap_delta_avg=%ld\n",
+            "Parser perf %lus: frames=%lu heap_before_min=%lu heap_after_min=%lu heap_delta_max=%ld heap_delta_avg=%ld\n",
             static_cast<unsigned long>(perfLogIntervalSeconds),
             static_cast<unsigned long>(parserPerfFrameCount),
             static_cast<unsigned long>(parserPerfHeapBeforeMin),
