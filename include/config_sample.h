@@ -1,8 +1,19 @@
+#ifndef CONFIG_H
+#define CONFIG_H
 ////////////////////////////// Settings //////////////////////////////
 
 // if devicename is not defined in platformio.ini, use this default
 #ifndef DEVICENAME
 #define DEVICENAME "JK-PB2A16S20P"
+#endif
+
+// Uncomment to enable debug output to syslog server (UDP) and serial console
+// #define USE_SYSLOG
+#ifdef USE_SYSLOG
+#define SYSLOG_SERVER "ip or dns name of your syslog server"
+#define SYSLOG_PORT 514
+#define SYSLOG_APP "what ever you want to see in the syslog message as app name"
+#define SYSLOG_HOST "what ever you want to see in the syslog message as hostname"
 #endif
 
 // Uncomment if Hardware is V19
@@ -131,3 +142,4 @@
 // #define MQTT_SKIP_CERT_VERIFY
 
 ///////////////////////////// End Settings //////////////////////////////////
+#endif // CONFIG_H

@@ -3,6 +3,10 @@
 #include "app_webserver.h"
 #endif
 
+#ifdef USE_SYSLOG
+PicoSyslog::Logger syslog;
+#endif
+
 #ifdef NTPSERVER
 const char *ntpServer = NTPSERVER;
 #ifdef TIMEZONE
@@ -24,11 +28,11 @@ void setup()
 #endif
     init_settings();
 
-    DEBUG_PRINTLN("");
-    DEBUG_PRINTLN(String("JK-BMS Listener V ") + VERSION);
-    DEBUG_PRINTLN("");
-    DEBUG_PRINTLN("Starting ...");
-    DEBUG_PRINTLN("");
+    Serial.println("");
+    Serial.println(String("JK-BMS Listener V ") + VERSION);
+    Serial.println("");
+    Serial.println("Starting ...");
+    Serial.println("");
 
 #ifdef USE_TLS
     const char *cert_flash = MQTT_ROOT_CA_CERT;
@@ -60,12 +64,20 @@ void setup()
 #endif
 
     init_wifi();
+#ifdef USE_SYSLOG
+    syslog.server = SYSLOG_SERVER;
+    syslog.port = SYSLOG_PORT;
+    syslog.app = SYSLOG_APP;
+    syslog.default_loglevel = PicoSyslog::LogLevel::information;
+    syslog.host = SYSLOG_HOST;
+
+#endif
 #ifdef USE_TLS
     secure_wifi_client.setTimeout(15000);
 #ifdef MQTT_SKIP_CERT_VERIFY
     // Debug mode: disable certificate validation completely.
     secure_wifi_client.setInsecure();
-    Serial.println("WARNING: SSL/TLS certificate verification disabled!");
+    DEBUG_PRINTLN("WARNING: SSL/TLS certificate verification disabled!");
 #else
     secure_wifi_client.setCACert(root_ca_cert);
 #endif
@@ -92,7 +104,7 @@ void setup()
     uint8_t currentReason = (uint8_t)esp_reset_reason();
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo))
-        Serial.println("Zeit-Sync fehlgeschlagen");
+        DEBUG_PRINTLN("Zeit-Sync fehlgeschlagen");
 
     prefs.begin("system", false);
     prefs.getBytes(NVS_KEY, history, sizeof(history));
