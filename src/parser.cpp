@@ -21,7 +21,7 @@ uint32_t battery_power_calculated = 0;
 
 uint8_t counter_last = 0;
 
-constexpr uint32_t PARSER_PERF_LOG_INTERVAL_MS = 30000;
+constexpr uint32_t PARSER_PERF_LOG_INTERVAL_MS = 60000;
 uint32_t parserPerfLastLogMs = 0;
 uint32_t parserPerfFrameCount = 0;
 uint32_t parserPerfHeapBeforeMin = UINT32_MAX;
@@ -662,6 +662,7 @@ void readCellDataRecord(void *message, const char *devicename)
 
     if (millis() - parserPerfLastLogMs >= PARSER_PERF_LOG_INTERVAL_MS)
     {
+        uint32_t perfLogIntervalSeconds = PARSER_PERF_LOG_INTERVAL_MS / 1000;
         char valueBuf[24];
 
         snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(parserPerfFrameCount));
@@ -683,7 +684,8 @@ void readCellDataRecord(void *message, const char *devicename)
         setState("parser_heap_delta_avg", valueBuf, false);
 
         DEBUG_PRINTF(
-            "Parser perf 30s: frames=%lu heap_before_min=%lu heap_after_min=%lu heap_delta_max=%ld heap_delta_avg=%ld\n",
+            "Parser perf %lu s: frames=%lu heap_before_min=%lu heap_after_min=%lu heap_delta_max=%ld heap_delta_avg=%ld\n",
+            static_cast<unsigned long>(perfLogIntervalSeconds),
             static_cast<unsigned long>(parserPerfFrameCount),
             static_cast<unsigned long>(parserPerfHeapBeforeMin),
             static_cast<unsigned long>(parserPerfHeapAfterMin),

@@ -4,12 +4,13 @@
 const char *devicename = DEVICENAME;
 
 // status flags
-bool ble_connected = false; // Flag to track BLE connection status
-bool capturing = false; // Flag to indicate if we are currently capturing data after detecting the start sequence
-bool getConfigInfo_blocked = false; // Flag to block sending getInfo if we haven't received a response for the previous request
-bool getDeviceInfo_blocked = false; // Flag to block sending getDeviceInfo if we haven't received a response for the previous request
-bool initial_DI_send_done = false; // Flag to indicate if the initial Device Info send has been done
-bool initial_CI_send_done = false; // Flag to indicate if the initial Config Info send has been done
+boolean ble_connected = false; // Flag to track BLE connection status
+boolean capturing = false; // Flag to indicate if we are currently capturing data after detecting the start sequence
+boolean getConfigInfo_blocked = false; // Flag to block sending getInfo if we haven't received a response for the previous request
+boolean getDeviceInfo_blocked = false; // Flag to block sending getDeviceInfo if we haven't received a response for the previous request
+boolean initial_DI_send = false; // Flag to indicate if the initial Device Info send has been done
+boolean initial_CI_send = false; // Flag to indicate if the initial Config Info send has been done
+
 
 // BLE
 static NimBLEUUID serviceUUID("ffe0"); // The remote service we wish to connect to.
@@ -17,8 +18,8 @@ static NimBLEUUID charUUID("ffe1");    // The characteristic of the remote servi
 static const NimBLEAdvertisedDevice *myDevice;
 static boolean doConnect = false;
 static uint32_t scanTimeMs = 5000; /** scan time in milliseconds, 0 = scan forever */
-static NimBLERemoteService *pRemoteService = nullptr;
-static NimBLERemoteCharacteristic *pRemoteCharacteristic = nullptr;
+static NimBLERemoteService*        pSvc = nullptr;
+static NimBLERemoteCharacteristic* pChr = nullptr;
 static NimBLEClient *pClient = nullptr;
 
 // messages
@@ -41,6 +42,7 @@ uint32_t save_millis = 0; // Variable to save the last time millis() was called
 uint32_t last_rssi_time = 0;
 uint32_t lastRcvdDITime = 0;
 uint32_t lastRcvdCITime = 0;
+uint32_t lastRcvdCDTime = 0;
 uint32_t time_device_info_sent = 0;
 uint32_t time_config_info_sent = 0;
 uint32_t send_interval_timer = 0; // Timer for sending getDeviceInfo and getConfigInfo messages
@@ -64,6 +66,7 @@ void parser(void *message) {
         readConfigInfoRecord(message, devicename);
         break;
     case 0x02:
+        lastRcvdCDTime = millis();
         readCellDataRecord(message, devicename);
         break;
     case 0x03:
@@ -198,6 +201,7 @@ void notifyCB(NimBLERemoteCharacteristic *pRemoteCharacteristic, uint8_t *pData,
 }
 
 bool connectToBLEServer() {
+        
     /** Check if we have a client we should reuse first **/
     if (NimBLEDevice::getCreatedClientCount()) {
         /**
@@ -229,11 +233,21 @@ bool connectToBLEServer() {
         }
 
         pClient = NimBLEDevice::createClient();
+
         DEBUG_PRINTF("New client created\n");
+        
         pClient->setClientCallbacks(&clientCallbacks, false);
+        /**
+         *  Set initial connection parameters:
+         *  These settings are safe for 3 clients to connect reliably, can go faster if you have less
+         *  connections. Timeout should be a multiple of the interval, minimum is 100ms.
+         *  Min interval: 12 * 1.25ms = 15, Max interval: 12 * 1.25ms = 15, 0 latency, 150 * 10ms = 1500ms timeout
+         */
         pClient->setConnectionParams(12, 12, 0, 150);
+        
         /** Set how long we are willing to wait for the connection to complete (milliseconds), default is 30000. */
         pClient->setConnectTimeout(5 * 1000);
+
         if (!pClient->connect(myDevice)) {
             /** Created a client but failed to connect, don't need to keep it as it has no data */
             NimBLEDevice::deleteClient(pClient);
@@ -256,12 +270,13 @@ bool connectToBLEServer() {
     setState("ble_device_mac", macAddr.c_str(), true);
     setState("ble_device_rssi", rssiVal, true);
 
+    /** Now we can read/write/subscribe the characteristics of the services we are interested in */
     // Obtain a reference to the service we are after in the remote BLE server.
-    pRemoteService = pClient->getService(serviceUUID);
-    if (pRemoteService) {
+    pSvc = pClient->getService(serviceUUID);
+    if (pSvc) {
         DEBUG_PRINTLN(" - Found our service");
-        pRemoteCharacteristic = pRemoteService->getCharacteristic(charUUID);
-        if (pRemoteCharacteristic == nullptr) {
+        pChr = pSvc->getCharacteristic(charUUID);
+        if (pChr == nullptr) {
             std::string charUuid = charUUID.toString();
             DEBUG_PRINTF("Failed to find our characteristic UUID: %s\n", charUuid.c_str());
             pClient->disconnect();
@@ -269,8 +284,8 @@ bool connectToBLEServer() {
         }
         DEBUG_PRINTLN(" - Found our characteristic");
         // Set the notification callback
-        if (pRemoteCharacteristic->canNotify()) {
-            if (!pRemoteCharacteristic->subscribe(true, notifyCB)) {
+        if (pChr->canNotify()) {
+            if (!pChr->subscribe(true, notifyCB)) {
                 DEBUG_PRINTLN("Failed to subscribe to notifications");
                 pClient->disconnect();
                 return false;
@@ -284,7 +299,7 @@ bool connectToBLEServer() {
         pClient->disconnect();
         return false;
     }
-    if (pRemoteCharacteristic->canWriteNoResponse()) {
+    if (pChr->canWriteNoResponse()) {
         DEBUG_PRINTLN("Start the show, unblock notifications ...");
         all_notifications_blocked = false; // Unblock notifications
     } else {
@@ -306,6 +321,7 @@ bool connectToBLEServer() {
 void ble_loop() {
     /** Loop here until we find a device we want to connect to */
     delay(10);
+    
     if (doConnect) {
         doConnect = false;
         if (connectToBLEServer()) {
@@ -320,27 +336,27 @@ void ble_loop() {
         save_millis = millis(); // Save the current time for consistent timing calculations
         // Handle sending getDeviceInfo and getConfigInfo messages with timing and blocking logic
         // Send initial getDeviceInfo message if not already sent
-        if (!initial_DI_send_done) {
+        if (!initial_DI_send) {
             if (!getDeviceInfo_blocked) {
-                boolean result = pRemoteCharacteristic->writeValue(getDeviceInfo, 20, false);
+                boolean result = pChr->writeValue(getDeviceInfo, 20, false);
                 DEBUG_PRINTF("Sent initial getDeviceInfo message: %s. Result: %s\n", getDeviceInfo_str, result == true ? "Success" : "Failed");
                 time_device_info_sent = save_millis; // Update the time when we sent the device info request
                 getDeviceInfo_blocked = true; // Block sending getDeviceInfo until we receive a response
-                initial_DI_send_done = true; // Mark that the initial Device Info send has been done
+                initial_DI_send = true; // Mark that the initial Device Info send has been done
             }
         }
         // Send initial getConfigInfo message if not already sent and INITIAL_SEND_INTERVAL seconds after initial getDeviceInfo has been sent
-        if (!initial_CI_send_done && initial_DI_send_done && ((save_millis - time_device_info_sent) >= INITIAL_SEND_INTERVAL)) {
+        if (!initial_CI_send && initial_DI_send && ((save_millis - time_device_info_sent) >= INITIAL_SEND_INTERVAL)) {
             if (!getConfigInfo_blocked) {
-                boolean result = pRemoteCharacteristic->writeValue(getConfigInfo, 20, false);
+                boolean result = pChr->writeValue(getConfigInfo, 20, false);
                 DEBUG_PRINTF("Sent initial getConfigInfo message: %s. Result: %s\n", getConfigInfo_str, result == true ? "Success" : "Failed");
                 time_config_info_sent = save_millis; // Update the time when we sent the config info request
                 getConfigInfo_blocked = true; // Block sending getConfigInfo until we receive a response
-                initial_CI_send_done = true; // Mark that the initial Config Info send has been done
+                initial_CI_send = true; // Mark that the initial Config Info send has been done
             }
         }
         // After both initial messages have been sent, check if we can send them again based on the minimum receive interval
-        if (initial_DI_send_done && initial_CI_send_done) {
+        if (initial_DI_send && initial_CI_send) {
             if ((save_millis - lastRcvdDITime) >= MIN_RCV_ITV_DI_AND_CI_INFO) {
                 // Check if we are currently blocked from sending getDeviceInfo and unblock if the timeout has passed
                 if (getDeviceInfo_blocked) {
@@ -350,7 +366,7 @@ void ble_loop() {
                     }
                 } else if ((save_millis - send_interval_timer) >= SEND_INTERVAL) {
                     // Send getDeviceInfo message if not blocked
-                    boolean result = pRemoteCharacteristic->writeValue(getDeviceInfo, 20, false);
+                    boolean result = pChr->writeValue(getDeviceInfo, 20, false);
                     send_interval_timer = save_millis; // Update the send interval timer
                     DEBUG_PRINTF("Sent getDeviceInfo message: %s. Result: %s\n", getDeviceInfo_str, result == true ? "Success" : "Failed");
                     time_device_info_sent = save_millis; // Update the time when we sent the device info request
@@ -366,7 +382,7 @@ void ble_loop() {
                     }
                 } else if ((save_millis - send_interval_timer) >= SEND_INTERVAL) {
                     // Send getConfigInfo message if not blocked
-                    boolean result = pRemoteCharacteristic->writeValue(getConfigInfo, 20, false);
+                    boolean result = pChr->writeValue(getConfigInfo, 20, false);
                     send_interval_timer = save_millis; // Update the send interval timer
                     DEBUG_PRINTF("Sent getConfigInfo message: %s. Result: %s\n", getConfigInfo_str, result == true ? "Success" : "Failed");
                     time_config_info_sent = save_millis; // Update the time when we sent the config info request
