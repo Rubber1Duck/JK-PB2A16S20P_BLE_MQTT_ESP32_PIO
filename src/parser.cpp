@@ -662,26 +662,7 @@ void readCellDataRecord(void *message, const char *devicename)
     if (millis() - parserPerfLastLogMs >= PARSER_PERF_LOG_INTERVAL_MS)
     {
         uint32_t perfLogIntervalSeconds = PARSER_PERF_LOG_INTERVAL_MS / 1000;
-        char valueBuf[24];
-
-        snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(parserPerfFrameCount));
-        setState("parser_frames_30s", valueBuf, false);
-
-        snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(parserPerfHeapBeforeMin));
-        setState("parser_heap_before_min", valueBuf, false);
-
-        snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(parserPerfHeapAfterMin));
-        setState("parser_heap_after_min", valueBuf, false);
-
-        snprintf(valueBuf, sizeof(valueBuf), "%ld", static_cast<long>(parserPerfHeapDeltaMax));
-        setState("parser_heap_delta_max", valueBuf, false);
-
-        int32_t parserHeapDeltaAvg = (parserPerfFrameCount > 0)
-                                         ? static_cast<int32_t>(parserPerfHeapDeltaSum / static_cast<int64_t>(parserPerfFrameCount))
-                                         : 0;
-        snprintf(valueBuf, sizeof(valueBuf), "%ld", static_cast<long>(parserHeapDeltaAvg));
-        setState("parser_heap_delta_avg", valueBuf, false);
-
+        
         DEBUG_PRINTF(
             "Parser perf %lus: frames=%lu heap_before_min=%lu heap_after_min=%lu heap_delta_max=%ld heap_delta_avg=%ld\n",
             static_cast<unsigned long>(perfLogIntervalSeconds),
@@ -689,7 +670,7 @@ void readCellDataRecord(void *message, const char *devicename)
             static_cast<unsigned long>(parserPerfHeapBeforeMin),
             static_cast<unsigned long>(parserPerfHeapAfterMin),
             static_cast<long>(parserPerfHeapDeltaMax),
-            static_cast<long>(parserHeapDeltaAvg));
+            static_cast<long>(parserPerfHeapDeltaSum / static_cast<int64_t>(parserPerfFrameCount)));
 
         parserPerfLastLogMs = millis();
         parserPerfFrameCount = 0;
