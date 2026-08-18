@@ -408,11 +408,10 @@ void parserTask(void *pvParameters) {
 
     while (true) {
         // Receive data from the queue
-        if (xQueueReceive(bleQueue, &messageFromQueue, 0) == pdTRUE) {
+        if (xQueueReceive(bleQueue, &messageFromQueue, portMAX_DELAY) == pdTRUE) {
             // Call the parser function
             parser(messageFromQueue);
         }
-        vTaskDelay(25 / portTICK_PERIOD_MS); // Small delay to prevent task starvation
     }
 }
 #endif

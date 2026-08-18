@@ -68,7 +68,7 @@ void publishRawTask(void *pvParameters)
             vTaskDelay(pdMS_TO_TICKS(100)); // Wait until MQTT is connected
         }
 
-        if (xQueueReceive(rawPublishQueue, &queue_out, 0) == pdTRUE)
+        if (xQueueReceive(rawPublishQueue, &queue_out, portMAX_DELAY) == pdTRUE)
         {
             const uint8_t *payloadPtr = rawDataPoolSlotPtr(queue_out.slot_index);
             if (payloadPtr != nullptr)
@@ -147,7 +147,7 @@ void publishTask(void *pvParameters)
 
         // publish messages from the queue as long as MQTT is connected, WiFi is available and there are messages in the queue
         // if not, wait until connection is back before trying to publish again
-        while (mqttConnected && isWifiConnected && xQueueReceive(publishQueue, &queue_out, 0) == pdTRUE)
+        while (mqttConnected && isWifiConnected && xQueueReceive(publishQueue, &queue_out, portMAX_DELAY) == pdTRUE)
         {
             uint8_t currentQueueSize = uxQueueMessagesWaiting(publishQueue);
             maxUsedQueueSize = max(maxUsedQueueSize, currentQueueSize); // to track max used queue size for debugging purposes,
@@ -183,8 +183,7 @@ void publishTask(void *pvParameters)
             vTaskDelay(pdMS_TO_TICKS(publishInterval)); // time between publish attempts, can be adjust via MQTT, default is 50ms,
             // which means max 20 publishes per second, adjust if you have a lot of messages to publish and the queue is filling up,
             // but be careful with too low values as it can cause stability issues with the MQTT client
-        }
-        vTaskDelay(pdMS_TO_TICKS(100)); // Wait a bit before checking the queue again to avoid busy looping when MQTT is not connected or WiFi is down  
+        } 
     }
 }
 
