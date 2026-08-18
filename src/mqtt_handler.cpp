@@ -275,7 +275,7 @@ String formatUptime(time_t uptime)
     return String(buffer);
 }
 
-bool toMqttQueue(const char *topic, const char *payload)
+bool toMqttQueue(const char *topic, const char *payload, bool retain)
 {
     std::lock_guard<std::mutex> lock(mqttQueueMutex);
     {
@@ -296,6 +296,7 @@ bool toMqttQueue(const char *topic, const char *payload)
     queue_in.topic[sizeof(queue_in.topic) - 1] = '\0';
     strncpy(queue_in.payload, payload, sizeof(queue_in.payload) - 1);
     queue_in.payload[sizeof(queue_in.payload) - 1] = '\0';
+    queue_in.retain = retain;
     if (xQueueSend(publishQueue, &queue_in, 0) != pdTRUE)
     {
         String failMsg = "Failed to send message to queue: " + String(topic);
@@ -306,9 +307,9 @@ bool toMqttQueue(const char *topic, const char *payload)
     return true;
 }
 
-bool toMqttQueue(String topic, String payload)
+bool toMqttQueue(String topic, String payload, bool retain)
 {
-    return toMqttQueue(topic.c_str(), payload.c_str());
+    return toMqttQueue(topic.c_str(), payload.c_str(), retain);
 }
 
 void toMqttQueueRawData(String topic, const char *payload, size_t payloadLen)

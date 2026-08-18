@@ -163,7 +163,7 @@ void publishTask(void *pvParameters)
             bool success = false;
             {
                 std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
-                success = mqtt_client.publish(queue_out.topic, queue_out.payload);
+                success = mqtt_client.publish(queue_out.topic, queue_out.payload, queue_out.retain);
             }
             if (!success)
             {

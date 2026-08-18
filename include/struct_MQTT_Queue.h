@@ -7,6 +7,7 @@ struct PublishMessage
 {
     char topic[128];  // Adjust size as needed
     char payload[48]; // Adjust size as needed
+    bool retain = false;
 };
 
 // Dedicated fixed pool for large debug rawdata payloads.
