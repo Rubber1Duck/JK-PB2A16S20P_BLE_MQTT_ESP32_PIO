@@ -19,6 +19,11 @@
 // Uncomment if Hardware is V19
 // #define V19
 
+// set the following to "true" to publish the device data and the config data to MQTT as retained messages, so that the data is available after a restart of the broker or the device
+// be careful, this will increase the load on the broker
+// "true" will switch this on, "false" will switch this off. Default is "false" to reduce the load on the broker.
+#define MQTT_RETAINED_MESSAGES false
+
 // Uncomment to pulish protocol numbers and enable status from device info frame
 // #define PROTOCOL_NUMBERS_AND_ENABLE_STATUS
 
