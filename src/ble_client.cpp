@@ -41,13 +41,15 @@ const uint8_t pos_of_FrameCounter = 5;    // position of FrameCounter in the mes
 boolean all_notifications_blocked = true; // Flag to track if all notifications are currently blocked
 
 // Time variables
-uint32_t save_millis = 0; // Variable to save the last time millis() was called
-uint32_t last_rssi_time = 0;
-uint32_t lastRcvdDITime = 0;
-uint32_t lastRcvdCITime = 0;
-uint32_t lastRcvdCDTime = 0;
-uint32_t time_device_info_sent = 0;
-uint32_t time_config_info_sent = 0;
+time_t save_millis = 0; // Variable to save the last time millis() was called
+time_t last_rssi_time = 0;
+time_t lastRcvdDITime = 0;
+time_t lastRcvdCITime = 0;
+time_t lastRcvdCDTime = 0;
+time_t time_DI_sent = 0;
+time_t time_DI_response_received = 0;
+time_t time_CI_sent = 0;
+time_t time_CI_response_received = 0;
 
 #ifdef DUALCORE
 // Define the queue handle
@@ -66,6 +68,8 @@ void parser(void *message) {
         if (awaiting_CI_response) {
             awaiting_CI_response = false; // Clear the flag since we received a response
             CI_response_received = true; // Set the flag to indicate we have received a response for the initial Config Info request
+            time_CI_response_received = millis(); // Save the time when the Config Info response was received
+            DEBUG_PRINTF("Config Info response received %lu ms after request sent\n", time_CI_response_received - time_CI_sent);
         }
         lastRcvdCITime = millis(); // Update the last received config info time
         readConfigInfoRecord(message, devicename);
@@ -85,6 +89,8 @@ void parser(void *message) {
         if (awaiting_DI_response) {
             awaiting_DI_response = false; // Clear the flag since we received a response
             DI_response_received = true; // Set the flag to indicate we have received a response for the initial Device Info request
+            time_DI_response_received = millis(); // Save the time when the Device Info response was received
+            DEBUG_PRINTF("Device Info response received %lu ms after request sent\n", time_DI_response_received - time_DI_sent);
         }
         lastRcvdDITime = millis(); // Update the last received device info time
         
@@ -346,47 +352,59 @@ void ble_loop() {
             DEBUG_PRINTLN("Failed to connect to the BLE Server.");
         }
     }
+    // Communication Flow
 
+    // 1. Establish BLE connection
+    // 2. Register for notifications on characteristic 0xFFE1 (handle 0x05)
+    // 3. Send 0x96 on characteristic 0xFFE1 (handle 0x03) → BMS responds with Frame 0x01 (config info)
+    // 4. Send 0x97 on characteristic 0xFFE1 (handle 0x03) → BMS responds with Frame 0x03 (device info)
+    // 5. After both commands are acknowledged, BMS automatically streams Frame 0x02 (cell info) periodically
+    
     if (ble_connected) {
         // make shure the complete logic is running with the same time base, so we save the last millis() and use it for all timing calculations
         save_millis = millis(); // Save the current time for consistent timing calculations
         // Handle sending getDeviceInfo and getConfigInfo messages with timing and blocking logic
-        // Send initial getDeviceInfo message if not already sent
-        if (!DI_send &&
-            !awaiting_DI_response &&
-            pChr->writeValue(getDeviceInfo, 20, false)) {
-            DEBUG_PRINTF("Sent getDeviceInfo message: %s\n.", getDeviceInfo_str);
-            time_device_info_sent = save_millis; // Update the time when we sent the device info request
-            DI_send = true; // Mark that the initial Device Info send has been done
-            awaiting_DI_response = true; // Set the flag to indicate we are awaiting a response for the initial Device Info request
-        }
-        // Send initial getConfigInfo message if not already sent and INITIAL_SEND_INTERVAL seconds after initial getDeviceInfo has been sent
-        else if (!CI_send &&
-            DI_response_received &&
+        
+        // Send getConfigInfo message if not already sent
+        if (!CI_send &&
             !awaiting_CI_response &&
-            ((save_millis - time_device_info_sent) >= SEND_INTERVAL) &&
             pChr->writeValue(getConfigInfo, 20, false)) {
             DEBUG_PRINTF("Sent getConfigInfo message: %s\n.", getConfigInfo_str);
-            time_config_info_sent = save_millis; // Update the time when we sent the config info request
+            time_CI_sent = save_millis; // Update the time when we sent the config info request
             CI_send = true; // Mark that the initial Config Info send has been done
-            awaiting_CI_response = true; // Set the flag to indicate we are awaiting a response for the initial Config Info request
+            awaiting_CI_response = true; // Set the flag to indicate we are awaiting a response for the Config Info request
         }
-        // Check if we are awaiting a response for the initial getDeviceInfo request, and if the response has not been received within the expected interval,
-        // resend the request
-        else if (awaiting_DI_response &&
-            ((save_millis - time_device_info_sent) >= WAIT_FOR_RESPONSE_TIMEOUT) &&
+        
+        // Send getDeviceInfo message if not already sent and INITIAL_SEND_INTERVAL seconds after Config Info is received
+        else if (!DI_send &&
+            CI_response_received &&
+            !awaiting_DI_response &&
+            ((save_millis - time_CI_response_received) >= SEND_INTERVAL) &&
             pChr->writeValue(getDeviceInfo, 20, false)) {
-            DEBUG_PRINTF("Resent getDeviceInfo message due to no response: %s\n.", getDeviceInfo_str);
-            time_device_info_sent = save_millis; // Update the time when we resent the device info request
+            DEBUG_PRINTF("Sent getDeviceInfo message: %s\n.", getDeviceInfo_str);
+            time_DI_sent = save_millis; // Update the time when we sent the device info request
+            DI_send = true; // Mark that the initial Config Info send has been done
+            awaiting_DI_response = true; // Set the flag to indicate we are awaiting a response for the Device Info request
         }
-        // Check if we are awaiting a response for the initial getConfigInfo request, and if the response has not been received within the expected interval,
+        
+        // Check if we are awaiting a response for the getConfigInfo request, and if the response has not been received within the expected interval,
         // resend the request
         else if (awaiting_CI_response &&
-            ((save_millis - time_config_info_sent) >= WAIT_FOR_RESPONSE_TIMEOUT) &&
+            ((save_millis - time_CI_sent) >= WAIT_FOR_RESPONSE_TIMEOUT) &&
             pChr->writeValue(getConfigInfo, 20, false)) {
             DEBUG_PRINTF("Resent getConfigInfo message due to no response: %s\n.", getConfigInfo_str);
-            time_config_info_sent = save_millis; // Update the time when we resent the config info request
+            time_CI_sent = save_millis; // Update the time when we resent the config info request
+        }
+        
+        // Check if we are awaiting a response for the getDeviceInfo request, and if the response has not been received within the expected interval,
+        // resend the request
+        else if (awaiting_DI_response &&
+            ((save_millis - time_DI_sent) >= WAIT_FOR_RESPONSE_TIMEOUT) &&
+            pChr->writeValue(getDeviceInfo, 20, false)) {
+            DEBUG_PRINTF("Resent getDeviceInfo message due to no response: %s\n.", getDeviceInfo_str);
+            time_DI_sent = save_millis; // Update the time when we resent the device info request
         } 
+        
         // After both initial messages have been sent and received,
         // from now on the device will send cell data frames continuously, so we will not send getDeviceInfo and getConfigInfo again,
         // but we will check if we receive them within the expected interval (4-5 times a second) and if not we will send DI and CI requests again,
@@ -420,12 +438,18 @@ void ble_loop() {
 // Define the parser task
 void parserTask(void *pvParameters) {
     uint8_t messageFromQueue[BUFFER_SIZE];
+    time_t lastParserTime = 0;
 
     while (true) {
         // Receive data from the queue
         if (xQueueReceive(bleQueue, &messageFromQueue, portMAX_DELAY) == pdTRUE) {
+            lastParserTime = millis(); // Update the last parser time when a message is received
             // Call the parser function
             parser(messageFromQueue);
+        }
+        while (millis() - lastParserTime < 25) {
+            // Wait until 25 milliseconds have passed since the last parser call
+            vTaskDelay(1); // Delay for 1 tick (1 ms)
         }
     }
 }
