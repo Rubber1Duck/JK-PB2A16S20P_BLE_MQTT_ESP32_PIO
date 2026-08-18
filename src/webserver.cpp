@@ -121,6 +121,7 @@ void handleBmsApi()
     j += "\"vendor_id\":\"" + vendorId + "\",";
     j += "\"hw_version\":\"" + hwVersion + "\",";
     j += "\"sw_version\":\"" + swVersion + "\",";
+    j += "\"fw_version\":\"" + String(VERSION) + "\",";
     j += "\"bms_uptime\":\"" + bmsUptime + "\",";
     j += "\"esp_uptime\":\"" + espUptime + "\",";
     j += "\"last_reset_reason\":\"" + lastResetReasonText + "\",";
