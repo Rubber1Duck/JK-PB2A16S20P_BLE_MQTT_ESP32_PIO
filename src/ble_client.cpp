@@ -8,10 +8,6 @@ boolean ble_connected = false; // Flag to track BLE connection status
 boolean capturing = false; // Flag to indicate if we are currently capturing data after detecting the start sequence
 boolean DI_send = false; // Flag to indicate if the initial Device Info send has been done
 boolean CI_send = false; // Flag to indicate if the initial Config Info send has been done
-boolean awaiting_DI_response = false; // Flag to indicate if we are awaiting a response for the initial Device Info request
-boolean awaiting_CI_response = false; // Flag to indicate if we are awaiting a response for the initial Config Info request
-boolean DI_response_received = false; // Flag to indicate if we have received a response for the initial Device Info request
-boolean CI_response_received = false; // Flag to indicate if we have received a response for the initial Config Info request
 boolean CD_running = false; // Flag to indicate if we are currently receiving cell data frames
 
 
@@ -41,15 +37,10 @@ const uint8_t pos_of_FrameCounter = 5;    // position of FrameCounter in the mes
 boolean all_notifications_blocked = true; // Flag to track if all notifications are currently blocked
 
 // Time variables
+time_t last_rssi_time = 0; // Variable to save the last time RSSI was checked
 time_t save_millis = 0; // Variable to save the last time millis() was called
-time_t last_rssi_time = 0;
-time_t lastRcvdDITime = 0;
-time_t lastRcvdCITime = 0;
-time_t lastRcvdCDTime = 0;
-time_t time_DI_sent = 0;
-time_t time_DI_response_received = 0;
-time_t time_CI_sent = 0;
-time_t time_CI_response_received = 0;
+time_t time_CI_sent = 0; // Variable to save the time when the Config Info request was sent
+time_t lastRcvdCDTime = 0; // Variable to save the last time a cell data frame was received
 
 #ifdef DUALCORE
 // Define the queue handle
@@ -65,13 +56,6 @@ void parser(void *message) {
     switch (type) {
     case 0x01:
         DEBUG_PRINTF("Received Config Info. Frame Counter: %d\n", frameCounter);
-        if (awaiting_CI_response) {
-            awaiting_CI_response = false; // Clear the flag since we received a response
-            CI_response_received = true; // Set the flag to indicate we have received a response for the initial Config Info request
-            time_CI_response_received = millis(); // Save the time when the Config Info response was received
-            DEBUG_PRINTF("Config Info response received %lu ms after request sent\n", time_CI_response_received - time_CI_sent);
-        }
-        lastRcvdCITime = millis(); // Update the last received config info time
         readConfigInfoRecord(message, devicename);
         break;
     
@@ -86,14 +70,6 @@ void parser(void *message) {
     
     case 0x03:
         DEBUG_PRINTF("Received Device Info. Frame Counter: %d\n", frameCounter);
-        if (awaiting_DI_response) {
-            awaiting_DI_response = false; // Clear the flag since we received a response
-            DI_response_received = true; // Set the flag to indicate we have received a response for the initial Device Info request
-            time_DI_response_received = millis(); // Save the time when the Device Info response was received
-            DEBUG_PRINTF("Device Info response received %lu ms after request sent\n", time_DI_response_received - time_DI_sent);
-        }
-        lastRcvdDITime = millis(); // Update the last received device info time
-        
         readDeviceInfoRecord(message, devicename);
         break;
     
@@ -366,61 +342,26 @@ void ble_loop() {
         // Handle sending getDeviceInfo and getConfigInfo messages with timing and blocking logic
         
         // Send getConfigInfo message if not already sent
-        if (!CI_send &&
-            !awaiting_CI_response &&
-            pChr->writeValue(getConfigInfo, 20, false)) {
+        if (!CI_send && pChr->writeValue(getConfigInfo, 20, false)) {
             DEBUG_PRINTF("Sent getConfigInfo message: %s\n.", getConfigInfo_str);
             time_CI_sent = save_millis; // Update the time when we sent the config info request
-            CI_send = true; // Mark that the initial Config Info send has been done
-            awaiting_CI_response = true; // Set the flag to indicate we are awaiting a response for the Config Info request
+            CI_send = true; // Mark that the Config Info is sent
         }
         
-        // Send getDeviceInfo message if not already sent and INITIAL_SEND_INTERVAL seconds after Config Info is received
-        else if (!DI_send &&
-            CI_response_received &&
-            !awaiting_DI_response &&
-            ((save_millis - time_CI_response_received) >= SEND_INTERVAL) &&
-            pChr->writeValue(getDeviceInfo, 20, false)) {
+        // Send getDeviceInfo message if not already sent and SEND_INTERVAL seconds after Config Info is sent
+        else if (!DI_send && CI_send && ((save_millis - time_CI_sent) >= SEND_INTERVAL) && pChr->writeValue(getDeviceInfo, 20, false)) {
             DEBUG_PRINTF("Sent getDeviceInfo message: %s\n.", getDeviceInfo_str);
-            time_DI_sent = save_millis; // Update the time when we sent the device info request
-            DI_send = true; // Mark that the initial Config Info send has been done
-            awaiting_DI_response = true; // Set the flag to indicate we are awaiting a response for the Device Info request
+            DI_send = true; // Mark that the Device Info is sent
         }
         
-        // Check if we are awaiting a response for the getConfigInfo request, and if the response has not been received within the expected interval,
-        // resend the request
-        else if (awaiting_CI_response &&
-            ((save_millis - time_CI_sent) >= WAIT_FOR_RESPONSE_TIMEOUT) &&
-            pChr->writeValue(getConfigInfo, 20, false)) {
-            DEBUG_PRINTF("Resent getConfigInfo message due to no response: %s\n.", getConfigInfo_str);
-            time_CI_sent = save_millis; // Update the time when we resent the config info request
-        }
-        
-        // Check if we are awaiting a response for the getDeviceInfo request, and if the response has not been received within the expected interval,
-        // resend the request
-        else if (awaiting_DI_response &&
-            ((save_millis - time_DI_sent) >= WAIT_FOR_RESPONSE_TIMEOUT) &&
-            pChr->writeValue(getDeviceInfo, 20, false)) {
-            DEBUG_PRINTF("Resent getDeviceInfo message due to no response: %s\n.", getDeviceInfo_str);
-            time_DI_sent = save_millis; // Update the time when we resent the device info request
-        } 
-        
-        // After both initial messages have been sent and received,
-        // from now on the device will send cell data frames continuously, so we will not send getDeviceInfo and getConfigInfo again,
+        // After both messages have been sent, the device will send cell data frames continuously, so we will not send getDeviceInfo and getConfigInfo again
         // but we will check if we receive them within the expected interval (4-5 times a second) and if not we will send DI and CI requests again,
         // but only if the previous request has been answered
-        else if (CI_response_received &&
-            DI_response_received &&
-            CD_running &&
-            save_millis - lastRcvdCDTime > MAX_TIME_BETWEEN_CELL_DATA_MESSAGES) {
+        else if (CI_send && DI_send && CD_running && save_millis - lastRcvdCDTime > MAX_TIME_BETWEEN_CELL_DATA_MESSAGES) {
             DEBUG_PRINTLN("No cell data received for more than 2 seconds, sending getDeviceInfo and getConfigInfo again.");
             // Reset the flags to allow sending getDeviceInfo and getConfigInfo again in next loop iteration
             CI_send = false; // Reset the flag to allow sending getConfigInfo again
             DI_send = false; // Reset the flag to allow sending getDeviceInfo again
-            awaiting_DI_response = false; // Reset the flag to allow sending getDeviceInfo again
-            awaiting_CI_response = false; // Reset the flag to allow sending getConfigInfo again
-            DI_response_received = false; // Reset the flag to indicate we have not received a response for the initial Device Info request
-            CI_response_received = false; // Reset the flag to indicate we have not received a response for the initial Config Info request
             CD_running = false; // Reset the flag to indicate that we are no longer receiving cell data frames
         }
         
