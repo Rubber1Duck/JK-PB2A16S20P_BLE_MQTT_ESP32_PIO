@@ -110,6 +110,10 @@ class MyClientCallback : public NimBLEClientCallbacks {
     void onDisconnect(NimBLEClient *pClient, int reason) override {
         DEBUG_PRINTF("%s Disconnected, reason = %d - Starting scan\n", pClient->getPeerAddress().toString().c_str(), reason);
         DEBUG_PRINTF("BLE Disconnected. Reason: %s\n", getDisconnectReasonText(reason));
+        DEBUG_PRINTLN("Reset flags to allow sending getConfigInfo and getDeviceInfo again.");
+        CI_send = false; // Reset the flag to allow sending getConfigInfo again
+        DI_send = false; // Reset the flag to allow sending getDeviceInfo again
+        CD_running = false; // Reset the flag to indicate that we are no longer receiving cell data frames
         NimBLEDevice::getScan()->start(scanTimeMs, false, true);
     }
 } clientCallbacks;
