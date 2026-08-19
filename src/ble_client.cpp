@@ -82,24 +82,74 @@ void parser(void *message) {
 // Convert BLE disconnect reason code to readable text
 const char *getDisconnectReasonText(int reason) {
     switch (reason) {
-    case 0x08:
-        return "Connection Timeout (0x08)";
-    case 0x13:
-        return "Remote User Terminated Connection (0x13)";
-    case 0x14:
-        return "Remote Device Terminated due to Low Resources (0x14)";
-    case 0x15:
-        return "Remote Device Terminated due to Power Off (0x15)";
-    case 0x16:
-        return "Connection Terminated by Local Host (0x16)";
-    case 0x22:
-        return "LMP Response Timeout (0x22)";
-    case 0x3D:
-        return "Connection Failed to be Established (0x3D)";
-    case 0x3E:
-        return "LMP Response Timeout (0x3E)";
-    default:
-        return "Unknown Reason";
+        case 513:
+            return "(0x01): BLE_ERR_UNKNOWN_HCI_CMD – Unbekannter HCI-Befehl.";
+        case 514:
+            return "(0x02): BLE_ERR_UNK_CONN_ID – Unbekannte Verbindungskennung.";
+        case 515:
+            return "(0x03): BLE_ERR_HW_FAIL – Hardware-Fehler im Bluetooth-Chip.";
+        case 517:
+            return "(0x05): BLE_ERR_AUTH_FAIL – Authentifizierungsfehler (falscher PIN/Passkey).";
+        case 518:
+            return "(0x06): BLE_ERR_PINKEY_MISSING – PIN oder Verschlüsselungs-Key fehlt (Pairing verloren).";
+        case 519:
+            return "(0x07): BLE_ERR_MEM_CAPACITY – Speicher des Bluetooth-Controllers ist voll.";
+        case 520:
+            return "(0x08): BLE_ERR_CONN_SPVN_TMO – Supervision Timeout (Verbindung verloren).";
+        case 521:
+            return "(0x09): BLE_ERR_CONN_LIMIT – Verbindungslimit des Geräts ist erreicht.";
+        case 522:
+            return "(0x0A): BLE_ERR_SYNCH_CONN_LIMIT – Limit für synchrone Verbindungen erreicht.";
+        case 523:
+            return "(0x0B): BLE_ERR_ACL_CONN_EXISTS – ACL-Verbindung existiert bereits.";
+        case 524:
+            return "(0x0C): BLE_ERR_CMD_DISALLOWED – Befehl aktuell nicht erlaubt.";
+        case 525:
+            return "(0x0D): BLE_ERR_CONN_REJ_RESOURCES – Verbindung wegen fehlender Ressourcen abgewiesen.";
+        case 526:
+            return "(0x0E): BLE_ERR_CONN_REJ_SECURITY – Verbindung wegen Sicherheitsgründen abgewiesen.";
+        case 527:
+            return "(0x0F): BLE_ERR_CONN_REJ_BD_ADDR – Verbindung wegen unzulässiger Bluetooth-Adresse abgelehnt.";
+        case 528:
+            return "(0x10): BLE_ERR_CONN_ACCEPT_TMO – Verbindungsannahme-Timeout überschritten.";
+        case 530:
+            return "(0x12): BLE_ERR_INVALID_HCI_PARAMS – Ungültige HCI-Befehlsparameter.";
+        case 531:
+            return "(0x13): BLE_ERR_REM_USER_CONN_TERM – Remote-Nutzer hat die Verbindung getrennt.";
+        case 532:
+            return "(0x14): BLE_ERR_RD_CONN_TERM_RESRCS – Remote-Gerät hat wegen Ressourcenmangel getrennt.";
+        case 533:
+            return "(0x15): BLE_ERR_RD_CONN_TERM_PWROFF – Remote-Gerät hat sich ausgeschaltet.";
+        case 534:
+            return "(0x16): BLE_ERR_CONN_TERM_LOCAL – Lokales Gerät hat die Verbindung beendet.";
+        case 535:
+            return "(0x17): BLE_ERR_REPEATED_ATTEMPTS – Zu viele Pairing-Versuche hintereinander (Sperre).";
+        case 536:
+            return "(0x18): BLE_ERR_PAIRING_NOT_ALLOW – Pairing auf diesem Gerät nicht erlaubt.";
+        case 538:
+            return "(0x1A): BLE_ERR_UNSUPPORTED_REM_FEATURE – Remote-Gerät unterstützt diese Bluetooth-Funktion nicht.";
+        case 541:
+            return "(0x1D): BLE_ERR_MIC_FAILURE – Message Integrity Check fehlgeschlagen (Kryptographie-Fehler).";
+        case 542:
+            return "(0x1E): BLE_ERR_CONN_ESTABLISHMENT_TMO – Verbindung konnte nicht rechtzeitig aufgebaut werden.";
+        case 545:
+            return "(0x21): BLE_ERR_LMP_PDU_NOT_ALLOW – Protokoll-Paket (LMP PDU) nicht erlaubt.";
+        case 546:
+            return "(0x22): BLE_ERR_LMP_LL_RESP_TMO – Keine Antwort auf Link-Layer-Ebene (Timeout).";
+        case 547:
+            return "(0x23): BLE_ERR_LMP_COLLISION – Kollision bei der Protokoll-Verhandlung.";
+        case 556:
+            return "(0x2C): BLE_ERR_UNSUPPORTED_LMP_EXT – Erweiterte LMP-Funktion wird nicht unterstützt.";
+        case 560:
+            return "(0x30): BLE_ERR_INVALID_LMP_PARAMS – Ungültige LMP/LL-Parameter.";
+        case 564:
+            return "(0x34): BLE_ERR_DIFF_TRANSACTION_COLL – Transaktions-Kollision im Link-Layer.";
+        case 570:
+            return "(0x3A): BLE_ERR_UNACCEPT_CONN_PARAMS – Die vorgeschlagenen Verbindungsparameter sind unzulässig.";
+        case 574:
+            return "(0x3E): BLE_ERR_CONN_ESTABLISHMENT – Verbindung fehlgeschlagen, kein einziges Paket empfangen.";
+        default:
+            return "Unknown Reason";
     }
 }
 
@@ -108,8 +158,7 @@ class MyClientCallback : public NimBLEClientCallbacks {
     void onConnect(NimBLEClient *pClient) override { DEBUG_PRINTF("BLE Connected\n"); }
 
     void onDisconnect(NimBLEClient *pClient, int reason) override {
-        DEBUG_PRINTF("%s Disconnected, reason = %d - Starting scan\n", pClient->getPeerAddress().toString().c_str(), reason);
-        DEBUG_PRINTF("BLE Disconnected. Reason: %s\n", getDisconnectReasonText(reason));
+        DEBUG_PRINTF("%s Disconnected, reason = %d %s - Starting scan\n", pClient->getPeerAddress().toString().c_str(), reason, getDisconnectReasonText(reason));
         DEBUG_PRINTLN("Reset flags to allow sending getConfigInfo and getDeviceInfo again.");
         CI_send = false; // Reset the flag to allow sending getConfigInfo again
         DI_send = false; // Reset the flag to allow sending getDeviceInfo again
