@@ -26,7 +26,7 @@ extern bool has_config_info;
 
 extern uint16_t min_pub_time;
 extern uint16_t publish_delay;
-extern bool debug_flg_full;
-extern bool debug_flg;
+extern volatile bool debug_flg_full;
+extern volatile bool debug_flg;
 
 #endif // PARSER_H

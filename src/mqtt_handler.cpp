@@ -455,6 +455,29 @@ void publishStatesTask(void *pvParameters)
 //  is valid. (see pubsubclient example "mqtt_publish_in_callback")
 void MQTTCallback(char *topic, byte *payload, unsigned int length);
 
+static bool parseBoolPayload(const byte *payload, unsigned int length, bool fallback)
+{
+    if (payload == nullptr || length == 0)
+    {
+        return fallback;
+    }
+
+    String cmd = String((const char *)payload, length);
+    cmd.trim();
+    cmd.toLowerCase();
+
+    if (cmd == "true" || cmd == "1" || cmd == "on" || cmd == "yes")
+    {
+        return true;
+    }
+    if (cmd == "false" || cmd == "0" || cmd == "off" || cmd == "no")
+    {
+        return false;
+    }
+
+    return fallback;
+}
+
 #ifdef USE_TLS
 WiFiClientSecure secure_wifi_client;
 PubSubClient mqtt_client(mqtt_server, mqtt_tls_port, MQTTCallback, secure_wifi_client);
@@ -471,18 +494,18 @@ void MQTTCallback(char *topic, byte *payload, unsigned int length)
     // Check debugging_active
     if (strcmp(topic, topic_debug_active.c_str()) == 0)
     {
-        String cmd = String((char *)payload, length);
-        debug_flg = (cmd == "true");
+        debug_flg = parseBoolPayload(payload, length, debug_flg);
         write_setting("debug_flg", debug_flg);
+        DEBUG_PRINTLN(String("debug_flg set to: ") + (debug_flg ? "true" : "false"));
         return;
     }
 
     // Check debugging_active_full
     if (strcmp(topic, topic_debug_active_full.c_str()) == 0)
     {
-        String cmd = String((char *)payload, length);
-        debug_flg_full = (cmd == "true");
+        debug_flg_full = parseBoolPayload(payload, length, debug_flg_full);
         write_setting("debug_flg_full", debug_flg_full);
+        DEBUG_PRINTLN(String("debug_flg_full set to: ") + (debug_flg_full ? "true" : "false"));
         return;
     }
 

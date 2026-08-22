@@ -9,8 +9,8 @@ const char *nvs_namespace = "system"; // NVS namespace for storing settings
 //       123456789012345
 uint16_t publish_delay;
 uint16_t min_pub_time;
-bool     debug_flg = false;
-bool     debug_flg_full = false;
+volatile bool     debug_flg = false;
+volatile bool     debug_flg_full = false;
 uint16_t publishInterval;
 
 static bool openSettingsPrefs(Preferences &localPrefs, bool readOnly)
