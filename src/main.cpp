@@ -17,7 +17,7 @@ const int daylightOffset_sec = DLOFFSET;
 #endif
 #endif // NTPSERVER
 
-const char *NVS_KEY = "reset_history";
+const char *NVS_KEY = "reset_history"; //limited to 15 characters due to NVS key length limit!
 ResetEntry history[MAX_RESET_REASONS];
 
 void setup()
@@ -106,7 +106,7 @@ void setup()
     if (!getLocalTime(&timeinfo))
         DEBUG_PRINTLN("Zeit-Sync fehlgeschlagen");
 
-    prefs.begin("system", false);
+    prefs.begin(nvs_namespace, false);
     prefs.getBytes(NVS_KEY, history, sizeof(history));
     memmove(&history[1], &history[0], sizeof(ResetEntry) * (MAX_RESET_REASONS - 1));
     history[0].reason = currentReason;

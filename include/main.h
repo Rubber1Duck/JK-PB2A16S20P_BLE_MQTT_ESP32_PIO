@@ -7,7 +7,7 @@
 #include "led_control.h"
 #include "macros.h"
 #include <time.h>
-#include <Preferences.h>
+#include <settings.h>
 #include <rom/rtc.h> // Erforderlich für detaillierte Reset-Infos
 #include "html.h"
 
@@ -17,3 +17,4 @@ extern WiFiClientSecure secure_wifi_client;
 
 extern void publish_init();
 extern Preferences prefs;
+extern const char *nvs_namespace;

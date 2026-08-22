@@ -3,8 +3,8 @@
 QueueHandle_t publishQueue = NULL;
 QueueHandle_t rawPublishQueue = NULL;
 
-uint8_t maxUsedQueueSize = 0;
-uint8_t oldMaxUsedQueueSize = 0;
+UBaseType_t maxUsedQueueSize = 0;
+UBaseType_t oldMaxUsedQueueSize = 0;
 
 static uint8_t rawDataPool[RAWDATA_POOL_SLOT_COUNT][RAWDATA_POOL_SLOT_SIZE];
 static QueueHandle_t rawDataFreeSlots = NULL;
@@ -149,10 +149,18 @@ void publishTask(void *pvParameters)
         // if not, wait until connection is back before trying to publish again
         while (mqttConnected && isWifiConnected && xQueueReceive(publishQueue, &queue_out, portMAX_DELAY) == pdTRUE)
         {
-            uint8_t currentQueueSize = uxQueueMessagesWaiting(publishQueue);
+            UBaseType_t currentQueueSize = uxQueueMessagesWaiting(publishQueue);
             maxUsedQueueSize = max(maxUsedQueueSize, currentQueueSize); // to track max used queue size for debugging purposes,
             // this musst be under PUBLISH_QUEUE_COUNT, if you see this value is close to the defined PUBLISH_QUEUE_COUNT,
             // you should consider increasing the queue size or publish interval to avoid dropping messages
+            
+            // for debugging purposes, print the current queue size and max used queue size
+            if (debug_flg)
+            {
+                DEBUG_PRINTLN("Current publish queue size: " + String(currentQueueSize) + ", Max used queue size (till now): " + String(maxUsedQueueSize));
+            }
+                        
+            // setState only if the maxUsedQueueSize has changed to avoid unnecessary MQTT publishes
             if (maxUsedQueueSize > oldMaxUsedQueueSize)
             {
                 oldMaxUsedQueueSize = maxUsedQueueSize;

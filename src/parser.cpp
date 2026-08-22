@@ -432,15 +432,6 @@ void readCellDataRecord(void *message, const char *devicename)
         char rawdata_topic[192];
         snprintf(rawdata_topic, sizeof(rawdata_topic), "%s%s", base_debug, "rawdata");
         toMqttQueueRawData(rawdata_topic, message_base64, strlen(message_base64));
-        toMqttQueueWithSuffix(base_debug, "enabled", "true");
-    }
-    else
-    {
-        if (debug_flg)
-        {
-            toMqttQueueWithSuffix(base_debug, "rawdata", "not published");
-            toMqttQueueWithSuffix(base_debug, "enabled", "false");
-        }
     }
 
     // Cell Voltages
