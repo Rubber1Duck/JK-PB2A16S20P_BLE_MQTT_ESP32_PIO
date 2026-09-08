@@ -213,10 +213,10 @@ void handleBmsPage(WebServer &server)
         "</div></div></div>");
 
     server.sendContent(
-        "<div class='card'><h2>MQTT Statistik</h2><div class='g2'><div>"
-        "<div class='kv'><span class='lbl'>Messages gesamt</span><span class='val' id='sv-msg-total'>--</span></div>"
-        "<div class='kv'><span class='lbl'>Messages/min</span><span class='val' id='sv-msg-min'>--</span></div>"
-        "</div><div></div></div></div>");
+        "<div class='card'><h2>MQTT Statistik</h2><div class='status'>"
+        "<div class='sc'><div class='sv' id='sv-msg-total'>--</div><div class='sl'>Messages gesamt</div></div>"
+        "<div class='sc'><div class='sv' id='sv-msg-min'>--</div><div class='sl'>Messages/min</div></div>"
+        "</div></div>");
 
     server.sendContent(
         "<div class='footer-links'>"
