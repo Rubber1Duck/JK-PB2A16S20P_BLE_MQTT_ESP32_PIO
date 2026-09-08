@@ -121,17 +121,13 @@ void handleBmsPage(WebServer &server)
         ".toolbar .ctrl{display:flex;align-items:center;gap:8px;background:#16213e;border-radius:8px;padding:6px 10px}"
         ".toolbar label{font-size:.78rem;color:#9fb3d1}"
         ".toolbar select{background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:2px 6px}"
-        ".grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}"
-        ".mini{background:#111a31;border-radius:8px;padding:8px;border:1px solid #27314a}"
-        ".mini .t{font-size:.72rem;color:#9fb3d1;margin-bottom:4px}"
-        ".mini canvas{width:100%;height:48px;display:block}"
         ".chip-wrap{display:flex;gap:8px;flex-wrap:wrap}"
         ".chip{display:inline-block;padding:6px 10px;border-radius:999px;font-size:.78rem;font-weight:600;border:1px solid #555;background:#2b2b2b;color:#d5d5d5}"
         ".chip-critical{background:#3a1111;color:#ff8d8d;border-color:#8c2d2d}"
         ".chip-warning{background:#3b280d;color:#ffc266;border-color:#8e5b16}"
         ".chip-neutral{background:#1c2538;color:#b9d3ff;border-color:#30486e}"
         ".muted{color:#93a4bf;font-size:.8rem}"
-        "@media (max-width:900px){.grid3{grid-template-columns:1fr}.g2{grid-template-columns:1fr}.status{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.sc{min-width:0}.cg{grid-template-columns:repeat(3,1fr)}}"
+        "@media (max-width:900px){.g2{grid-template-columns:1fr}.status{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.sc{min-width:0}.cg{grid-template-columns:repeat(3,1fr)}}"
         "@media (max-width:560px){.status{grid-template-columns:1fr}.cg{grid-template-columns:repeat(2,1fr)}.sv{font-size:1.25rem}}"
         "</style></head><body>");
 
@@ -142,11 +138,6 @@ void handleBmsPage(WebServer &server)
         "<div class='ctrl'><label for='refresh-ms'>Aktualisierung</label><select id='refresh-ms'><option value='1000'>1s</option><option value='2000' selected>2s</option><option value='5000'>5s</option><option value='10000'>10s</option></select></div>"
         "<div class='muted' id='alarm-summary'>Keine aktiven Alarme</div>"
         "</div>"
-        "<div class='card'><h2>Live-Trends</h2><div class='grid3'>"
-        "<div class='mini'><div class='t'>SOC %</div><canvas id='chart-soc' width='280' height='60'></canvas></div>"
-        "<div class='mini'><div class='t'>Batteriespannung V</div><canvas id='chart-vol' width='280' height='60'></canvas></div>"
-        "<div class='mini'><div class='t'>Batteriestrom A</div><canvas id='chart-cur' width='280' height='60'></canvas></div>"
-        "</div></div>"
         "<div class='card'><h2>Ger&#228;teinformationen</h2><div class='g2'>"
         "<div>"
         "<div class='kv'><span class='lbl'>Ger&#228;tename</span><span class='val' id='di-name'>--</span></div>"
@@ -222,6 +213,12 @@ void handleBmsPage(WebServer &server)
         "</div></div></div>");
 
     server.sendContent(
+        "<div class='card'><h2>MQTT Statistik</h2><div class='g2'><div>"
+        "<div class='kv'><span class='lbl'>Messages gesamt</span><span class='val' id='sv-msg-total'>--</span></div>"
+        "<div class='kv'><span class='lbl'>Messages/min</span><span class='val' id='sv-msg-min'>--</span></div>"
+        "</div><div></div></div></div>");
+
+    server.sendContent(
         "<div class='footer-links'>"
         "<a href='/reset_history'>Reset-Historie</a>"
         "<a href='/reset_esp' onclick=\"return confirm('ESP32 jetzt neu starten?');\">ESP32 neu starten</a>"
@@ -229,18 +226,16 @@ void handleBmsPage(WebServer &server)
         "</div>");
 
     server.sendContent("<script>"
-        "var hist={soc:[],vol:[],cur:[]},histMax=60,pollTimer=null;"
+        "var pollTimer=null;"
         "function s(id,v){var e=document.getElementById(id);if(e)e.textContent=v;}"
         "function cidx(v){var n=parseInt(v,10);return isNaN(n)?-1:n;}"
         "function setReasonBadge(id,text,cls){var e=document.getElementById(id);if(!e)return;e.textContent=text;e.className='reason-badge '+(cls||'reason-unknown');}"
         "function setTemp(id,rowId,val){var row=document.getElementById(rowId);if(!row)return;var n=parseFloat(val);var hide=(n===-200);row.style.display=hide?'none':'flex';if(!hide)s(id,val+' C');}"
         "function cc(v,a){var d=Math.abs(v-a);if(d>0.050)return 'lo';if(d>0.020)return 'hi';return 'ok';}"
         "function buildCells(d){var g=document.getElementById('cg'),h='',a=parseFloat(d.cells.vol_ave),maxIdx=cidx(d.cells.max_cell),minIdx=cidx(d.cells.min_cell);for(var i=0;i<32;i++){var b=(d.cells.sta>>i)&1,v=parseFloat(d.cells.vol[i]);if(!b)continue;var c=b?cc(v,a):'off';if(i===maxIdx)c+=' mx';if(i===minIdx)c+=' mn';h+='<div class=\"cell '+c+'\"><div class=\"cn\">Z'+(i+1)+'</div><div class=\"cv\">'+d.cells.vol[i]+'</div></div>';}g.innerHTML=h;}"
-        "function pushTrend(k,v){if(isNaN(v))return;hist[k].push(v);if(hist[k].length>histMax)hist[k].shift();}"
-        "function drawSpark(id,data,color){var c=document.getElementById(id);if(!c||data.length<2)return;var x=c.getContext('2d'),w=c.width,h=c.height,p=4,min=Math.min.apply(null,data),max=Math.max.apply(null,data),span=(max-min)||1;x.clearRect(0,0,w,h);x.strokeStyle='rgba(148,163,184,.25)';x.beginPath();x.moveTo(p,h-p);x.lineTo(w-p,h-p);x.stroke();x.strokeStyle=color;x.lineWidth=2;x.beginPath();for(var i=0;i<data.length;i++){var px=p+(i*(w-2*p))/Math.max(1,data.length-1);var py=h-p-((data[i]-min)/span)*(h-2*p);if(i===0)x.moveTo(px,py);else x.lineTo(px,py);}x.stroke();}"
         "function renderAlarms(d){var list=document.getElementById('alarm-list'),summary=document.getElementById('alarm-summary');if(!list||!summary)return;var a=d.cells.alarms||[];s('alarm-count',d.cells.alarm_count);if(!a.length){list.innerHTML='<span class=\\\"chip chip-neutral\\\">Keine aktiven Alarme</span>';summary.textContent='Keine aktiven Alarme';return;}var html='';for(var i=0;i<a.length;i++){html+='<span class=\\\"chip chip-critical\\\">'+a[i]+'</span>';}list.innerHTML=html;summary.textContent=a.length+' Alarm(e) aktiv';}"
         "function updateConfig(d){if(!d.config_ready){s('cfg-cells','--');s('cfg-cap','--');s('cfg-port','--');s('cfg-charge','--');s('cfg-discharge','--');s('cfg-balance','--');s('cfg-sleep','--');return;}s('cfg-cells',d.config.cell_count);s('cfg-cap',d.config.capacity_ah);s('cfg-port',d.config.port_switch);s('cfg-charge',d.config.charge_en);s('cfg-discharge',d.config.discharge_en);s('cfg-balance',d.config.balance_en);s('cfg-sleep',d.config.smart_sleep);}"
-        "function upd(d){document.getElementById('dot').className=d.cells_ready?'on':'oo';s('ts','Zuletzt: '+d.ts);if(d.device_ready){s('di-name',d.device.name);s('di-vid',d.device.vendor_id);s('di-hw-sw',d.device.hw_version+' / '+d.device.sw_version);s('di-fw',d.device.fw_version);s('di-bms-up',d.device.bms_uptime);s('di-esp-up',d.device.esp_uptime);}setReasonBadge('di-reset-reason',d.device.last_reset_reason,d.device.last_reset_reason_class);if(d.cells_ready){s('sv-soc',d.cells.soc);s('sv-vol',d.cells.bat_vol);s('sv-cur',d.cells.bat_cur);s('sv-pwr',d.cells.bat_watt);var f=document.getElementById('soc-bar'),soc=parseInt(d.cells.soc),maxIdx=cidx(d.cells.max_cell),minIdx=cidx(d.cells.min_cell);f.style.width=soc+'%';f.style.background=soc>50?'#00cc66':soc>20?'#ffaa00':'#cc3300';s('cv-ave',d.cells.vol_ave);s('cv-dif',d.cells.vol_dif);s('cv-max',maxIdx>=0?(maxIdx+1):'--');s('cv-min',minIdx>=0?(minIdx+1):'--');s('cd-cap',d.cells.cap_remain+' Ah');s('cd-cyc',d.cells.cycles);s('cd-ccap',d.cells.cycle_cap+' Ah');setTemp('cd-t1','row-t1',d.cells.temp1);setTemp('cd-t2','row-t2',d.cells.temp2);setTemp('cd-t3','row-t3',d.cells.temp3);setTemp('cd-t4','row-t4',d.cells.temp4);setTemp('cd-t5','row-t5',d.cells.temp5);s('x-soh',d.cells.soh+' %');s('x-runtime',d.cells.runtime_fmt);s('x-balance',d.cells.balance_status);s('x-heat',d.cells.heating);s('x-charge',d.cells.charge_mos);s('x-discharge',d.cells.discharge_mos);s('x-precharge',d.cells.precharge);s('x-alarm-mask',d.cells.alarm_mask);renderAlarms(d);pushTrend('soc',parseFloat(d.cells.soc));pushTrend('vol',parseFloat(d.cells.bat_vol));pushTrend('cur',parseFloat(d.cells.bat_cur));drawSpark('chart-soc',hist.soc,'#00d084');drawSpark('chart-vol',hist.vol,'#38bdf8');drawSpark('chart-cur',hist.cur,'#f59e0b');buildCells(d);}updateConfig(d);}"
+        "function upd(d){document.getElementById('dot').className=d.cells_ready?'on':'oo';s('ts','Zuletzt: '+d.ts);if(d.device_ready){s('di-name',d.device.name);s('di-vid',d.device.vendor_id);s('di-hw-sw',d.device.hw_version+' / '+d.device.sw_version);s('di-fw',d.device.fw_version);s('di-bms-up',d.device.bms_uptime);s('di-esp-up',d.device.esp_uptime);}setReasonBadge('di-reset-reason',d.device.last_reset_reason,d.device.last_reset_reason_class);if(d.status){s('sv-msg-total',d.status.messages_total);s('sv-msg-min',d.status.messages_per_minute);}if(d.cells_ready){s('sv-soc',d.cells.soc);s('sv-vol',d.cells.bat_vol);s('sv-cur',d.cells.bat_cur);s('sv-pwr',d.cells.bat_watt);var f=document.getElementById('soc-bar'),soc=parseInt(d.cells.soc),maxIdx=cidx(d.cells.max_cell),minIdx=cidx(d.cells.min_cell);f.style.width=soc+'%';f.style.background=soc>50?'#00cc66':soc>20?'#ffaa00':'#cc3300';s('cv-ave',d.cells.vol_ave);s('cv-dif',d.cells.vol_dif);s('cv-max',maxIdx>=0?(maxIdx+1):'--');s('cv-min',minIdx>=0?(minIdx+1):'--');s('cd-cap',d.cells.cap_remain+' Ah');s('cd-cyc',d.cells.cycles);s('cd-ccap',d.cells.cycle_cap+' Ah');setTemp('cd-t1','row-t1',d.cells.temp1);setTemp('cd-t2','row-t2',d.cells.temp2);setTemp('cd-t3','row-t3',d.cells.temp3);setTemp('cd-t4','row-t4',d.cells.temp4);setTemp('cd-t5','row-t5',d.cells.temp5);s('x-soh',d.cells.soh+' %');s('x-runtime',d.cells.runtime_fmt);s('x-balance',d.cells.balance_status);s('x-heat',d.cells.heating);s('x-charge',d.cells.charge_mos);s('x-discharge',d.cells.discharge_mos);s('x-precharge',d.cells.precharge);s('x-alarm-mask',d.cells.alarm_mask);renderAlarms(d);buildCells(d);}updateConfig(d);}"
         "function poll(){fetch('/api/bms').then(function(r){return r.json();}).then(function(d){upd(d);}).catch(function(){document.getElementById('dot').className='oo';});}"
         "function applyRefresh(){var sel=document.getElementById('refresh-ms');var ms=parseInt(sel.value)||2000;if(pollTimer)clearInterval(pollTimer);poll();pollTimer=setInterval(poll,ms);}"
         "document.getElementById('refresh-ms').addEventListener('change',applyRefresh);"

@@ -49,6 +49,7 @@ static uint32_t rawdata_drop_init_failed_count = 0;
 static uint32_t rawdata_drop_oversize_count = 0;
 static uint32_t rawdata_drop_pool_exhausted_count = 0;
 static uint32_t rawdata_drop_queue_full_count = 0;
+static uint32_t total_published_messages = 0;
 
 // Forward declaration: defined later in this file after PubSubClient constructor
 #ifdef USE_TLS
@@ -407,6 +408,33 @@ static void setStateU32(const char *key, uint32_t value, bool publish)
     setState(key, valueBuf, publish);
 }
 
+uint32_t getTotalPublishedMessages()
+{
+    return total_published_messages;
+}
+
+uint32_t getPublishedMessagesPerMinute()
+{
+    uint32_t uptimeSeconds = static_cast<uint32_t>(esp_timer_get_time() / 1000000ULL);
+    if (uptimeSeconds == 0 || total_published_messages == 0)
+    {
+        return 0;
+    }
+    return (total_published_messages * 60U) / uptimeSeconds;
+}
+
+void incrementPublishedMessageCounter()
+{
+    total_published_messages++;
+    setStateU32("messages_total", total_published_messages, false);
+    setStateU32("messages_per_minute", getPublishedMessagesPerMinute(), false);
+}
+
+static void trackPublishedMessage()
+{
+    incrementPublishedMessageCounter();
+}
+
 void publishStates()
 {
     for (const auto &kv : stateMap)
@@ -431,6 +459,8 @@ void publishStatesTask(void *pvParameters)
         setStateU32("rawdata_drop_oversize", rawdata_drop_oversize_count, false);
         setStateU32("rawdata_drop_pool_exhausted", rawdata_drop_pool_exhausted_count, false);
         setStateU32("rawdata_drop_queue_full", rawdata_drop_queue_full_count, false);
+        setStateU32("messages_total", total_published_messages, false);
+        setStateU32("messages_per_minute", getPublishedMessagesPerMinute(), false);
         publishStates();
         // Publish parameter topics periodically
         toMqttQueue(topic_debug_active, debug_flg ? "true" : "false");
@@ -742,6 +772,7 @@ void mqtt_init()
         setState("ipaddress", WiFi.localIP().toString(), false);
         setState("ble_connection", "startup", false);
         setState("status", "online", false);
+        setState("publishqueuesize", String(publishQueueCount), false);
                 
         // Create the task to call publishStates() every min_publish_time seconds
         // Stack erhöht von 2048 auf 4096 für Stabilität

@@ -64,7 +64,8 @@ void setup()
 #endif
 
     init_wifi();
-#ifdef USE_SYSLOG
+
+    #ifdef USE_SYSLOG
     syslog.server = SYSLOG_SERVER;
     syslog.port = SYSLOG_PORT;
     syslog.app = SYSLOG_APP;
@@ -72,6 +73,7 @@ void setup()
     syslog.host = SYSLOG_HOST;
 
 #endif
+
 #ifdef USE_TLS
     secure_wifi_client.setTimeout(15000);
 #ifdef MQTT_SKIP_CERT_VERIFY
@@ -135,7 +137,9 @@ void setup()
 #endif
 
     publish_init();
+    
     mqtt_init();
+    
     ble_setup();
 }
 
@@ -144,7 +148,10 @@ void loop()
 #ifdef USE_WEBSERVER
     webserverLoop();
 #endif
+    
     wifi_loop();
+    
     mqtt_loop();
+    
     ble_loop();
 }

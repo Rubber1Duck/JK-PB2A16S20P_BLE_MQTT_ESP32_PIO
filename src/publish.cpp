@@ -1,10 +1,15 @@
 #include "publish.h"
+#include <esp_heap_caps.h>
 
 QueueHandle_t publishQueue = NULL;
 QueueHandle_t rawPublishQueue = NULL;
+UBaseType_t publishQueueCount = PUBLISH_QUEUE_COUNT;
 
 UBaseType_t maxUsedQueueSize = 0;
 UBaseType_t oldMaxUsedQueueSize = 0;
+
+static StaticQueue_t publishQueueControlBlock;
+static uint8_t *publishQueueStoragePsram = nullptr;
 
 static uint8_t rawDataPool[RAWDATA_POOL_SLOT_COUNT][RAWDATA_POOL_SLOT_SIZE];
 static QueueHandle_t rawDataFreeSlots = NULL;
@@ -87,6 +92,10 @@ void publishRawTask(void *pvParameters)
                         mqtt_client.disconnect();
                     }
                 }
+                else
+                {
+                    incrementPublishedMessageCounter();
+                }
             }
 
             rawDataPoolFreeSlot(queue_out.slot_index);
@@ -151,7 +160,7 @@ void publishTask(void *pvParameters)
         {
             UBaseType_t currentQueueSize = uxQueueMessagesWaiting(publishQueue);
             maxUsedQueueSize = max(maxUsedQueueSize, currentQueueSize); // to track max used queue size for debugging purposes,
-            // this musst be under PUBLISH_QUEUE_COUNT, if you see this value is close to the defined PUBLISH_QUEUE_COUNT,
+            // this musst be under publishQueueCount, if you see this value is close to publishQueueCount,
             // you should consider increasing the queue size or publish interval to avoid dropping messages
             
             // for debugging purposes, print the current queue size and max used queue size
@@ -184,6 +193,8 @@ void publishTask(void *pvParameters)
                 break;
             }
 
+            incrementPublishedMessageCounter();
+
             {
                 std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
                 mqttConnected = (mqtt_client.state() == MQTT_CONNECTED);
@@ -197,17 +208,48 @@ void publishTask(void *pvParameters)
 
 void publish_init()
 {
-    // Create the publishqueue
-    publishQueue = xQueueCreate(PUBLISH_QUEUE_COUNT, sizeof(PublishMessage)); // Queue can hold PUBLISH_QUEUE_COUNT messages, adjust as needed
-    // PUBLISH_QUEUE_COUNT is defined in the header and can be adjusted, but be careful with too high values as it can cause
-    // stability issues with the MQTT client if the queue is filling up
+    publishQueueCount = PUBLISH_QUEUE_COUNT; // fallback for boards without PSRAM
+
+#ifdef BOARD_HAS_PSRAM
+    if (psramFound())
+    {
+        size_t psramTotal = ESP.getPsramSize();
+        size_t targetBytes = psramTotal / 2; // budget half of the installed PSRAM for the publish queue
+        UBaseType_t psramCount = static_cast<UBaseType_t>(targetBytes / sizeof(PublishMessage));
+        if (psramCount > publishQueueCount)
+        {
+            publishQueueCount = psramCount;
+        }
+
+        size_t storageBytes = static_cast<size_t>(publishQueueCount) * sizeof(PublishMessage);
+        // MALLOC_CAP_SPIRAM only succeeds if the memory is really taken from PSRAM - this is our proof of placement
+        publishQueueStoragePsram = static_cast<uint8_t *>(heap_caps_malloc(storageBytes, MALLOC_CAP_SPIRAM));
+        if (publishQueueStoragePsram != nullptr)
+        {
+            publishQueue = xQueueCreateStatic(publishQueueCount, sizeof(PublishMessage), publishQueueStoragePsram, &publishQueueControlBlock);
+            DEBUG_PRINTLN("Publish-Queue mit " + String(publishQueueCount) + " Eintraegen erfolgreich im PSRAM angelegt (" + String(storageBytes) + " Bytes)");
+        }
+        else
+        {
+            DEBUG_PRINTLN("PSRAM-Allokation fuer Publish-Queue fehlgeschlagen, falle auf Standardgroesse im internen RAM zurueck");
+            publishQueueCount = PUBLISH_QUEUE_COUNT;
+        }
+    }
+#endif
+
+    if (publishQueue == NULL)
+    {
+        // Create the publishqueue in internal RAM (default heap) - fallback path or non-PSRAM boards
+        publishQueue = xQueueCreate(publishQueueCount, sizeof(PublishMessage));
+    }
+
     if (publishQueue == NULL)
     {
         DEBUG_PRINTLN("Failed to create publish queue"); //without this, the system cannot function properly, so we restart to try again
         ESP.restart(); // Restart if queue creation fails
     }
     else {
-        DEBUG_PRINTLN("Publish queue created successfully");
+        DEBUG_PRINTLN("Publish queue created successfully (depth: " + String(publishQueueCount) + ")");
     }
 
     // Create the publish task

@@ -184,7 +184,14 @@ void handleBmsApi()
     }
     j += "]";
     j += "},";
+    uint32_t uptimeSeconds = static_cast<uint32_t>(esp_timer_get_time() / 1000000ULL);
+    uint32_t totalPublishedMessages = getTotalPublishedMessages();
+    uint32_t messagesPerMinute = (uptimeSeconds > 0 && totalPublishedMessages > 0) ? (totalPublishedMessages * 60U) / uptimeSeconds : 0;
 
+    j += "\"status\":{";
+    j += "\"messages_total\":" + String(totalPublishedMessages) + ",";
+    j += "\"messages_per_minute\":" + String(messagesPerMinute);
+    j += "},";
     j += "\"config\":{";
     j += "\"cell_count\":" + String(configinfo.CellCount[0]) + ",";
     j += "\"capacity_ah\":\"" + String(static_cast<float>(configinfo.CapBatCell) * 0.001f, 3) + "\",";

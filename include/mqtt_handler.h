@@ -31,6 +31,9 @@ bool toMqttQueue(String topic, String payload, bool retain = false);
 void toMqttQueueRawData(String topic, const char *payload, size_t payloadLen);
 bool waitForTimeSync(uint32_t timeoutMs = 30000);
 void mqtt_tls_stop();
+uint32_t getTotalPublishedMessages();
+uint32_t getPublishedMessagesPerMinute();
+void incrementPublishedMessageCounter();
 
 // MQTT Setting
 // MQTT Client name used when connecting to broker
