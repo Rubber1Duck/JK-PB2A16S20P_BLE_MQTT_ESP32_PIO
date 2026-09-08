@@ -65,7 +65,7 @@ void setup()
 
     init_wifi();
 
-    #ifdef USE_SYSLOG
+#ifdef USE_SYSLOG
     syslog.server = SYSLOG_SERVER;
     syslog.port = SYSLOG_PORT;
     syslog.app = SYSLOG_APP;

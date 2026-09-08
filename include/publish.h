@@ -1,6 +1,7 @@
 #ifndef PUBLISH_H
 #define PUBLISH_H
 #include <Arduino.h>
+#include "config.h"
 #include "macros.h"
 #include "mqtt_handler.h"
 #include "struct_MQTT_Queue.h"
