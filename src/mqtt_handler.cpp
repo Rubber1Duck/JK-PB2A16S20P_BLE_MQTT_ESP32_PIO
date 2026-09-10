@@ -445,6 +445,10 @@ void publishStates()
 {
     for (const auto &kv : stateMap)
     {
+        if (kv.first == "uptime")
+        {
+            continue;
+        }
         char fullTopic[192];
         snprintf(fullTopic, sizeof(fullTopic), "%s/status/%s", mqttname.c_str(), kv.first.c_str());
         toMqttQueue(fullTopic, kv.second.c_str());
@@ -456,8 +460,6 @@ void publishStatesTask(void *pvParameters)
 {
     while (true)
     {
-        // update uptime before publishing states
-        setState("uptime", formatUptime(esp_timer_get_time() / 1000000), false);
         setStateU32("rawpool_free_slots", rawDataPoolFreeCount(), false);
         setStateU32("rawpool_capacity", RAWDATA_POOL_SLOT_COUNT, false);
         setStateU32("rawdata_enqueued", rawdata_enqueued_count, false);
@@ -704,6 +706,8 @@ boolean mqtt_reconnect()
 void mqtt_loop()
 {
     static bool lastConnected = false;
+    static uint32_t lastUptimePublish = 0;
+    static bool uptimePublished = false;
 
     bool connected = false;
     {
@@ -755,6 +759,19 @@ void mqtt_loop()
         if (!loopOk)
         {
             DEBUG_PRINTLN("MQTT loop failed, reconnect scheduled. state=" + String(mqtt_client.state()));
+        }
+    }
+
+    uint32_t nowMs = millis();
+    if (!uptimePublished || nowMs - lastUptimePublish >= 5000)
+    {
+        String uptimeValue = formatUptime(esp_timer_get_time() / 1000000);
+        setState("uptime", uptimeValue, false);
+        String uptimeTopic = mqttname + "/status/uptime";
+        if (toMqttQueue(uptimeTopic, uptimeValue))
+        {
+            lastUptimePublish = nowMs;
+            uptimePublished = true;
         }
     }
 }
