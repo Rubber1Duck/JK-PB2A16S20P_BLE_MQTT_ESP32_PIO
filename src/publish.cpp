@@ -214,7 +214,7 @@ void publish_init()
     if (psramFound())
     {
         size_t psramTotal = ESP.getPsramSize();
-        size_t targetBytes = psramTotal / 2; // budget half of the installed PSRAM for the publish queue
+        size_t targetBytes = psramTotal / 4 * 3; // dedicate three-quarters of the installed PSRAM for the publish queue
         UBaseType_t psramCount = static_cast<UBaseType_t>(targetBytes / sizeof(PublishMessage));
         if (psramCount > publishQueueCount)
         {

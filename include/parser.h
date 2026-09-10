@@ -11,11 +11,12 @@
 #include "struct_cell_data.h"   // CellData structure
 #include "struct_config_info.h" // ConfigInfo structure
 
-void readDeviceInfoRecord(void *message, const char *devicename);
-void readCellDataRecord(void *message, const char *devicename);
-void readConfigInfoRecord(void *message, const char *devicename);
+void readDeviceInfoRecord(void *message, const char *devicename, int64_t timestamp);
+void readCellDataRecord(void *message, const char *devicename, int64_t timestamp);
+void readConfigInfoRecord(void *message, const char *devicename, int64_t timestamp);
 void republishCachedRecords(const char *devicename);
 String getLocalTimeString();
+int64_t currentEpochMillis();
 
 extern DeviceInfo deviceinfo;
 extern CellData celldata;

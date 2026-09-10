@@ -1,11 +1,16 @@
 #include "parser.h"
+#include <cmath>
 #include <cstring>
 #include <type_traits>
+#include <random>
 
 uint32_t lastPublishTimeCellData = 0;
 uint32_t lastDataReceivedTime = 0;
 bool first_run = true;
 const uint8_t pos_of_Counter = 5; // position of FrameCounter in the message
+
+// Timestamp (epoch milliseconds) of the currently processed frame, captured in notifyCB right after the full message was received (CRC OK)
+static int64_t currentRecordTimestamp = 0;
 
 // variables for charge/discharge / day calculation
 float Q_charged = 0;    // charge in As
@@ -17,9 +22,17 @@ float Q_charged_mAh_old = 0;
 float Q_discharged_mAh_old = 0;
 char Q_charged_mAh_str[32];
 char Q_discharged_mAh_str[32];
+float heating_power = 0;
+float heating_power_old = 0;
+char heating_power_str[32];
+
 uint32_t battery_power_calculated = 0;
 
 uint8_t counter_last = 0;
+
+//std::random_device rd;  
+//std::mt19937 gen(rd());
+//std::uniform_int_distribution<int> distrib(0, 7000);
 
 constexpr uint32_t PARSER_PERF_LOG_INTERVAL_MS = 60000;
 uint32_t parserPerfLastLogMs = 0;
@@ -154,6 +167,33 @@ static PublishTimeSlot &resolvePublishTimeSlot(const char *topic)
     return publishTimeSlots[start];
 }
 
+// Wraps numeric values as JSON numbers and other values as escaped JSON strings.
+static void buildJsonValuePayload(char *out, size_t outSize, const char *value)
+{
+    char *end = nullptr;
+    const double parsedValue = value == nullptr ? 0.0 : strtod(value, &end);
+    const bool isNumber = value != nullptr && value[0] != '\0' && end != value && *end == '\0' && std::isfinite(parsedValue);
+    if (isNumber)
+    {
+        snprintf(out, outSize, "{\"time\":%lld,\"value\":%s}", static_cast<long long>(currentRecordTimestamp), value);
+        return;
+    }
+
+    char escaped[96];
+    size_t j = 0;
+    for (size_t i = 0; value != nullptr && value[i] != '\0' && j < sizeof(escaped) - 2; ++i)
+    {
+        char c = value[i];
+        if (c == '"' || c == '\\')
+        {
+            escaped[j++] = '\\';
+        }
+        escaped[j++] = c;
+    }
+    escaped[j] = '\0';
+    snprintf(out, outSize, "{\"time\":%lld,\"value\":\"%s\"}", static_cast<long long>(currentRecordTimestamp), escaped);
+}
+
 template <typename T>
 void publishIfChanged(T &currentValue, T newValue, const char *publishValue, const char *topic)
 {
@@ -169,8 +209,10 @@ void publishIfChanged(T &currentValue, T newValue, const char *publishValue, con
     // Check if the value has changed or MIN_PUB_TIME is greater than 0 and the time has passed since the last publish
     if (currentValue != newValue || (min_pub_time > 0 && (currentTime - lastPublishTimeTopic) >= (static_cast<uint32_t>(min_pub_time) * 1000UL)))
     {
+        char jsonPayload[128];
+        buildJsonValuePayload(jsonPayload, sizeof(jsonPayload), publishValue);
         // Only advance change tracking when the message was really enqueued.
-        if (toMqttQueue(topic, publishValue))
+        if (toMqttQueue(topic, jsonPayload))
         {
             currentValue = newValue;
             slot.lastPublishTime = currentTime; // Update the last publish time for the topic
@@ -190,14 +232,18 @@ static void toMqttQueueWithSuffix(const char *baseTopic, const char *suffix, con
 {
     char topic[192];
     snprintf(topic, sizeof(topic), "%s%s", baseTopic, suffix);
-    toMqttQueue(topic, payload, retain);
+    char jsonPayload[128];
+    buildJsonValuePayload(jsonPayload, sizeof(jsonPayload), payload);
+    toMqttQueue(topic, jsonPayload, retain);
 }
 
 static void toMqttQueueWithSuffix(const char *baseTopic, const char *suffix, const String &payload, bool retain = false)
 {
     char topic[192];
     snprintf(topic, sizeof(topic), "%s%s", baseTopic, suffix);
-    toMqttQueue(topic, payload.c_str(), retain);
+    char jsonPayload[128];
+    buildJsonValuePayload(jsonPayload, sizeof(jsonPayload), payload.c_str());
+    toMqttQueue(topic, jsonPayload, retain);
 }
 
 template <typename T>
@@ -268,13 +314,21 @@ String getLocalTimeString()
     return String(timeBuffer);
 }
 
+int64_t currentEpochMillis()
+{
+    struct timeval tv;
+    gettimeofday(&tv, nullptr);
+    return static_cast<int64_t>(tv.tv_sec) * 1000LL + tv.tv_usec / 1000;
+}
+
 DeviceInfo deviceinfo;
 bool has_device_info = false;
 
-void readDeviceInfoRecord(void *message, const char *devicename)
+void readDeviceInfoRecord(void *message, const char *devicename, int64_t timestamp)
 {
     // Startzeit für die Verarbeitung des Datensatzes
     // uint32_t start_time = millis();
+    currentRecordTimestamp = timestamp;
     memcpy(&deviceinfo, message, 300); // Kopiere 300 Bytes in die Struktur
     has_device_info = true;
 
@@ -359,9 +413,10 @@ CellData celldata;
 bool has_cell_data = false;
 CellDataOld cdOld; // Array to store old values, used for comparison and change detection
 
-void readCellDataRecord(void *message, const char *devicename)
+void readCellDataRecord(void *message, const char *devicename, int64_t timestamp)
 {
     uint32_t start_time = millis();
+    currentRecordTimestamp = timestamp;
     
     // if first run initialize lastDataReceivedTime and lastPublishTimeCellData with the current time and return without processing the data.
     if (first_run)
@@ -594,6 +649,16 @@ void readCellDataRecord(void *message, const char *devicename)
     // Heating Current
     publishIfChangedWithSuffix(cdOld.HeatCurrent, celldata.HeatCurrent, celldata.HeatCurrent_fmt, base_data, "heat_current");
 
+    // calculate Heating Power (HeatCurrent is in mA and BatVol is in mV!)
+    heating_power = celldata.HeatCurrent * celldata.BatVol * 0.000001; // HeatCurrent in mA, BatVol in mV, result in W
+    // debug calculation for heating power
+    // int zufallszahl = distrib(gen);
+    // DEBUG_PRINTF("Random HeatCurrent value: %d\n", zufallszahl);
+    //heating_power = zufallszahl * celldata.BatVol * 0.000001; // HeatCurrent in mA, BatVol in mV, result in W debug
+    snprintf(heating_power_str, sizeof(heating_power_str), "%.3f", heating_power);
+    publishIfChangedWithSuffix(heating_power_old, heating_power, heating_power_str, base_data, "heat_power");
+    heating_power_old = heating_power;
+
     // System run ticks, unit: 0.1s, range: 0~4294967295
     publishIfChangedWithSuffix(cdOld.SysRunTicks, celldata.SysRunTicks, celldata.SysRunTicks_fmt, base_data, "sys_run_ticks");
 
@@ -696,10 +761,11 @@ void readCellDataRecord(void *message, const char *devicename)
 ConfigInfo configinfo;
 bool has_config_info = false;
 
-void readConfigInfoRecord(void *message, const char *devicename)
+void readConfigInfoRecord(void *message, const char *devicename, int64_t timestamp)
 {
     // Startzeit für die Verarbeitung des Datensatzes
     // uint32_t start_time = millis();
+    currentRecordTimestamp = timestamp;
 
     // Kopiere die empfangenen Bytes in die ConfigInfo-Struktur
     memcpy(&configinfo, message, 300); // Kopiere 300 Bytes in die Struktur
@@ -817,16 +883,18 @@ void republishCachedRecords(const char *devicename)
         return;
     }
 
+    int64_t republishTimestamp = currentEpochMillis(); // cached records have no frame timestamp of their own, use current time
+
     if (has_device_info)
     {
-        readDeviceInfoRecord(&deviceinfo, devicename);
+        readDeviceInfoRecord(&deviceinfo, devicename, republishTimestamp);
     }
     if (has_config_info)
     {
-        readConfigInfoRecord(&configinfo, devicename);
+        readConfigInfoRecord(&configinfo, devicename, republishTimestamp);
     }
     if (has_cell_data)
     {
-        readCellDataRecord(&celldata, devicename);
+        readCellDataRecord(&celldata, devicename, republishTimestamp);
     }
 }

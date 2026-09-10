@@ -48,7 +48,7 @@ QueueHandle_t bleQueue;
 #endif
 
 // forks into message parser by message type
-void parser(void *message) {
+void parser(void *message, int64_t timestamp) {
     uint8_t *msg = static_cast<uint8_t *>(message);
     uint8_t type = msg[pos_of_FrameType]; // 4. Byte decides the frame type
     uint8_t frameCounter = msg[pos_of_FrameCounter]; // 5. Byte is the frame counter
@@ -56,7 +56,7 @@ void parser(void *message) {
     switch (type) {
     case 0x01:
         DEBUG_PRINTF("Received Config Info. Frame Counter: %d\n", frameCounter);
-        readConfigInfoRecord(message, devicename);
+        readConfigInfoRecord(message, devicename, timestamp);
         break;
     
     case 0x02:
@@ -65,12 +65,12 @@ void parser(void *message) {
             CD_running = true; // Set the flag to indicate that we are now receiving cell data frames
             DEBUG_PRINTLN("Started receiving cell data frames.");
         }
-        readCellDataRecord(message, devicename);
+        readCellDataRecord(message, devicename, timestamp);
         break;
     
     case 0x03:
         DEBUG_PRINTF("Received Device Info. Frame Counter: %d\n", frameCounter);
-        readDeviceInfoRecord(message, devicename);
+        readDeviceInfoRecord(message, devicename, timestamp);
         break;
     
     default:
@@ -235,6 +235,8 @@ void notifyCB(NimBLERemoteCharacteristic *pRemoteCharacteristic, uint8_t *pData,
 
         // if 300 bytes received and CRC_Check OK call parser
         if (ble_buffer_index >= BUFFER_SIZE && CRC_Check(ble_buffer, BUFFER_SIZE)){
+
+            int64_t frameTimestamp = currentEpochMillis(); // Zeitstempel (ms) unmittelbar nach vollstaendigem Empfang der Nachricht
             std::vector<uint8_t> message(ble_buffer, ble_buffer + BUFFER_SIZE);
             ble_buffer_index = 0;
             capturing = false; // waiting for next start sequence
@@ -242,10 +244,13 @@ void notifyCB(NimBLERemoteCharacteristic *pRemoteCharacteristic, uint8_t *pData,
             // .. and call parser or send message to queue for parser task
 
 #ifdef DUALCORE
-            // Add message to queue
-            if (xQueueSend(bleQueue, message.data(), 0) != pdTRUE) DEBUG_PRINTLN("Failed to send message to queue");
+            // Add message + timestamp to queue
+            BleFrame frame;
+            memcpy(frame.data, message.data(), BUFFER_SIZE);
+            frame.timestamp = frameTimestamp;
+            if (xQueueSend(bleQueue, &frame, 0) != pdTRUE) DEBUG_PRINTLN("Failed to send message to queue");
 #else
-            parser(static_cast<void *>(message.data()));
+            parser(static_cast<void *>(message.data()), frameTimestamp);
 #endif
         }
     }
@@ -431,15 +436,15 @@ void ble_loop() {
 
 // Define the parser task
 void parserTask(void *pvParameters) {
-    uint8_t messageFromQueue[BUFFER_SIZE];
+    BleFrame frameFromQueue;
     time_t lastParserTime = 0;
 
     while (true) {
         // Receive data from the queue
-        if (xQueueReceive(bleQueue, &messageFromQueue, portMAX_DELAY) == pdTRUE) {
+        if (xQueueReceive(bleQueue, &frameFromQueue, portMAX_DELAY) == pdTRUE) {
             lastParserTime = millis(); // Update the last parser time when a message is received
             // Call the parser function
-            parser(messageFromQueue);
+            parser(frameFromQueue.data, frameFromQueue.timestamp);
         }
         while (millis() - lastParserTime < 25) {
             // Wait until 25 milliseconds have passed since the last parser call
@@ -453,7 +458,7 @@ void ble_setup() {
     
 #ifdef DUALCORE
     // Create the queue
-    bleQueue = xQueueCreate(20, sizeof(uint8_t[BUFFER_SIZE]));
+    bleQueue = xQueueCreate(20, sizeof(BleFrame));
     DEBUG_PRINTLN("BLE queue created");
 
     // Create the parser task on core 1
