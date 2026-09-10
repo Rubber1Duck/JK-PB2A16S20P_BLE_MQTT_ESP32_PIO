@@ -1,4 +1,5 @@
 #include "publish.h"
+#include "parser.h"
 #include <esp_heap_caps.h>
 
 QueueHandle_t publishQueue = NULL;
@@ -173,7 +174,11 @@ void publishTask(void *pvParameters)
             if (maxUsedQueueSize > oldMaxUsedQueueSize)
             {
                 oldMaxUsedQueueSize = maxUsedQueueSize;
-                setState("maxpubqueue", String(maxUsedQueueSize), true);
+                String maxUsedQueueSizeStr = String(maxUsedQueueSize);
+                setState("maxpubqueue", maxUsedQueueSizeStr, false);
+                char maxPubQueuePayload[64];
+                snprintf(maxPubQueuePayload, sizeof(maxPubQueuePayload), "{\"time\":%lld,\"value\":%s}", static_cast<long long>(currentEpochMillis()), maxUsedQueueSizeStr.c_str());
+                toMqttQueue(mqttname + "/status/maxpubqueue", maxPubQueuePayload);
             }
             
             //  Call the publish function

@@ -783,7 +783,9 @@ void mqtt_loop()
         String uptimeValue = formatUptime(esp_timer_get_time() / 1000000);
         setState("uptime", uptimeValue, false);
         String uptimeTopic = mqttname + "/status/uptime";
-        if (toMqttQueue(uptimeTopic, uptimeValue))
+        char uptimePayload[160];
+        snprintf(uptimePayload, sizeof(uptimePayload), "{\"time\":%lld,\"value\":\"%s\"}", static_cast<long long>(currentEpochMillis()), uptimeValue.c_str());
+        if (toMqttQueue(uptimeTopic, uptimePayload))
         {
             lastUptimePublish = nowMs;
             uptimePublished = true;
