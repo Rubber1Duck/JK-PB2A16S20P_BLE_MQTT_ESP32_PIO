@@ -191,10 +191,22 @@ void handleBmsApi()
     uint32_t uptimeSeconds = static_cast<uint32_t>(esp_timer_get_time() / 1000000ULL);
     uint32_t totalPublishedMessages = getTotalPublishedMessages();
     uint32_t messagesPerMinute = (uptimeSeconds > 0 && totalPublishedMessages > 0) ? (totalPublishedMessages * 60U) / uptimeSeconds : 0;
+    String publishQueueSize = getState("publishqueuesize");
+    String maxPublishQueue = getState("maxpubqueue");
+    String maxPublishQueuePercent = "";
+    uint32_t queueSize = static_cast<uint32_t>(publishQueueSize.toInt());
+    if (queueSize > 0 && maxPublishQueue.length() > 0)
+    {
+        float percent = (static_cast<float>(maxPublishQueue.toInt()) * 100.0f) / static_cast<float>(queueSize);
+        maxPublishQueuePercent = String(percent, 1) + "%";
+    }
 
     j += "\"status\":{";
     j += "\"messages_total\":" + String(totalPublishedMessages) + ",";
-    j += "\"messages_per_minute\":" + String(messagesPerMinute);
+    j += "\"messages_per_minute\":" + String(messagesPerMinute) + ",";
+    j += "\"publish_queue_size\":\"" + jsonEscape(publishQueueSize) + "\",";
+    j += "\"max_publish_queue\":\"" + jsonEscape(maxPublishQueue) + "\",";
+    j += "\"max_publish_queue_percent\":\"" + jsonEscape(maxPublishQueuePercent) + "\"";
     j += "},";
     j += "\"config\":{";
     j += "\"cell_count\":" + String(configinfo.CellCount[0]) + ",";

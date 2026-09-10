@@ -393,7 +393,10 @@ void setState(const char *key, const char *value, bool publish)
         return;
     }
 
-    stateMap[key] = value;
+    {
+        std::lock_guard<std::mutex> lock(mqttQueueMutex);
+        stateMap[key] = value;
+    }
     if (publish)
     {
         char fullTopic[192];
@@ -405,6 +408,18 @@ void setState(const char *key, const char *value, bool publish)
 void setState(String key, String value, bool publish)
 {
     setState(key.c_str(), value.c_str(), publish);
+}
+
+String getState(const char *key)
+{
+    if (key == nullptr)
+    {
+        return "";
+    }
+
+    std::lock_guard<std::mutex> lock(mqttQueueMutex);
+    auto state = stateMap.find(key);
+    return state == stateMap.end() ? "" : state->second;
 }
 
 static void setStateU32(const char *key, uint32_t value, bool publish)
