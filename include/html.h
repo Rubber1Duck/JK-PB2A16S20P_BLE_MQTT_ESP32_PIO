@@ -23,6 +23,7 @@ const char *get_reset_reason_class(esp_reset_reason_t reason);
 
 void handleBmsPage(WebServer &server);
 void handleResetHistoryPage(WebServer &server, const ResetEntry *history, size_t historyCount);
+void handleMqttConfigPage(WebServer &server);
 
 #endif // USE_WEBSERVER
 

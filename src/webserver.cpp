@@ -9,6 +9,7 @@
 
 #include "macros.h"
 #include "mqtt_handler.h"
+#include "mqtt_publish_config.h"
 #include "parser.h"
 
 extern Preferences prefs;
@@ -211,6 +212,29 @@ void handleRoot()
     handleBmsPage(server);
 }
 
+void handleMqttConfig()
+{
+    if (!server.hasArg("field") || !server.hasArg("enabled"))
+    {
+        server.send(400, "text/plain", "Fehlende Parameter");
+        return;
+    }
+
+    String field = server.arg("field");
+    int separator = field.indexOf(':');
+    if (separator <= 0 || separator >= field.length() - 1)
+    {
+        server.send(400, "text/plain", "Ungueltiges Feld");
+        return;
+    }
+
+    String category = field.substring(0, separator);
+    String suffix = field.substring(separator + 1);
+    bool enabled = server.arg("enabled") == "1";
+    setMqttPublishFieldEnabled(category.c_str(), suffix.c_str(), enabled);
+    server.send(204, "text/plain", "");
+}
+
 void handleResetHistory()
 {
     handleResetHistoryPage(server, g_history, g_historyCount);
@@ -256,6 +280,8 @@ void setupWebserver(ResetEntry *history, size_t historyCount, const char *nvsKey
     server.on("/clear", handleClear);
     server.on("/reset_esp", handleEspReset);
     server.on("/bms", handleRoot);
+    server.on("/mqtt_config", []() { handleMqttConfigPage(server); });
+    server.on("/api/mqtt_config", HTTP_POST, handleMqttConfig);
     server.on("/api/bms", handleBmsApi);
     server.on("/ota", []() {
         server.send(200, "text/plain", "Hi! This is ElegantOTA Demo 2.");

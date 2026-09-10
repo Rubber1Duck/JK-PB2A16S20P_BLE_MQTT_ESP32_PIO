@@ -1,5 +1,6 @@
 #include "mqtt_handler.h"
 #include "publish.h"
+#include "mqtt_publish_config.h"
 #include "parser.h"
 
 #include <ctype.h>
@@ -278,6 +279,11 @@ String formatUptime(time_t uptime)
 
 bool toMqttQueue(const char *topic, const char *payload, bool retain)
 {
+    if (!isMqttPublishFieldEnabled(topic))
+    {
+        return false;
+    }
+
     std::lock_guard<std::mutex> lock(mqttQueueMutex);
     {
         std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
