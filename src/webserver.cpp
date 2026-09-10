@@ -200,13 +200,31 @@ void handleBmsApi()
         float percent = (static_cast<float>(maxPublishQueue.toInt()) * 100.0f) / static_cast<float>(queueSize);
         maxPublishQueuePercent = String(percent, 1) + "%";
     }
+    String maxBufferTimeMinutes = "";
+    if (queueSize > 0 && messagesPerMinute > 0)
+    {
+        float bufferMinutes = static_cast<float>(queueSize) / static_cast<float>(messagesPerMinute);
+        maxBufferTimeMinutes = String(bufferMinutes, 1);
+    }
+    // publish task drains one message per publishInterval; incoming messages refill the queue while draining
+    String drainTimeMinutes = "";
+    if (queueSize > 0 && publishInterval > 0)
+    {
+        float drainRatePerMinute = 60000.0f / static_cast<float>(publishInterval);
+        float netDrainRatePerMinute = drainRatePerMinute - static_cast<float>(messagesPerMinute);
+        drainTimeMinutes = (netDrainRatePerMinute > 0.0f)
+                               ? String(static_cast<float>(queueSize) / netDrainRatePerMinute, 1)
+                               : "unendlich";
+    }
 
     j += "\"status\":{";
     j += "\"messages_total\":" + String(totalPublishedMessages) + ",";
     j += "\"messages_per_minute\":" + String(messagesPerMinute) + ",";
     j += "\"publish_queue_size\":\"" + jsonEscape(publishQueueSize) + "\",";
     j += "\"max_publish_queue\":\"" + jsonEscape(maxPublishQueue) + "\",";
-    j += "\"max_publish_queue_percent\":\"" + jsonEscape(maxPublishQueuePercent) + "\"";
+    j += "\"max_publish_queue_percent\":\"" + jsonEscape(maxPublishQueuePercent) + "\",";
+    j += "\"max_buffer_time_min\":\"" + jsonEscape(maxBufferTimeMinutes) + "\",";
+    j += "\"drain_time_min\":\"" + jsonEscape(drainTimeMinutes) + "\"";
     j += "},";
     j += "\"config\":{";
     j += "\"cell_count\":" + String(configinfo.CellCount[0]) + ",";
