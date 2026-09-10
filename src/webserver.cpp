@@ -144,7 +144,10 @@ void handleBmsApi()
     j += "\"max_cell\":" + String(celldata.MaxVolCellNbr) + ",";
     j += "\"min_cell\":" + String(celldata.MinVolCellNbr) + ",";
     j += "\"bat_vol\":\"" + String(celldata.BatVol_fmt) + "\",";
-    j += "\"bat_watt\":\"" + String(celldata.BatWatt_fmt) + "\",";
+    float calculatedBatteryPower = celldata.BatCurrent < 0
+                                       ? -static_cast<float>(celldata.BatWatt) * 0.001f
+                                       : static_cast<float>(celldata.BatWatt) * 0.001f;
+    j += "\"bat_watt\":\"" + String(calculatedBatteryPower, 3) + "\",";
     j += "\"bat_cur\":\"" + String(celldata.BatCurrent_fmt) + "\",";
     j += "\"temp1\":\"" + String(celldata.TempBat1_fmt) + "\",";
     j += "\"temp2\":\"" + String(celldata.TempBat2_fmt) + "\",";
