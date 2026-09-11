@@ -213,14 +213,18 @@ void publishTask(void *pvParameters)
 
 void publish_init()
 {
+    bool useStandartQueue = true;
     publishQueueCount = PUBLISH_QUEUE_COUNT; // fallback for boards without PSRAM
 
-#ifdef BOARD_HAS_PSRAM
+    // psramFound() is always safe to call: on boards/builds without PSRAM support it simply returns false.
     if (psramFound())
     {
         size_t psramTotal = ESP.getPsramSize();
+        DEBUG_PRINTLN("PSRAM gefunden. Größe: " + String(psramTotal) + " Bytes");
         size_t targetBytes = psramTotal / 4 * 3; // dedicate three-quarters of the installed PSRAM for the publish queue
+        DEBUG_PRINTLN("Publish-Queue benutzt 3/4 des vorhandenen PSRAMs: " + String(targetBytes) + " Bytes");
         UBaseType_t psramCount = static_cast<UBaseType_t>(targetBytes / sizeof(PublishMessage));
+        DEBUG_PRINTLN("Berechnete PSRAM-Publish-Queue-Anzahl: " + String(psramCount));
         if (psramCount > publishQueueCount)
         {
             publishQueueCount = psramCount;
@@ -232,29 +236,33 @@ void publish_init()
         if (publishQueueStoragePsram != nullptr)
         {
             publishQueue = xQueueCreateStatic(publishQueueCount, sizeof(PublishMessage), publishQueueStoragePsram, &publishQueueControlBlock);
-            DEBUG_PRINTLN("Publish-Queue mit " + String(publishQueueCount) + " Eintraegen erfolgreich im PSRAM angelegt (" + String(storageBytes) + " Bytes)");
+            DEBUG_PRINTLN("Publish-Queue mit " + String(publishQueueCount) + " Einträgen erfolgreich im PSRAM angelegt (" + String(storageBytes) + " Bytes)");
+            useStandartQueue = false;
         }
         else
         {
             DEBUG_PRINTLN("PSRAM-Allokation fuer Publish-Queue fehlgeschlagen, falle auf Standardgroesse im internen RAM zurueck");
             publishQueueCount = PUBLISH_QUEUE_COUNT;
+            useStandartQueue = true;
         }
     }
-#endif
 
-    if (publishQueue == NULL)
+    if (useStandartQueue)
     {
         // Create the publishqueue in internal RAM (default heap) - fallback path or non-PSRAM boards
         publishQueue = xQueueCreate(publishQueueCount, sizeof(PublishMessage));
-    }
+    
 
-    if (publishQueue == NULL)
-    {
-        DEBUG_PRINTLN("Failed to create publish queue"); //without this, the system cannot function properly, so we restart to try again
-        ESP.restart(); // Restart if queue creation fails
-    }
-    else {
-        DEBUG_PRINTLN("Publish queue created successfully (depth: " + String(publishQueueCount) + ")");
+        if (publishQueue == NULL)
+        {
+            DEBUG_PRINTLN("Failed to create publish queue"); //without this, the system cannot function properly, so we restart to try again
+            delay(1000); // Wait a moment before restarting
+            ESP.restart(); // Restart if queue creation fails
+        }
+        else {
+            DEBUG_PRINTLN("Publish queue created successfully (depth: " + String(publishQueueCount) + ")");
+        }
+
     }
 
     // Create the publish task

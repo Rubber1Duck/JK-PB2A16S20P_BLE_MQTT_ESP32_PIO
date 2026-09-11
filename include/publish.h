@@ -11,7 +11,7 @@
 // so the non-PSRAM queue budget stays roughly the same as before (255*257 ~= 400*167 Bytes).
 #define PUBLISH_QUEUE_COUNT 400u // Default/fallback queue depth for boards without PSRAM,
 // be careful with too high values as it can cause stability issues with the MQTT client if the queue is filling up.
-// On boards with PSRAM (BOARD_HAS_PSRAM), publish_init() raises the actual depth at runtime -
+// publish_init() detects PSRAM at runtime via psramFound() and raises the actual depth accordingly -
 // see publishQueueCount for the value actually in use, monitor the max used queue size via MQTT and adjust if needed
 void publish_init();
 bool ensureRawPublishInfraInitialized();
