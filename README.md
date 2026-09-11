@@ -16,7 +16,7 @@ jk_ble_listener
 ```
 
 !!! ATTENTION !!!
-This projekt will READ all values only! I will not support writing values ​​to the BMS! Not now, and not in the future either.
+This projekt will READ all values only! I will not support writing values ​​to the BMS! Not now, and not in the future either. Feel free to fork this repo and try yourself!
 
 
 ## Table of Contents
@@ -47,12 +47,12 @@ across all environments.
 - Modify the platformio.ini for your needs. Especially set the `DEVICENAME` (e.g. `JK-PB2A16S20P-01`), which is the Bluetooth name **as shown by the JK-BMS smartphone app**. This overwrites the `DEVICENAME` specified in `/include/config.h`. This will allow you to build targets for multiple ESP32 boards
 - Specify COM ports in platformio.ini; may be deleted to enabled auto-detect (if you only have one ESP connected to your host)
 - Build and upload to your ESP32
-- a build in Webserver is providing a simple startpage under /. At the botton are links to a MQTT config Page, OTA update and to a page witch shows the last resetreasons (to see if the ESP crashes some time) 
+- a build in Webserver is providing a simple startpage under http://xxx.xxx.xxx.xxx/. At the botton are links to a MQTT config Page, OTA update and to a page witch shows the last resetreasons (to see if the ESP crashes some time) 
 
 **Attention:**
 - because of using WIFI and BLE (witch is used over the same antenna on ESP32) a ESP32 with "good" quality is recommended
 - If you want to use MQTT with TLS a "normal" ESP32 is not suitable! Tests with an ESP32-S3-N16R8 were successful; the ESP run for several days with a TLS connection. No reboots or crashes occurred. (on "normal" ESP32 the WIFI connection is very unstable!)
-- using a ESP32 with additional PSRAM is also recommended if you are in a "unstable" Wifi environment, because then 3/4 of the PS RAM will be used to cache the MQTT values. On my esp32-S3-N16R8 with 8MB PSRAM 6MB is used for the publish queue, that is place for 24472 entrys. Depending on how many values ​​are selected for publishing (on the MQTT configuration webpage), the settings for `publish_delay` and `min_pub_time`, and the number of cells installed, the buffer lasts for up to three hours. For example, I am currently using a 4-cell battery setup where all device info and configuration info values ​​are published every 300 sec, along with 15 values ​​from the live data every 5 sec.(cell data). With the default settings of `publish_delay` = 5 and `min_pub_time` = 300, this results in an average of 89 messages per minute. The cache is sufficient for approximately 275 minutes! Since all values ​​are published with a timestamp, they can be written to a database (e.g., InfluxDB) with the correct timestamps even after the connection is restored. (However, clearing a full cache takes over 17 minutes, depending on the PUBLISH_INTERVAL value, which defaults to 40 (every 40 ms). Do not lower this under 25 ms! this will result in instability issues!)
+- using a ESP32 with additional PSRAM is also recommended if you are in a "unstable" Wifi environment, because then 3/4 of the PS RAM will be used to cache the MQTT values. On my esp32-S3-N16R8 with 8MB PSRAM 6MB is used for the publish queue, that is place for 36354 entrys. Depending on how many values ​​are selected for publishing (on the MQTT configuration webpage), the settings for `publish_delay` and `min_pub_time`, and the number of cells installed, the buffer lasts for up to three hours. For example, I am currently using a 4-cell battery setup where all device info and configuration info values ​​are published every 300 sec, along with 15 values ​​from the live data every 5 sec.(cell data). With the default settings of `publish_delay` = 5 and `min_pub_time` = 300, this results in an average of ~93 messages per minute. The cache is sufficient for approximately 391 minutes! Since all values ​​are published with a timestamp, they can be written to a database (e.g., InfluxDB) with the correct timestamps even after the connection is restored. (However, clearing a full cache takes over ~26 minutes, depending on the PUBLISH_INTERVAL value, which defaults to 40 (every 40 ms, ~25 entrys/sec. or ~1500 entrys/min). Do not lower this under 25 ms! this will result in instability issues!)
   
 **Attention:** Do note that you will not be able to connect to the BMS with your smartphone app while the ESP32 is communicating with your BMS.
 
