@@ -120,12 +120,13 @@ const MqttPublishField CELL_FIELDS[] = {
 };
 
 const MqttPublishCategory CATEGORIES[] = {
-    {"device", "Device Data", DEVICE_FIELDS, sizeof(DEVICE_FIELDS) / sizeof(DEVICE_FIELDS[0])},
-    {"config", "Config Data", CONFIG_FIELDS, sizeof(CONFIG_FIELDS) / sizeof(CONFIG_FIELDS[0])},
-    {"data", "CellData (Livedata)", CELL_FIELDS, sizeof(CELL_FIELDS) / sizeof(CELL_FIELDS[0])}
+    {"device", "Device Data", DEVICE_FIELDS, sizeof(DEVICE_FIELDS) / sizeof(DEVICE_FIELDS[0]), true},
+    {"config", "Config Data", CONFIG_FIELDS, sizeof(CONFIG_FIELDS) / sizeof(CONFIG_FIELDS[0]), true},
+    {"data", "CellData (Livedata)", CELL_FIELDS, sizeof(CELL_FIELDS) / sizeof(CELL_FIELDS[0]), false}
 };
 
 uint8_t FIELD_ENABLED[3][160] = {};
+uint8_t FIELD_RETAINED[3][160] = {};
 bool SETTINGS_LOADED = false;
 
 uint32_t fieldHash(const char *categoryId, const char *suffix)
@@ -147,6 +148,11 @@ uint32_t fieldHash(const char *categoryId, const char *suffix)
 void makeKey(char *key, size_t keySize, const char *categoryId, const char *suffix)
 {
     snprintf(key, keySize, "p%08lx", static_cast<unsigned long>(fieldHash(categoryId, suffix)));
+}
+
+void makeRetainKey(char *key, size_t keySize, const char *categoryId, const char *suffix)
+{
+    snprintf(key, keySize, "r%08lx", static_cast<unsigned long>(fieldHash(categoryId, suffix)));
 }
 
 const MqttPublishCategory *findCategory(const char *id)
@@ -188,11 +194,16 @@ void loadSettings()
     {
         for (size_t i = 0; i < sizeof(CATEGORIES) / sizeof(CATEGORIES[0]); i++)
         {
+            uint8_t defaultRetained = CATEGORIES[i].defaultRetained ? 1 : 0;
             for (size_t j = 0; j < CATEGORIES[i].fieldCount; j++)
             {
                 char key[16];
                 makeKey(key, sizeof(key), CATEGORIES[i].id, CATEGORIES[i].fields[j].suffix);
                 FIELD_ENABLED[i][j] = prefs.getUChar(key, 1);
+
+                char retainKey[16];
+                makeRetainKey(retainKey, sizeof(retainKey), CATEGORIES[i].id, CATEGORIES[i].fields[j].suffix);
+                FIELD_RETAINED[i][j] = prefs.getUChar(retainKey, defaultRetained);
             }
         }
         prefs.end();
@@ -200,8 +211,14 @@ void loadSettings()
     else
     {
         for (size_t i = 0; i < sizeof(CATEGORIES) / sizeof(CATEGORIES[0]); i++)
+        {
+            uint8_t defaultRetained = CATEGORIES[i].defaultRetained ? 1 : 0;
             for (size_t j = 0; j < CATEGORIES[i].fieldCount; j++)
+            {
                 FIELD_ENABLED[i][j] = 1;
+                FIELD_RETAINED[i][j] = defaultRetained;
+            }
+        }
     }
     SETTINGS_LOADED = true;
 }
@@ -267,4 +284,60 @@ bool isMqttPublishFieldEnabled(const char *topic)
         return getMqttPublishFieldEnabled(categoryId, "alarms/*");
 
     return getMqttPublishFieldEnabled(categoryId, suffix);
+}
+
+bool getMqttPublishFieldRetained(const char *categoryId, const char *suffix)
+{
+    loadSettings();
+    size_t categoryIndex = 0;
+    size_t fieldIndex = 0;
+    if (!findField(categoryId, suffix, categoryIndex, fieldIndex))
+        return false;
+    return FIELD_RETAINED[categoryIndex][fieldIndex] != 0;
+}
+
+void setMqttPublishFieldRetained(const char *categoryId, const char *suffix, bool retained)
+{
+    loadSettings();
+    size_t categoryIndex = 0;
+    size_t fieldIndex = 0;
+    if (!findField(categoryId, suffix, categoryIndex, fieldIndex))
+        return;
+
+    char key[16];
+    makeRetainKey(key, sizeof(key), categoryId, suffix);
+    Preferences prefs;
+    if (!prefs.begin(NVS_NAMESPACE, false))
+        return;
+    prefs.putUChar(key, retained ? 1 : 0);
+    prefs.end();
+    FIELD_RETAINED[categoryIndex][fieldIndex] = retained ? 1 : 0;
+}
+
+bool isMqttPublishFieldRetained(const char *topic)
+{
+    if (topic == nullptr)
+        return false;
+
+    const char *categoryId = nullptr;
+    const char *suffix = nullptr;
+    for (const MqttPublishCategory &category : CATEGORIES)
+    {
+        String marker = String("/") + category.id + "/";
+        const char *found = strstr(topic, marker.c_str());
+        if (found != nullptr)
+        {
+            categoryId = category.id;
+            suffix = found + marker.length();
+            break;
+        }
+    }
+
+    if (categoryId == nullptr || suffix == nullptr || *suffix == '\0')
+        return false;
+
+    if (strncmp(suffix, "alarms/", 7) == 0 && strcmp(suffix, "alarms/alarm_raw") != 0 && strcmp(suffix, "alarms/alarms_mask") != 0)
+        return getMqttPublishFieldRetained(categoryId, "alarms/*");
+
+    return getMqttPublishFieldRetained(categoryId, suffix);
 }

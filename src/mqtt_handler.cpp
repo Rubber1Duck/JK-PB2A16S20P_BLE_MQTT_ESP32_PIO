@@ -284,14 +284,10 @@ bool toMqttQueue(const char *topic, const char *payload, bool retain)
         return false;
     }
 
+    // per-field retained flag (configurable via the MQTT config web page) takes precedence
+    retain = retain || isMqttPublishFieldRetained(topic);
+
     std::lock_guard<std::mutex> lock(mqttQueueMutex);
-    {
-        std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
-        if (mqtt_client.state() != MQTT_CONNECTED || !isWifiConnected)
-        {
-            return false; // Wait until MQTT is connected before pushing topics to publish queue
-        }
-    }
 
     if (topic == nullptr || payload == nullptr)
     {
@@ -299,15 +295,17 @@ bool toMqttQueue(const char *topic, const char *payload, bool retain)
     }
 
     PublishMessage queue_in;
+    // Copy topic, payload and retain flag into the queue structure
     strncpy(queue_in.topic, topic, sizeof(queue_in.topic) - 1);
     queue_in.topic[sizeof(queue_in.topic) - 1] = '\0';
     strncpy(queue_in.payload, payload, sizeof(queue_in.payload) - 1);
     queue_in.payload[sizeof(queue_in.payload) - 1] = '\0';
     queue_in.retain = retain;
+
+    // Send the message to the publish queue
     if (xQueueSend(publishQueue, &queue_in, 0) != pdTRUE)
     {
-        String failMsg = "Failed to send message to queue: " + String(topic);
-        DEBUG_PRINTLN(failMsg);
+        DEBUG_PRINTLN("Failed to send message to queue: " + String(topic));
         return false;
     }
 

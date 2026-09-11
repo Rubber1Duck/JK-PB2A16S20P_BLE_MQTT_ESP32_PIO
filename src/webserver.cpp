@@ -247,7 +247,7 @@ void handleRoot()
 
 void handleMqttConfig()
 {
-    if (!server.hasArg("field") || !server.hasArg("enabled"))
+    if (!server.hasArg("field") || (!server.hasArg("enabled") && !server.hasArg("retained")))
     {
         server.send(400, "text/plain", "Fehlende Parameter");
         return;
@@ -263,8 +263,17 @@ void handleMqttConfig()
 
     String category = field.substring(0, separator);
     String suffix = field.substring(separator + 1);
-    bool enabled = server.arg("enabled") == "1";
-    setMqttPublishFieldEnabled(category.c_str(), suffix.c_str(), enabled);
+
+    if (server.hasArg("enabled"))
+    {
+        bool enabled = server.arg("enabled") == "1";
+        setMqttPublishFieldEnabled(category.c_str(), suffix.c_str(), enabled);
+    }
+    if (server.hasArg("retained"))
+    {
+        bool retained = server.arg("retained") == "1";
+        setMqttPublishFieldRetained(category.c_str(), suffix.c_str(), retained);
+    }
     server.send(204, "text/plain", "");
 }
 
