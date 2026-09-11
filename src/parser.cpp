@@ -45,13 +45,13 @@ int64_t parserPerfHeapDeltaSum = 0;
 struct CellTopicCache
 {
     bool valid;
-    char devicename[32];
-    char base_data[128];
-    char base_debug[128];
-    char base_device[128];
-    char base_config[128];
-    char cell_voltage[32][128];
-    char cell_resistance[32][128];
+    char devicename[MQTT_DEVICENAME_LEN + 1];
+    char base_data[MQTT_TOPIC_BUFFER_SIZE];
+    char base_debug[MQTT_TOPIC_BUFFER_SIZE];
+    char base_device[MQTT_TOPIC_BUFFER_SIZE];
+    char base_config[MQTT_TOPIC_BUFFER_SIZE];
+    char cell_voltage[32][MQTT_TOPIC_BUFFER_SIZE];
+    char cell_resistance[32][MQTT_TOPIC_BUFFER_SIZE];
 };
 
 CellTopicCache cellTopicCache = {};
@@ -209,7 +209,7 @@ void publishIfChanged(T &currentValue, T newValue, const char *publishValue, con
     // Check if the value has changed or MIN_PUB_TIME is greater than 0 and the time has passed since the last publish
     if (currentValue != newValue || (min_pub_time > 0 && (currentTime - lastPublishTimeTopic) >= (static_cast<uint32_t>(min_pub_time) * 1000UL)))
     {
-        char jsonPayload[128];
+        char jsonPayload[MQTT_PAYLOAD_BUFFER_SIZE];
         buildJsonValuePayload(jsonPayload, sizeof(jsonPayload), publishValue);
         // Only advance change tracking when the message was really enqueued.
         if (toMqttQueue(topic, jsonPayload))
@@ -223,25 +223,25 @@ void publishIfChanged(T &currentValue, T newValue, const char *publishValue, con
 template <typename T>
 void publishIfChangedWithSuffix(T &currentValue, T newValue, const char *publishValue, const char *baseTopic, const char *suffix)
 {
-    char topic[192];
+    char topic[MQTT_TOPIC_BUFFER_SIZE];
     snprintf(topic, sizeof(topic), "%s%s", baseTopic, suffix);
     publishIfChanged(currentValue, newValue, publishValue, topic);
 }
 
 static void toMqttQueueWithSuffix(const char *baseTopic, const char *suffix, const char *payload, bool retain = false)
 {
-    char topic[192];
+    char topic[MQTT_TOPIC_BUFFER_SIZE];
     snprintf(topic, sizeof(topic), "%s%s", baseTopic, suffix);
-    char jsonPayload[128];
+    char jsonPayload[MQTT_PAYLOAD_BUFFER_SIZE];
     buildJsonValuePayload(jsonPayload, sizeof(jsonPayload), payload);
     toMqttQueue(topic, jsonPayload, retain);
 }
 
 static void toMqttQueueWithSuffix(const char *baseTopic, const char *suffix, const String &payload, bool retain = false)
 {
-    char topic[192];
+    char topic[MQTT_TOPIC_BUFFER_SIZE];
     snprintf(topic, sizeof(topic), "%s%s", baseTopic, suffix);
-    char jsonPayload[128];
+    char jsonPayload[MQTT_PAYLOAD_BUFFER_SIZE];
     buildJsonValuePayload(jsonPayload, sizeof(jsonPayload), payload.c_str());
     toMqttQueue(topic, jsonPayload, retain);
 }

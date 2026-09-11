@@ -204,8 +204,8 @@ void publishTask(void *pvParameters)
                 std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
                 mqttConnected = (mqtt_client.state() == MQTT_CONNECTED);
             }
-            vTaskDelay(pdMS_TO_TICKS(publishInterval)); // time between publish attempts, can be adjust via MQTT, default is 50ms,
-            // which means max 20 publishes per second, adjust if you have a lot of messages to publish and the queue is filling up,
+            vTaskDelay(pdMS_TO_TICKS(publishInterval)); // time between publish attempts, can be adjust via MQTT, default is 40ms,
+            // which means max ~25 publishes per second, adjust if you have a lot of messages to publish and the queue is filling up,
             // but be careful with too low values as it can cause stability issues with the MQTT client
         } 
     }

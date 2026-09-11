@@ -6,7 +6,10 @@
 #include "mqtt_handler.h"
 #include "struct_MQTT_Queue.h"
 
-#define PUBLISH_QUEUE_COUNT 255u // Default/fallback queue depth for boards without PSRAM,
+// sizeof(PublishMessage) shrank from 257 to ~167 Bytes (see struct_MQTT_Queue.h) after right-sizing
+// topic/payload to the actually configured TOPIC_BASE/DEVICENAME/longest topic - raised from 255 to 400
+// so the non-PSRAM queue budget stays roughly the same as before (255*257 ~= 400*167 Bytes).
+#define PUBLISH_QUEUE_COUNT 400u // Default/fallback queue depth for boards without PSRAM,
 // be careful with too high values as it can cause stability issues with the MQTT client if the queue is filling up.
 // On boards with PSRAM (BOARD_HAS_PSRAM), publish_init() raises the actual depth at runtime -
 // see publishQueueCount for the value actually in use, monitor the max used queue size via MQTT and adjust if needed
