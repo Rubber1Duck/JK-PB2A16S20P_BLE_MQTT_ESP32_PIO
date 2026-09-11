@@ -8,6 +8,8 @@
 #include <Arduino.h>
 #include "html.h"
 
+#define OTA_HOSTNAME TEXTIFY(CLTNAME)
+
 void setupWebserver(ResetEntry *history, size_t historyCount, const char *nvsKey);
 void webserverLoop();
 

@@ -230,7 +230,7 @@ void handleBmsPage(WebServer &server)
         "<a href='/mqtt_config'>MQTT Konfiguration</a>"
         "<a href='/reset_history'>Reset-Historie</a>"
         "<a href='/reset_esp' onclick=\"return confirm('ESP32 jetzt neu starten?');\">ESP32 neu starten</a>"
-        "<a href='/update'>Firmware-Update</a>"
+        "<a href='/ota'>ArduinoOTA aktiv</a>"
         "</div>");
 
     server.sendContent("<script>"

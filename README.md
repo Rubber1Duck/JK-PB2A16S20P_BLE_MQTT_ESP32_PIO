@@ -47,7 +47,7 @@ across all environments.
 - Modify the platformio.ini for your needs. Especially set the `DEVICENAME` (e.g. `JK-PB2A16S20P-01`), which is the Bluetooth name **as shown by the JK-BMS smartphone app**. This overwrites the `DEVICENAME` specified in `/include/config.h`. This will allow you to build targets for multiple ESP32 boards
 - Specify COM ports in platformio.ini; may be deleted to enabled auto-detect (if you only have one ESP connected to your host)
 - Build and upload to your ESP32
-- a build in Webserver is providing a simple startpage under http://xxx.xxx.xxx.xxx/. At the botton are links to a MQTT config Page, OTA update and to a page witch shows the last resetreasons (to see if the ESP crashes some time) 
+- a built-in Webserver is providing a simple startpage under http://xxx.xxx.xxx.xxx/. At the bottom are links to a MQTT config page, an ArduinoOTA status page and a page which shows the last reset reasons (to see if the ESP crashes some time). Firmware updates are performed with ArduinoOTA via PlatformIO from the same network.
 
 **Attention:**
 - because of using WIFI and BLE (witch is used over the same antenna on ESP32) a ESP32 with "good" quality is recommended
