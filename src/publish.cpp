@@ -1,10 +1,16 @@
 #include "publish.h"
+#include "parser.h"
+#include <esp_heap_caps.h>
 
 QueueHandle_t publishQueue = NULL;
 QueueHandle_t rawPublishQueue = NULL;
+UBaseType_t publishQueueCount = PUBLISH_QUEUE_COUNT;
 
-uint8_t maxUsedQueueSize = 0;
-uint8_t oldMaxUsedQueueSize = 0;
+UBaseType_t maxUsedQueueSize = 0;
+UBaseType_t oldMaxUsedQueueSize = 0;
+
+static StaticQueue_t publishQueueControlBlock;
+static uint8_t *publishQueueStoragePsram = nullptr;
 
 static uint8_t rawDataPool[RAWDATA_POOL_SLOT_COUNT][RAWDATA_POOL_SLOT_SIZE];
 static QueueHandle_t rawDataFreeSlots = NULL;
@@ -68,7 +74,7 @@ void publishRawTask(void *pvParameters)
             vTaskDelay(pdMS_TO_TICKS(100)); // Wait until MQTT is connected
         }
 
-        if (xQueueReceive(rawPublishQueue, &queue_out, 0) == pdTRUE)
+        if (xQueueReceive(rawPublishQueue, &queue_out, portMAX_DELAY) == pdTRUE)
         {
             const uint8_t *payloadPtr = rawDataPoolSlotPtr(queue_out.slot_index);
             if (payloadPtr != nullptr)
@@ -86,6 +92,10 @@ void publishRawTask(void *pvParameters)
                         std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
                         mqtt_client.disconnect();
                     }
+                }
+                else
+                {
+                    incrementPublishedMessageCounter();
                 }
             }
 
@@ -147,23 +157,35 @@ void publishTask(void *pvParameters)
 
         // publish messages from the queue as long as MQTT is connected, WiFi is available and there are messages in the queue
         // if not, wait until connection is back before trying to publish again
-        while (mqttConnected && isWifiConnected && xQueueReceive(publishQueue, &queue_out, 0) == pdTRUE)
+        while (mqttConnected && isWifiConnected && xQueueReceive(publishQueue, &queue_out, portMAX_DELAY) == pdTRUE)
         {
-            uint8_t currentQueueSize = uxQueueMessagesWaiting(publishQueue);
+            UBaseType_t currentQueueSize = uxQueueMessagesWaiting(publishQueue);
             maxUsedQueueSize = max(maxUsedQueueSize, currentQueueSize); // to track max used queue size for debugging purposes,
-            // this musst be under PUBLISH_QUEUE_COUNT, if you see this value is close to the defined PUBLISH_QUEUE_COUNT,
+            // this musst be under publishQueueCount, if you see this value is close to publishQueueCount,
             // you should consider increasing the queue size or publish interval to avoid dropping messages
+            
+            // for debugging purposes, print the current queue size and max used queue size
+            if (debug_flg)
+            {
+                DEBUG_PRINTLN("Current publish queue size: " + String(currentQueueSize) + ", Max used queue size (till now): " + String(maxUsedQueueSize));
+            }
+                        
+            // setState only if the maxUsedQueueSize has changed to avoid unnecessary MQTT publishes
             if (maxUsedQueueSize > oldMaxUsedQueueSize)
             {
                 oldMaxUsedQueueSize = maxUsedQueueSize;
-                setState("maxpubqueue", String(maxUsedQueueSize), true);
+                String maxUsedQueueSizeStr = String(maxUsedQueueSize);
+                setState("maxpubqueue", maxUsedQueueSizeStr, false);
+                char maxPubQueuePayload[64];
+                snprintf(maxPubQueuePayload, sizeof(maxPubQueuePayload), "{\"time\":%lld,\"value\":%s}", static_cast<long long>(currentEpochMillis()), maxUsedQueueSizeStr.c_str());
+                toMqttQueue(mqttname + "/status/maxpubqueue", maxPubQueuePayload);
             }
             
             //  Call the publish function
             bool success = false;
             {
                 std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
-                success = mqtt_client.publish(queue_out.topic, queue_out.payload);
+                success = mqtt_client.publish(queue_out.topic, queue_out.payload, queue_out.retain);
             }
             if (!success)
             {
@@ -176,6 +198,8 @@ void publishTask(void *pvParameters)
                 break;
             }
 
+            incrementPublishedMessageCounter();
+
             {
                 std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
                 mqttConnected = (mqtt_client.state() == MQTT_CONNECTED);
@@ -183,24 +207,54 @@ void publishTask(void *pvParameters)
             vTaskDelay(pdMS_TO_TICKS(publishInterval)); // time between publish attempts, can be adjust via MQTT, default is 50ms,
             // which means max 20 publishes per second, adjust if you have a lot of messages to publish and the queue is filling up,
             // but be careful with too low values as it can cause stability issues with the MQTT client
-        }
-        vTaskDelay(pdMS_TO_TICKS(100)); // Wait a bit before checking the queue again to avoid busy looping when MQTT is not connected or WiFi is down  
+        } 
     }
 }
 
 void publish_init()
 {
-    // Create the publishqueue
-    publishQueue = xQueueCreate(PUBLISH_QUEUE_COUNT, sizeof(PublishMessage)); // Queue can hold PUBLISH_QUEUE_COUNT messages, adjust as needed
-    // PUBLISH_QUEUE_COUNT is defined in the header and can be adjusted, but be careful with too high values as it can cause
-    // stability issues with the MQTT client if the queue is filling up
+    publishQueueCount = PUBLISH_QUEUE_COUNT; // fallback for boards without PSRAM
+
+#ifdef BOARD_HAS_PSRAM
+    if (psramFound())
+    {
+        size_t psramTotal = ESP.getPsramSize();
+        size_t targetBytes = psramTotal / 4 * 3; // dedicate three-quarters of the installed PSRAM for the publish queue
+        UBaseType_t psramCount = static_cast<UBaseType_t>(targetBytes / sizeof(PublishMessage));
+        if (psramCount > publishQueueCount)
+        {
+            publishQueueCount = psramCount;
+        }
+
+        size_t storageBytes = static_cast<size_t>(publishQueueCount) * sizeof(PublishMessage);
+        // MALLOC_CAP_SPIRAM only succeeds if the memory is really taken from PSRAM - this is our proof of placement
+        publishQueueStoragePsram = static_cast<uint8_t *>(heap_caps_malloc(storageBytes, MALLOC_CAP_SPIRAM));
+        if (publishQueueStoragePsram != nullptr)
+        {
+            publishQueue = xQueueCreateStatic(publishQueueCount, sizeof(PublishMessage), publishQueueStoragePsram, &publishQueueControlBlock);
+            DEBUG_PRINTLN("Publish-Queue mit " + String(publishQueueCount) + " Eintraegen erfolgreich im PSRAM angelegt (" + String(storageBytes) + " Bytes)");
+        }
+        else
+        {
+            DEBUG_PRINTLN("PSRAM-Allokation fuer Publish-Queue fehlgeschlagen, falle auf Standardgroesse im internen RAM zurueck");
+            publishQueueCount = PUBLISH_QUEUE_COUNT;
+        }
+    }
+#endif
+
+    if (publishQueue == NULL)
+    {
+        // Create the publishqueue in internal RAM (default heap) - fallback path or non-PSRAM boards
+        publishQueue = xQueueCreate(publishQueueCount, sizeof(PublishMessage));
+    }
+
     if (publishQueue == NULL)
     {
         DEBUG_PRINTLN("Failed to create publish queue"); //without this, the system cannot function properly, so we restart to try again
         ESP.restart(); // Restart if queue creation fails
     }
     else {
-        DEBUG_PRINTLN("Publish queue created successfully");
+        DEBUG_PRINTLN("Publish queue created successfully (depth: " + String(publishQueueCount) + ")");
     }
 
     // Create the publish task

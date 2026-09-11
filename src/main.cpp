@@ -17,7 +17,7 @@ const int daylightOffset_sec = DLOFFSET;
 #endif
 #endif // NTPSERVER
 
-const char *NVS_KEY = "reset_history";
+const char *NVS_KEY = "reset_history"; //limited to 15 characters due to NVS key length limit!
 ResetEntry history[MAX_RESET_REASONS];
 
 void setup()
@@ -64,6 +64,7 @@ void setup()
 #endif
 
     init_wifi();
+
 #ifdef USE_SYSLOG
     syslog.server = SYSLOG_SERVER;
     syslog.port = SYSLOG_PORT;
@@ -72,6 +73,7 @@ void setup()
     syslog.host = SYSLOG_HOST;
 
 #endif
+
 #ifdef USE_TLS
     secure_wifi_client.setTimeout(15000);
 #ifdef MQTT_SKIP_CERT_VERIFY
@@ -106,7 +108,7 @@ void setup()
     if (!getLocalTime(&timeinfo))
         DEBUG_PRINTLN("Zeit-Sync fehlgeschlagen");
 
-    prefs.begin("system", false);
+    prefs.begin(nvs_namespace, false);
     prefs.getBytes(NVS_KEY, history, sizeof(history));
     memmove(&history[1], &history[0], sizeof(ResetEntry) * (MAX_RESET_REASONS - 1));
     history[0].reason = currentReason;
@@ -135,7 +137,9 @@ void setup()
 #endif
 
     publish_init();
+    
     mqtt_init();
+    
     ble_setup();
 }
 
@@ -144,7 +148,10 @@ void loop()
 #ifdef USE_WEBSERVER
     webserverLoop();
 #endif
+    
     wifi_loop();
+    
     mqtt_loop();
+    
     ble_loop();
 }

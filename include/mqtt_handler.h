@@ -23,14 +23,18 @@
 
 void setState(const char *key, const char *value, bool publish);
 void setState(String key, String value, bool publish);
+String getState(const char *key);
 String formatUptime(time_t uptime);
 void mqtt_loop();
 void mqtt_init();
-bool toMqttQueue(const char *topic, const char *payload);
-bool toMqttQueue(String topic, String payload);
+bool toMqttQueue(const char *topic, const char *payload, bool retain = false);
+bool toMqttQueue(String topic, String payload, bool retain = false);
 void toMqttQueueRawData(String topic, const char *payload, size_t payloadLen);
 bool waitForTimeSync(uint32_t timeoutMs = 30000);
 void mqtt_tls_stop();
+uint32_t getTotalPublishedMessages();
+uint32_t getPublishedMessagesPerMinute();
+void incrementPublishedMessageCounter();
 
 // MQTT Setting
 // MQTT Client name used when connecting to broker
@@ -43,8 +47,8 @@ extern QueueHandle_t publishQueue;
 extern QueueHandle_t rawPublishQueue;
 extern boolean isWifiConnected;
 extern uint16_t min_pub_time;
-extern bool debug_flg;
-extern bool debug_flg_full;
+extern volatile bool debug_flg;
+extern volatile bool debug_flg_full;
 extern uint16_t publish_delay;
 extern uint16_t publishInterval;
 

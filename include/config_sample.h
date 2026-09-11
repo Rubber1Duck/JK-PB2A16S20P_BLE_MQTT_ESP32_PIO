@@ -19,6 +19,11 @@
 // Uncomment if Hardware is V19
 // #define V19
 
+// set the following to "true" to publish the device data and the config data to MQTT as retained messages, so that the data is available after a restart of the broker or the device
+// be careful, this will increase the load on the broker
+// "true" will switch this on, "false" will switch this off. Default is "false" to reduce the load on the broker.
+#define MQTT_RETAINED_MESSAGES false
+
 // Uncomment to pulish protocol numbers and enable status from device info frame
 // #define PROTOCOL_NUMBERS_AND_ENABLE_STATUS
 
@@ -119,10 +124,10 @@
 // But maybe this will cause to stability issues with the MQTT client!
 #define PUBLISH_DELAY 5
 
-// time between publish attempts in milliseconds, can be adjust via MQTT, default is 50ms,
-// which means max 20 publishes per second, adjust if you have a lot of messages to publish and the queue is filling up,
+// time between publish attempts in milliseconds, can be adjust via MQTT, default is 40ms,
+// which means max 25 publishes per second, adjust if you have a lot of messages to publish and the queue is filling up,
 // but be careful with too low values as it can cause stability issues with the MQTT client
-#define PUBLISH_INTERVAL 50
+#define PUBLISH_INTERVAL 40
 
 // publish values also if they are not changed. 0 = off, n = seconds
 #define MIN_PUB_TIME 300

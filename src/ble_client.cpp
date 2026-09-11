@@ -4,12 +4,12 @@
 const char *devicename = DEVICENAME;
 
 // status flags
-bool ble_connected = false; // Flag to track BLE connection status
-bool capturing = false; // Flag to indicate if we are currently capturing data after detecting the start sequence
-bool getConfigInfo_blocked = false; // Flag to block sending getInfo if we haven't received a response for the previous request
-bool getDeviceInfo_blocked = false; // Flag to block sending getDeviceInfo if we haven't received a response for the previous request
-bool initial_DI_send_done = false; // Flag to indicate if the initial Device Info send has been done
-bool initial_CI_send_done = false; // Flag to indicate if the initial Config Info send has been done
+boolean ble_connected = false; // Flag to track BLE connection status
+boolean capturing = false; // Flag to indicate if we are currently capturing data after detecting the start sequence
+boolean DI_send = false; // Flag to indicate if the initial Device Info send has been done
+boolean CI_send = false; // Flag to indicate if the initial Config Info send has been done
+boolean CD_running = false; // Flag to indicate if we are currently receiving cell data frames
+
 
 // BLE
 static NimBLEUUID serviceUUID("ffe0"); // The remote service we wish to connect to.
@@ -17,8 +17,8 @@ static NimBLEUUID charUUID("ffe1");    // The characteristic of the remote servi
 static const NimBLEAdvertisedDevice *myDevice;
 static boolean doConnect = false;
 static uint32_t scanTimeMs = 5000; /** scan time in milliseconds, 0 = scan forever */
-static NimBLERemoteService *pRemoteService = nullptr;
-static NimBLERemoteCharacteristic *pRemoteCharacteristic = nullptr;
+static NimBLERemoteService*        pSvc = nullptr;
+static NimBLERemoteCharacteristic* pChr = nullptr;
 static NimBLEClient *pClient = nullptr;
 
 // messages
@@ -37,13 +37,10 @@ const uint8_t pos_of_FrameCounter = 5;    // position of FrameCounter in the mes
 boolean all_notifications_blocked = true; // Flag to track if all notifications are currently blocked
 
 // Time variables
-uint32_t save_millis = 0; // Variable to save the last time millis() was called
-uint32_t last_rssi_time = 0;
-uint32_t lastRcvdDITime = 0;
-uint32_t lastRcvdCITime = 0;
-uint32_t time_device_info_sent = 0;
-uint32_t time_config_info_sent = 0;
-uint32_t send_interval_timer = 0; // Timer for sending getDeviceInfo and getConfigInfo messages
+time_t last_rssi_time = 0; // Variable to save the last time RSSI was checked
+time_t save_millis = 0; // Variable to save the last time millis() was called
+time_t time_CI_sent = 0; // Variable to save the time when the Config Info request was sent
+time_t lastRcvdCDTime = 0; // Variable to save the last time a cell data frame was received
 
 #ifdef DUALCORE
 // Define the queue handle
@@ -51,7 +48,7 @@ QueueHandle_t bleQueue;
 #endif
 
 // forks into message parser by message type
-void parser(void *message) {
+void parser(void *message, int64_t timestamp) {
     uint8_t *msg = static_cast<uint8_t *>(message);
     uint8_t type = msg[pos_of_FrameType]; // 4. Byte decides the frame type
     uint8_t frameCounter = msg[pos_of_FrameCounter]; // 5. Byte is the frame counter
@@ -59,19 +56,23 @@ void parser(void *message) {
     switch (type) {
     case 0x01:
         DEBUG_PRINTF("Received Config Info. Frame Counter: %d\n", frameCounter);
-        lastRcvdCITime = millis(); // Update the last received config info time
-        getConfigInfo_blocked = false; // Unblock sending getInfo since we received a response for the previous request    
-        readConfigInfoRecord(message, devicename);
+        readConfigInfoRecord(message, devicename, timestamp);
         break;
+    
     case 0x02:
-        readCellDataRecord(message, devicename);
+        lastRcvdCDTime = millis();
+        if (!CD_running) {
+            CD_running = true; // Set the flag to indicate that we are now receiving cell data frames
+            DEBUG_PRINTLN("Started receiving cell data frames.");
+        }
+        readCellDataRecord(message, devicename, timestamp);
         break;
+    
     case 0x03:
         DEBUG_PRINTF("Received Device Info. Frame Counter: %d\n", frameCounter);
-        lastRcvdDITime = millis(); // Update the last received device info time
-        getDeviceInfo_blocked = false; // Unblock sending getDeviceInfo since we received a response for the previous request
-        readDeviceInfoRecord(message, devicename);
+        readDeviceInfoRecord(message, devicename, timestamp);
         break;
+    
     default:
         DEBUG_PRINTLN("Unbekannter Typ in message[4]!");
         break;
@@ -81,24 +82,74 @@ void parser(void *message) {
 // Convert BLE disconnect reason code to readable text
 const char *getDisconnectReasonText(int reason) {
     switch (reason) {
-    case 0x08:
-        return "Connection Timeout (0x08)";
-    case 0x13:
-        return "Remote User Terminated Connection (0x13)";
-    case 0x14:
-        return "Remote Device Terminated due to Low Resources (0x14)";
-    case 0x15:
-        return "Remote Device Terminated due to Power Off (0x15)";
-    case 0x16:
-        return "Connection Terminated by Local Host (0x16)";
-    case 0x22:
-        return "LMP Response Timeout (0x22)";
-    case 0x3D:
-        return "Connection Failed to be Established (0x3D)";
-    case 0x3E:
-        return "LMP Response Timeout (0x3E)";
-    default:
-        return "Unknown Reason";
+        case 513:
+            return "(0x01): BLE_ERR_UNKNOWN_HCI_CMD – Unbekannter HCI-Befehl.";
+        case 514:
+            return "(0x02): BLE_ERR_UNK_CONN_ID – Unbekannte Verbindungskennung.";
+        case 515:
+            return "(0x03): BLE_ERR_HW_FAIL – Hardware-Fehler im Bluetooth-Chip.";
+        case 517:
+            return "(0x05): BLE_ERR_AUTH_FAIL – Authentifizierungsfehler (falscher PIN/Passkey).";
+        case 518:
+            return "(0x06): BLE_ERR_PINKEY_MISSING – PIN oder Verschlüsselungs-Key fehlt (Pairing verloren).";
+        case 519:
+            return "(0x07): BLE_ERR_MEM_CAPACITY – Speicher des Bluetooth-Controllers ist voll.";
+        case 520:
+            return "(0x08): BLE_ERR_CONN_SPVN_TMO – Supervision Timeout (Verbindung verloren).";
+        case 521:
+            return "(0x09): BLE_ERR_CONN_LIMIT – Verbindungslimit des Geräts ist erreicht.";
+        case 522:
+            return "(0x0A): BLE_ERR_SYNCH_CONN_LIMIT – Limit für synchrone Verbindungen erreicht.";
+        case 523:
+            return "(0x0B): BLE_ERR_ACL_CONN_EXISTS – ACL-Verbindung existiert bereits.";
+        case 524:
+            return "(0x0C): BLE_ERR_CMD_DISALLOWED – Befehl aktuell nicht erlaubt.";
+        case 525:
+            return "(0x0D): BLE_ERR_CONN_REJ_RESOURCES – Verbindung wegen fehlender Ressourcen abgewiesen.";
+        case 526:
+            return "(0x0E): BLE_ERR_CONN_REJ_SECURITY – Verbindung wegen Sicherheitsgründen abgewiesen.";
+        case 527:
+            return "(0x0F): BLE_ERR_CONN_REJ_BD_ADDR – Verbindung wegen unzulässiger Bluetooth-Adresse abgelehnt.";
+        case 528:
+            return "(0x10): BLE_ERR_CONN_ACCEPT_TMO – Verbindungsannahme-Timeout überschritten.";
+        case 530:
+            return "(0x12): BLE_ERR_INVALID_HCI_PARAMS – Ungültige HCI-Befehlsparameter.";
+        case 531:
+            return "(0x13): BLE_ERR_REM_USER_CONN_TERM – Remote-Nutzer hat die Verbindung getrennt.";
+        case 532:
+            return "(0x14): BLE_ERR_RD_CONN_TERM_RESRCS – Remote-Gerät hat wegen Ressourcenmangel getrennt.";
+        case 533:
+            return "(0x15): BLE_ERR_RD_CONN_TERM_PWROFF – Remote-Gerät hat sich ausgeschaltet.";
+        case 534:
+            return "(0x16): BLE_ERR_CONN_TERM_LOCAL – Lokales Gerät hat die Verbindung beendet.";
+        case 535:
+            return "(0x17): BLE_ERR_REPEATED_ATTEMPTS – Zu viele Pairing-Versuche hintereinander (Sperre).";
+        case 536:
+            return "(0x18): BLE_ERR_PAIRING_NOT_ALLOW – Pairing auf diesem Gerät nicht erlaubt.";
+        case 538:
+            return "(0x1A): BLE_ERR_UNSUPPORTED_REM_FEATURE – Remote-Gerät unterstützt diese Bluetooth-Funktion nicht.";
+        case 541:
+            return "(0x1D): BLE_ERR_MIC_FAILURE – Message Integrity Check fehlgeschlagen (Kryptographie-Fehler).";
+        case 542:
+            return "(0x1E): BLE_ERR_CONN_ESTABLISHMENT_TMO – Verbindung konnte nicht rechtzeitig aufgebaut werden.";
+        case 545:
+            return "(0x21): BLE_ERR_LMP_PDU_NOT_ALLOW – Protokoll-Paket (LMP PDU) nicht erlaubt.";
+        case 546:
+            return "(0x22): BLE_ERR_LMP_LL_RESP_TMO – Keine Antwort auf Link-Layer-Ebene (Timeout).";
+        case 547:
+            return "(0x23): BLE_ERR_LMP_COLLISION – Kollision bei der Protokoll-Verhandlung.";
+        case 556:
+            return "(0x2C): BLE_ERR_UNSUPPORTED_LMP_EXT – Erweiterte LMP-Funktion wird nicht unterstützt.";
+        case 560:
+            return "(0x30): BLE_ERR_INVALID_LMP_PARAMS – Ungültige LMP/LL-Parameter.";
+        case 564:
+            return "(0x34): BLE_ERR_DIFF_TRANSACTION_COLL – Transaktions-Kollision im Link-Layer.";
+        case 570:
+            return "(0x3A): BLE_ERR_UNACCEPT_CONN_PARAMS – Die vorgeschlagenen Verbindungsparameter sind unzulässig.";
+        case 574:
+            return "(0x3E): BLE_ERR_CONN_ESTABLISHMENT – Verbindung fehlgeschlagen, kein einziges Paket empfangen.";
+        default:
+            return "Unknown Reason";
     }
 }
 
@@ -107,8 +158,11 @@ class MyClientCallback : public NimBLEClientCallbacks {
     void onConnect(NimBLEClient *pClient) override { DEBUG_PRINTF("BLE Connected\n"); }
 
     void onDisconnect(NimBLEClient *pClient, int reason) override {
-        DEBUG_PRINTF("%s Disconnected, reason = %d - Starting scan\n", pClient->getPeerAddress().toString().c_str(), reason);
-        DEBUG_PRINTF("BLE Disconnected. Reason: %s\n", getDisconnectReasonText(reason));
+        DEBUG_PRINTF("%s Disconnected, reason = %d %s - Starting scan\n", pClient->getPeerAddress().toString().c_str(), reason, getDisconnectReasonText(reason));
+        DEBUG_PRINTLN("Reset flags to allow sending getConfigInfo and getDeviceInfo again.");
+        CI_send = false; // Reset the flag to allow sending getConfigInfo again
+        DI_send = false; // Reset the flag to allow sending getDeviceInfo again
+        CD_running = false; // Reset the flag to indicate that we are no longer receiving cell data frames
         NimBLEDevice::getScan()->start(scanTimeMs, false, true);
     }
 } clientCallbacks;
@@ -181,6 +235,8 @@ void notifyCB(NimBLERemoteCharacteristic *pRemoteCharacteristic, uint8_t *pData,
 
         // if 300 bytes received and CRC_Check OK call parser
         if (ble_buffer_index >= BUFFER_SIZE && CRC_Check(ble_buffer, BUFFER_SIZE)){
+
+            int64_t frameTimestamp = currentEpochMillis(); // Zeitstempel (ms) unmittelbar nach vollstaendigem Empfang der Nachricht
             std::vector<uint8_t> message(ble_buffer, ble_buffer + BUFFER_SIZE);
             ble_buffer_index = 0;
             capturing = false; // waiting for next start sequence
@@ -188,16 +244,20 @@ void notifyCB(NimBLERemoteCharacteristic *pRemoteCharacteristic, uint8_t *pData,
             // .. and call parser or send message to queue for parser task
 
 #ifdef DUALCORE
-            // Add message to queue
-            if (xQueueSend(bleQueue, message.data(), 0) != pdTRUE) DEBUG_PRINTLN("Failed to send message to queue");
+            // Add message + timestamp to queue
+            BleFrame frame;
+            memcpy(frame.data, message.data(), BUFFER_SIZE);
+            frame.timestamp = frameTimestamp;
+            if (xQueueSend(bleQueue, &frame, 0) != pdTRUE) DEBUG_PRINTLN("Failed to send message to queue");
 #else
-            parser(static_cast<void *>(message.data()));
+            parser(static_cast<void *>(message.data()), frameTimestamp);
 #endif
         }
     }
 }
 
 bool connectToBLEServer() {
+        
     /** Check if we have a client we should reuse first **/
     if (NimBLEDevice::getCreatedClientCount()) {
         /**
@@ -229,11 +289,21 @@ bool connectToBLEServer() {
         }
 
         pClient = NimBLEDevice::createClient();
+
         DEBUG_PRINTF("New client created\n");
+        
         pClient->setClientCallbacks(&clientCallbacks, false);
+        /**
+         *  Set initial connection parameters:
+         *  These settings are safe for 3 clients to connect reliably, can go faster if you have less
+         *  connections. Timeout should be a multiple of the interval, minimum is 100ms.
+         *  Min interval: 12 * 1.25ms = 15, Max interval: 12 * 1.25ms = 15, 0 latency, 150 * 10ms = 1500ms timeout
+         */
         pClient->setConnectionParams(12, 12, 0, 150);
+        
         /** Set how long we are willing to wait for the connection to complete (milliseconds), default is 30000. */
         pClient->setConnectTimeout(5 * 1000);
+
         if (!pClient->connect(myDevice)) {
             /** Created a client but failed to connect, don't need to keep it as it has no data */
             NimBLEDevice::deleteClient(pClient);
@@ -256,12 +326,13 @@ bool connectToBLEServer() {
     setState("ble_device_mac", macAddr.c_str(), true);
     setState("ble_device_rssi", rssiVal, true);
 
+    /** Now we can read/write/subscribe the characteristics of the services we are interested in */
     // Obtain a reference to the service we are after in the remote BLE server.
-    pRemoteService = pClient->getService(serviceUUID);
-    if (pRemoteService) {
+    pSvc = pClient->getService(serviceUUID);
+    if (pSvc) {
         DEBUG_PRINTLN(" - Found our service");
-        pRemoteCharacteristic = pRemoteService->getCharacteristic(charUUID);
-        if (pRemoteCharacteristic == nullptr) {
+        pChr = pSvc->getCharacteristic(charUUID);
+        if (pChr == nullptr) {
             std::string charUuid = charUUID.toString();
             DEBUG_PRINTF("Failed to find our characteristic UUID: %s\n", charUuid.c_str());
             pClient->disconnect();
@@ -269,8 +340,8 @@ bool connectToBLEServer() {
         }
         DEBUG_PRINTLN(" - Found our characteristic");
         // Set the notification callback
-        if (pRemoteCharacteristic->canNotify()) {
-            if (!pRemoteCharacteristic->subscribe(true, notifyCB)) {
+        if (pChr->canNotify()) {
+            if (!pChr->subscribe(true, notifyCB)) {
                 DEBUG_PRINTLN("Failed to subscribe to notifications");
                 pClient->disconnect();
                 return false;
@@ -284,7 +355,7 @@ bool connectToBLEServer() {
         pClient->disconnect();
         return false;
     }
-    if (pRemoteCharacteristic->canWriteNoResponse()) {
+    if (pChr->canWriteNoResponse()) {
         DEBUG_PRINTLN("Start the show, unblock notifications ...");
         all_notifications_blocked = false; // Unblock notifications
     } else {
@@ -306,6 +377,7 @@ bool connectToBLEServer() {
 void ble_loop() {
     /** Loop here until we find a device we want to connect to */
     delay(10);
+    
     if (doConnect) {
         doConnect = false;
         if (connectToBLEServer()) {
@@ -314,65 +386,41 @@ void ble_loop() {
             DEBUG_PRINTLN("Failed to connect to the BLE Server.");
         }
     }
+    // Communication Flow
 
+    // 1. Establish BLE connection
+    // 2. Register for notifications on characteristic 0xFFE1 (handle 0x05)
+    // 3. Send 0x96 on characteristic 0xFFE1 (handle 0x03) → BMS responds with Frame 0x01 (config info)
+    // 4. Send 0x97 on characteristic 0xFFE1 (handle 0x03) → BMS responds with Frame 0x03 (device info)
+    // 5. After both commands are acknowledged, BMS automatically streams Frame 0x02 (cell info) periodically
+    
     if (ble_connected) {
         // make shure the complete logic is running with the same time base, so we save the last millis() and use it for all timing calculations
         save_millis = millis(); // Save the current time for consistent timing calculations
         // Handle sending getDeviceInfo and getConfigInfo messages with timing and blocking logic
-        // Send initial getDeviceInfo message if not already sent
-        if (!initial_DI_send_done) {
-            if (!getDeviceInfo_blocked) {
-                boolean result = pRemoteCharacteristic->writeValue(getDeviceInfo, 20, false);
-                DEBUG_PRINTF("Sent initial getDeviceInfo message: %s. Result: %s\n", getDeviceInfo_str, result == true ? "Success" : "Failed");
-                time_device_info_sent = save_millis; // Update the time when we sent the device info request
-                getDeviceInfo_blocked = true; // Block sending getDeviceInfo until we receive a response
-                initial_DI_send_done = true; // Mark that the initial Device Info send has been done
-            }
+        
+        // Send getConfigInfo message if not already sent
+        if (!CI_send && pChr->writeValue(getConfigInfo, 20, false)) {
+            DEBUG_PRINTF("Sent getConfigInfo message: %s\n.", getConfigInfo_str);
+            time_CI_sent = save_millis; // Update the time when we sent the config info request
+            CI_send = true; // Mark that the Config Info is sent
         }
-        // Send initial getConfigInfo message if not already sent and INITIAL_SEND_INTERVAL seconds after initial getDeviceInfo has been sent
-        if (!initial_CI_send_done && initial_DI_send_done && ((save_millis - time_device_info_sent) >= INITIAL_SEND_INTERVAL)) {
-            if (!getConfigInfo_blocked) {
-                boolean result = pRemoteCharacteristic->writeValue(getConfigInfo, 20, false);
-                DEBUG_PRINTF("Sent initial getConfigInfo message: %s. Result: %s\n", getConfigInfo_str, result == true ? "Success" : "Failed");
-                time_config_info_sent = save_millis; // Update the time when we sent the config info request
-                getConfigInfo_blocked = true; // Block sending getConfigInfo until we receive a response
-                initial_CI_send_done = true; // Mark that the initial Config Info send has been done
-            }
+        
+        // Send getDeviceInfo message if not already sent and SEND_INTERVAL seconds after Config Info is sent
+        else if (!DI_send && CI_send && ((save_millis - time_CI_sent) >= SEND_INTERVAL) && pChr->writeValue(getDeviceInfo, 20, false)) {
+            DEBUG_PRINTF("Sent getDeviceInfo message: %s\n.", getDeviceInfo_str);
+            DI_send = true; // Mark that the Device Info is sent
         }
-        // After both initial messages have been sent, check if we can send them again based on the minimum receive interval
-        if (initial_DI_send_done && initial_CI_send_done) {
-            if ((save_millis - lastRcvdDITime) >= MIN_RCV_ITV_DI_AND_CI_INFO) {
-                // Check if we are currently blocked from sending getDeviceInfo and unblock if the timeout has passed
-                if (getDeviceInfo_blocked) {
-                    if ((save_millis - time_device_info_sent) >= WAIT_FOR_RESPONSE_TIMEOUT) {
-                        getDeviceInfo_blocked = false; // Unblock if timeout has passed
-                        DEBUG_PRINTLN("Timeout waiting for Device Info. Unblocking getDeviceInfo.");
-                    }
-                } else if ((save_millis - send_interval_timer) >= SEND_INTERVAL) {
-                    // Send getDeviceInfo message if not blocked
-                    boolean result = pRemoteCharacteristic->writeValue(getDeviceInfo, 20, false);
-                    send_interval_timer = save_millis; // Update the send interval timer
-                    DEBUG_PRINTF("Sent getDeviceInfo message: %s. Result: %s\n", getDeviceInfo_str, result == true ? "Success" : "Failed");
-                    time_device_info_sent = save_millis; // Update the time when we sent the device info request
-                    getDeviceInfo_blocked = true; // Block sending getDeviceInfo until we receive a response
-                }
-            }
-            if ((save_millis - lastRcvdCITime) >= MIN_RCV_ITV_DI_AND_CI_INFO) {
-                // Check if we are currently blocked from sending getConfigInfo and unblock if the timeout has passed
-                if (getConfigInfo_blocked) {
-                    if ((save_millis - time_config_info_sent) >= WAIT_FOR_RESPONSE_TIMEOUT) {
-                        getConfigInfo_blocked = false; // Unblock if timeout has passed
-                        DEBUG_PRINTLN("Timeout waiting for Config Info. Unblocking getConfigInfo.");
-                    }
-                } else if ((save_millis - send_interval_timer) >= SEND_INTERVAL) {
-                    // Send getConfigInfo message if not blocked
-                    boolean result = pRemoteCharacteristic->writeValue(getConfigInfo, 20, false);
-                    send_interval_timer = save_millis; // Update the send interval timer
-                    DEBUG_PRINTF("Sent getConfigInfo message: %s. Result: %s\n", getConfigInfo_str, result == true ? "Success" : "Failed");
-                    time_config_info_sent = save_millis; // Update the time when we sent the config info request
-                    getConfigInfo_blocked = true; // Block sending getConfigInfo until we receive a response
-                }
-            }
+        
+        // After both messages have been sent, the device will send cell data frames continuously, so we will not send getDeviceInfo and getConfigInfo again
+        // but we will check if we receive them within the expected interval (4-5 times a second) and if not we will send DI and CI requests again,
+        // but only if the previous request has been answered
+        else if (CI_send && DI_send && CD_running && save_millis - lastRcvdCDTime > MAX_TIME_BETWEEN_CELL_DATA_MESSAGES) {
+            DEBUG_PRINTLN("No cell data received for more than 2 seconds, sending getDeviceInfo and getConfigInfo again.");
+            // Reset the flags to allow sending getDeviceInfo and getConfigInfo again in next loop iteration
+            CI_send = false; // Reset the flag to allow sending getConfigInfo again
+            DI_send = false; // Reset the flag to allow sending getDeviceInfo again
+            CD_running = false; // Reset the flag to indicate that we are no longer receiving cell data frames
         }
         
         if (last_rssi_time == 0 || (save_millis - last_rssi_time) >= BLE_RSSI_INTERVAL) {
@@ -388,15 +436,20 @@ void ble_loop() {
 
 // Define the parser task
 void parserTask(void *pvParameters) {
-    uint8_t messageFromQueue[BUFFER_SIZE];
+    BleFrame frameFromQueue;
+    time_t lastParserTime = 0;
 
     while (true) {
         // Receive data from the queue
-        if (xQueueReceive(bleQueue, &messageFromQueue, 0) == pdTRUE) {
+        if (xQueueReceive(bleQueue, &frameFromQueue, portMAX_DELAY) == pdTRUE) {
+            lastParserTime = millis(); // Update the last parser time when a message is received
             // Call the parser function
-            parser(messageFromQueue);
+            parser(frameFromQueue.data, frameFromQueue.timestamp);
         }
-        vTaskDelay(25 / portTICK_PERIOD_MS); // Small delay to prevent task starvation
+        while (millis() - lastParserTime < 25) {
+            // Wait until 25 milliseconds have passed since the last parser call
+            vTaskDelay(1); // Delay for 1 tick (1 ms)
+        }
     }
 }
 #endif
@@ -405,7 +458,7 @@ void ble_setup() {
     
 #ifdef DUALCORE
     // Create the queue
-    bleQueue = xQueueCreate(20, sizeof(uint8_t[BUFFER_SIZE]));
+    bleQueue = xQueueCreate(20, sizeof(BleFrame));
     DEBUG_PRINTLN("BLE queue created");
 
     // Create the parser task on core 1

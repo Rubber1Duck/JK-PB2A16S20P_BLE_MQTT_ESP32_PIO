@@ -6,5 +6,6 @@
 .vscode/
 build/
 include/config.h
+include/config.test
 include/secrets.h
 platformio_override.ini

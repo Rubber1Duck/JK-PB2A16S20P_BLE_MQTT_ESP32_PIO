@@ -1,11 +1,16 @@
 #include "parser.h"
+#include <cmath>
 #include <cstring>
 #include <type_traits>
+#include <random>
 
 uint32_t lastPublishTimeCellData = 0;
 uint32_t lastDataReceivedTime = 0;
 bool first_run = true;
 const uint8_t pos_of_Counter = 5; // position of FrameCounter in the message
+
+// Timestamp (epoch milliseconds) of the currently processed frame, captured in notifyCB right after the full message was received (CRC OK)
+static int64_t currentRecordTimestamp = 0;
 
 // variables for charge/discharge / day calculation
 float Q_charged = 0;    // charge in As
@@ -17,11 +22,19 @@ float Q_charged_mAh_old = 0;
 float Q_discharged_mAh_old = 0;
 char Q_charged_mAh_str[32];
 char Q_discharged_mAh_str[32];
+float heating_power = 0;
+float heating_power_old = 0;
+char heating_power_str[32];
+
 uint32_t battery_power_calculated = 0;
 
 uint8_t counter_last = 0;
 
-constexpr uint32_t PARSER_PERF_LOG_INTERVAL_MS = 30000;
+//std::random_device rd;  
+//std::mt19937 gen(rd());
+//std::uniform_int_distribution<int> distrib(0, 7000);
+
+constexpr uint32_t PARSER_PERF_LOG_INTERVAL_MS = 60000;
 uint32_t parserPerfLastLogMs = 0;
 uint32_t parserPerfFrameCount = 0;
 uint32_t parserPerfHeapBeforeMin = UINT32_MAX;
@@ -154,6 +167,33 @@ static PublishTimeSlot &resolvePublishTimeSlot(const char *topic)
     return publishTimeSlots[start];
 }
 
+// Wraps numeric values as JSON numbers and other values as escaped JSON strings.
+static void buildJsonValuePayload(char *out, size_t outSize, const char *value)
+{
+    char *end = nullptr;
+    const double parsedValue = value == nullptr ? 0.0 : strtod(value, &end);
+    const bool isNumber = value != nullptr && value[0] != '\0' && end != value && *end == '\0' && std::isfinite(parsedValue);
+    if (isNumber)
+    {
+        snprintf(out, outSize, "{\"time\":%lld,\"value\":%s}", static_cast<long long>(currentRecordTimestamp), value);
+        return;
+    }
+
+    char escaped[96];
+    size_t j = 0;
+    for (size_t i = 0; value != nullptr && value[i] != '\0' && j < sizeof(escaped) - 2; ++i)
+    {
+        char c = value[i];
+        if (c == '"' || c == '\\')
+        {
+            escaped[j++] = '\\';
+        }
+        escaped[j++] = c;
+    }
+    escaped[j] = '\0';
+    snprintf(out, outSize, "{\"time\":%lld,\"value\":\"%s\"}", static_cast<long long>(currentRecordTimestamp), escaped);
+}
+
 template <typename T>
 void publishIfChanged(T &currentValue, T newValue, const char *publishValue, const char *topic)
 {
@@ -169,8 +209,10 @@ void publishIfChanged(T &currentValue, T newValue, const char *publishValue, con
     // Check if the value has changed or MIN_PUB_TIME is greater than 0 and the time has passed since the last publish
     if (currentValue != newValue || (min_pub_time > 0 && (currentTime - lastPublishTimeTopic) >= (static_cast<uint32_t>(min_pub_time) * 1000UL)))
     {
+        char jsonPayload[128];
+        buildJsonValuePayload(jsonPayload, sizeof(jsonPayload), publishValue);
         // Only advance change tracking when the message was really enqueued.
-        if (toMqttQueue(topic, publishValue))
+        if (toMqttQueue(topic, jsonPayload))
         {
             currentValue = newValue;
             slot.lastPublishTime = currentTime; // Update the last publish time for the topic
@@ -186,43 +228,47 @@ void publishIfChangedWithSuffix(T &currentValue, T newValue, const char *publish
     publishIfChanged(currentValue, newValue, publishValue, topic);
 }
 
-static void toMqttQueueWithSuffix(const char *baseTopic, const char *suffix, const char *payload)
+static void toMqttQueueWithSuffix(const char *baseTopic, const char *suffix, const char *payload, bool retain = false)
 {
     char topic[192];
     snprintf(topic, sizeof(topic), "%s%s", baseTopic, suffix);
-    toMqttQueue(topic, payload);
+    char jsonPayload[128];
+    buildJsonValuePayload(jsonPayload, sizeof(jsonPayload), payload);
+    toMqttQueue(topic, jsonPayload, retain);
 }
 
-static void toMqttQueueWithSuffix(const char *baseTopic, const char *suffix, const String &payload)
+static void toMqttQueueWithSuffix(const char *baseTopic, const char *suffix, const String &payload, bool retain = false)
 {
     char topic[192];
     snprintf(topic, sizeof(topic), "%s%s", baseTopic, suffix);
-    toMqttQueue(topic, payload.c_str());
+    char jsonPayload[128];
+    buildJsonValuePayload(jsonPayload, sizeof(jsonPayload), payload.c_str());
+    toMqttQueue(topic, jsonPayload, retain);
 }
 
 template <typename T>
 static typename std::enable_if<std::is_integral<T>::value && std::is_unsigned<T>::value, void>::type
-toMqttQueueWithSuffixNumber(const char *baseTopic, const char *suffix, T payload)
+toMqttQueueWithSuffixNumber(const char *baseTopic, const char *suffix, T payload, bool retain = false)
 {
     char payload_buffer[24];
     snprintf(payload_buffer, sizeof(payload_buffer), "%lu", static_cast<unsigned long>(payload));
-    toMqttQueueWithSuffix(baseTopic, suffix, payload_buffer);
+    toMqttQueueWithSuffix(baseTopic, suffix, payload_buffer, retain);
 }
 
 template <typename T>
 static typename std::enable_if<std::is_integral<T>::value && std::is_signed<T>::value, void>::type
-toMqttQueueWithSuffixNumber(const char *baseTopic, const char *suffix, T payload)
+toMqttQueueWithSuffixNumber(const char *baseTopic, const char *suffix, T payload, bool retain = false)
 {
     char payload_buffer[24];
     snprintf(payload_buffer, sizeof(payload_buffer), "%ld", static_cast<long>(payload));
-    toMqttQueueWithSuffix(baseTopic, suffix, payload_buffer);
+    toMqttQueueWithSuffix(baseTopic, suffix, payload_buffer, retain);
 }
 
-static void toMqttQueueWithSuffixFloat(const char *baseTopic, const char *suffix, float payload, uint8_t precision)
+static void toMqttQueueWithSuffixFloat(const char *baseTopic, const char *suffix, float payload, uint8_t precision, bool retain = false)
 {
     char payload_buffer[32];
     dtostrf(payload, 0, precision, payload_buffer);
-    toMqttQueueWithSuffix(baseTopic, suffix, payload_buffer);
+    toMqttQueueWithSuffix(baseTopic, suffix, payload_buffer, retain);
 }
 
 static void rebuildCellTopicCache(const char *devicename)
@@ -268,14 +314,21 @@ String getLocalTimeString()
     return String(timeBuffer);
 }
 
+int64_t currentEpochMillis()
+{
+    struct timeval tv;
+    gettimeofday(&tv, nullptr);
+    return static_cast<int64_t>(tv.tv_sec) * 1000LL + tv.tv_usec / 1000;
+}
+
 DeviceInfo deviceinfo;
 bool has_device_info = false;
 
-void readDeviceInfoRecord(void *message, const char *devicename)
+void readDeviceInfoRecord(void *message, const char *devicename, int64_t timestamp)
 {
-
     // Startzeit für die Verarbeitung des Datensatzes
     // uint32_t start_time = millis();
+    currentRecordTimestamp = timestamp;
     memcpy(&deviceinfo, message, 300); // Kopiere 300 Bytes in die Struktur
     has_device_info = true;
 
@@ -290,69 +343,69 @@ void readDeviceInfoRecord(void *message, const char *devicename)
     const char *base_device = cellTopicCache.base_device;
 
     // Publish the FrameCounter to MQTT
-    toMqttQueueWithSuffixNumber(base_device, "read_count", deviceinfo.FrameCounter);
+    toMqttQueueWithSuffixNumber(base_device, "read_count", deviceinfo.FrameCounter, MQTT_RETAINED_MESSAGES);
 
     // Publish Manufacturer Device ID
-    toMqttQueueWithSuffix(base_device, "vendor_id", deviceinfo.ManufacturerDeviceID);
+    toMqttQueueWithSuffix(base_device, "vendor_id", deviceinfo.ManufacturerDeviceID, MQTT_RETAINED_MESSAGES);
 
     // Publish Hardware Version and Software Version
-    toMqttQueueWithSuffix(base_device, "hw_revision", deviceinfo.HardwareVersion);
-    toMqttQueueWithSuffix(base_device, "hardware_options", deviceinfo.HardwareOptions);
-    toMqttQueueWithSuffix(base_device, "sw_version", deviceinfo.SoftwareVersion);
+    toMqttQueueWithSuffix(base_device, "hw_revision", deviceinfo.HardwareVersion, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffix(base_device, "hardware_options", deviceinfo.HardwareOptions, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffix(base_device, "sw_version", deviceinfo.SoftwareVersion, MQTT_RETAINED_MESSAGES);
 
     // Publish Uptime in seconds and in human-readable format (days, hours, minutes, seconds)
-    toMqttQueueWithSuffixNumber(base_device, "uptime", deviceinfo.OddRunTime);
-    toMqttQueueWithSuffix(base_device, "uptime_fmt", deviceinfo.getOddRunTimeStr());
+    toMqttQueueWithSuffixNumber(base_device, "uptime", deviceinfo.OddRunTime, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffix(base_device, "uptime_fmt", deviceinfo.getOddRunTimeStr(), MQTT_RETAINED_MESSAGES);
 
     // Publish Power On Times
-    toMqttQueueWithSuffixNumber(base_device, "power_up_times", deviceinfo.PwrOnTimes);
+    toMqttQueueWithSuffixNumber(base_device, "power_up_times", deviceinfo.PwrOnTimes, MQTT_RETAINED_MESSAGES);
 
     // Publish Device Name, Passcode, Manufacturing Date, Serial Number, User Data, Setup Passcode and User Data 2
-    toMqttQueueWithSuffix(base_device, "device_name", deviceinfo.DeviceName);
-    toMqttQueueWithSuffix(base_device, "device_passwd", deviceinfo.DevicePasscode);
-    toMqttQueueWithSuffix(base_device, "manufacturing_date", deviceinfo.ManufacturingDate);
-    toMqttQueueWithSuffix(base_device, "serial_number", deviceinfo.SerialNumber);
+    toMqttQueueWithSuffix(base_device, "device_name", deviceinfo.DeviceName, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffix(base_device, "device_passwd", deviceinfo.DevicePasscode, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffix(base_device, "manufacturing_date", deviceinfo.ManufacturingDate, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffix(base_device, "serial_number", deviceinfo.SerialNumber, MQTT_RETAINED_MESSAGES);
 #ifndef V19
-    toMqttQueueWithSuffix(base_device, "passcode", deviceinfo.Passcode);
+    toMqttQueueWithSuffix(base_device, "passcode", deviceinfo.Passcode, MQTT_RETAINED_MESSAGES);
 #endif
-    toMqttQueueWithSuffix(base_device, "user_data", deviceinfo.UserData);
-    toMqttQueueWithSuffix(base_device, "setup_passcode", deviceinfo.SetupPasscode);
-    toMqttQueueWithSuffix(base_device, "user_data2", deviceinfo.UserData2);
+    toMqttQueueWithSuffix(base_device, "user_data", deviceinfo.UserData, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffix(base_device, "setup_passcode", deviceinfo.SetupPasscode, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffix(base_device, "user_data2", deviceinfo.UserData2, MQTT_RETAINED_MESSAGES);
 
 // Publish UART and CAN protocol numbers and enable status
 #ifdef PROTOCOL_NUMBERS_AND_ENABLE_STATUS
-    toMqttQueueWithSuffixNumber(base_device, "uart1_protocol_number", deviceinfo.UART1MPRTOLNbr);
-    toMqttQueueWithSuffix(base_device, "uart1_protocol_txt", uart_protocol_number_str[deviceinfo.UART1MPRTOLNbr]);
-    toMqttQueueWithSuffixNumber(base_device, "uart1_protocol_enable", deviceinfo.UART1MPRTOLEnable);
-    toMqttQueueWithSuffixNumber(base_device, "can_protocol_number", deviceinfo.CANMPRTOLNbr);
-    toMqttQueueWithSuffix(base_device, "can_protocol_txt", can_protocol_number_str[deviceinfo.CANMPRTOLNbr]);
-    toMqttQueueWithSuffixNumber(base_device, "uart_protocol_enable_0_15", deviceinfo.UARTMPRTOLEnable0_15);
-    toMqttQueueWithSuffixNumber(base_device, "uart2_protocol_number", deviceinfo.UART2MPRTOLNbr);
-    toMqttQueueWithSuffix(base_device, "uart2_protocol_txt", uart_protocol_number_str[deviceinfo.UART2MPRTOLNbr]);
-    toMqttQueueWithSuffixNumber(base_device, "uart2_protocol_enable", deviceinfo.UART2MPRTOLEnable);
-    toMqttQueueWithSuffixNumber(base_device, "uart_protocol_lib_version", deviceinfo.UARTMPTLVer);
+    toMqttQueueWithSuffixNumber(base_device, "uart1_protocol_number", deviceinfo.UART1MPRTOLNbr, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffix(base_device, "uart1_protocol_txt", uart_protocol_number_str[deviceinfo.UART1MPRTOLNbr], MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffixNumber(base_device, "uart1_protocol_enable", deviceinfo.UART1MPRTOLEnable, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffixNumber(base_device, "can_protocol_number", deviceinfo.CANMPRTOLNbr, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffix(base_device, "can_protocol_txt", can_protocol_number_str[deviceinfo.CANMPRTOLNbr], MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffixNumber(base_device, "uart_protocol_enable_0_15", deviceinfo.UARTMPRTOLEnable0_15, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffixNumber(base_device, "uart2_protocol_number", deviceinfo.UART2MPRTOLNbr, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffix(base_device, "uart2_protocol_txt", uart_protocol_number_str[deviceinfo.UART2MPRTOLNbr], MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffixNumber(base_device, "uart2_protocol_enable", deviceinfo.UART2MPRTOLEnable, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffixNumber(base_device, "uart_protocol_lib_version", deviceinfo.UARTMPTLVer, MQTT_RETAINED_MESSAGES);
 #endif
 
 // Publish trigger values for LCD buzzer and dry contacts
 #ifdef LCD_AND_DRY_TRIGGER_VALUES
-    toMqttQueueWithSuffixNumber(base_device, "lcd_buzzer_trigger", deviceinfo.LCDBuzzerTrigger);
-    toMqttQueueWithSuffix(base_device, "lcd_buzzer_trigger_txt", Trigger_values_str[deviceinfo.LCDBuzzerTrigger]);
-    toMqttQueueWithSuffixNumber(base_device, "lcd_buzzer_trigger_value", deviceinfo.LCDBuzzerTriggerVal);
-    toMqttQueueWithSuffixNumber(base_device, "lcd_buzzer_release_value", deviceinfo.LCDBuzzerReleaseVal);
-    toMqttQueueWithSuffixNumber(base_device, "dry1_trigger", deviceinfo.DRY1Trigger);
-    toMqttQueueWithSuffix(base_device, "dry1_trigger_txt", Trigger_values_str[deviceinfo.DRY1Trigger]);
-    toMqttQueueWithSuffixNumber(base_device, "dry1_trigger_value", deviceinfo.DRY1TriggerVal);
-    toMqttQueueWithSuffixNumber(base_device, "dry1_release_value", deviceinfo.DRY1ReleaseVal);
-    toMqttQueueWithSuffixNumber(base_device, "dry2_trigger", deviceinfo.DRY2Trigger);
-    toMqttQueueWithSuffix(base_device, "dry2_trigger_txt", Trigger_values_str[deviceinfo.DRY2Trigger]);
-    toMqttQueueWithSuffixNumber(base_device, "dry2_trigger_value", deviceinfo.DRY2TriggerVal);
-    toMqttQueueWithSuffixNumber(base_device, "dry2_release_value", deviceinfo.DRY2ReleaseVal);
-    toMqttQueueWithSuffixNumber(base_device, "can_protocol_lib_version", deviceinfo.CANMPTLVer);
+    toMqttQueueWithSuffixNumber(base_device, "lcd_buzzer_trigger", deviceinfo.LCDBuzzerTrigger, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffix(base_device, "lcd_buzzer_trigger_txt", Trigger_values_str[deviceinfo.LCDBuzzerTrigger], MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffixNumber(base_device, "lcd_buzzer_trigger_value", deviceinfo.LCDBuzzerTriggerVal, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffixNumber(base_device, "lcd_buzzer_release_value", deviceinfo.LCDBuzzerReleaseVal, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffixNumber(base_device, "dry1_trigger", deviceinfo.DRY1Trigger, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffix(base_device, "dry1_trigger_txt", Trigger_values_str[deviceinfo.DRY1Trigger], MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffixNumber(base_device, "dry1_trigger_value", deviceinfo.DRY1TriggerVal, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffixNumber(base_device, "dry1_release_value", deviceinfo.DRY1ReleaseVal, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffixNumber(base_device, "dry2_trigger", deviceinfo.DRY2Trigger, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffix(base_device, "dry2_trigger_txt", Trigger_values_str[deviceinfo.DRY2Trigger], MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffixNumber(base_device, "dry2_trigger_value", deviceinfo.DRY2TriggerVal, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffixNumber(base_device, "dry2_release_value", deviceinfo.DRY2ReleaseVal, MQTT_RETAINED_MESSAGES);
+    toMqttQueueWithSuffixNumber(base_device, "can_protocol_lib_version", deviceinfo.CANMPTLVer, MQTT_RETAINED_MESSAGES);
 #endif
 
     // Publish RCV Time and RFV Time
-    toMqttQueueWithSuffixFloat(base_device, "rcv_time", static_cast<float>(deviceinfo.RCVTime) * 0.1f, 1); // Assuming RCVTime is in 0.1h units
-    toMqttQueueWithSuffixFloat(base_device, "rfv_time", static_cast<float>(deviceinfo.RFVTime) * 0.1f, 1); // Assuming RFVTime is in 0.1h units
+    toMqttQueueWithSuffixFloat(base_device, "rcv_time", static_cast<float>(deviceinfo.RCVTime) * 0.1f, 1, MQTT_RETAINED_MESSAGES); // Assuming RCVTime is in 0.1h units
+    toMqttQueueWithSuffixFloat(base_device, "rfv_time", static_cast<float>(deviceinfo.RFVTime) * 0.1f, 1, MQTT_RETAINED_MESSAGES); // Assuming RFVTime is in 0.1h units
 
 }
 
@@ -360,9 +413,10 @@ CellData celldata;
 bool has_cell_data = false;
 CellDataOld cdOld; // Array to store old values, used for comparison and change detection
 
-void readCellDataRecord(void *message, const char *devicename)
+void readCellDataRecord(void *message, const char *devicename, int64_t timestamp)
 {
     uint32_t start_time = millis();
+    currentRecordTimestamp = timestamp;
     
     // if first run initialize lastDataReceivedTime and lastPublishTimeCellData with the current time and return without processing the data.
     if (first_run)
@@ -433,15 +487,6 @@ void readCellDataRecord(void *message, const char *devicename)
         char rawdata_topic[192];
         snprintf(rawdata_topic, sizeof(rawdata_topic), "%s%s", base_debug, "rawdata");
         toMqttQueueRawData(rawdata_topic, message_base64, strlen(message_base64));
-        toMqttQueueWithSuffix(base_debug, "enabled", "true");
-    }
-    else
-    {
-        if (debug_flg)
-        {
-            toMqttQueueWithSuffix(base_debug, "rawdata", "not published");
-            toMqttQueueWithSuffix(base_debug, "enabled", "false");
-        }
     }
 
     // Cell Voltages
@@ -604,6 +649,16 @@ void readCellDataRecord(void *message, const char *devicename)
     // Heating Current
     publishIfChangedWithSuffix(cdOld.HeatCurrent, celldata.HeatCurrent, celldata.HeatCurrent_fmt, base_data, "heat_current");
 
+    // calculate Heating Power (HeatCurrent is in mA and BatVol is in mV!)
+    heating_power = celldata.HeatCurrent * celldata.BatVol * 0.000001; // HeatCurrent in mA, BatVol in mV, result in W
+    // debug calculation for heating power
+    // int zufallszahl = distrib(gen);
+    // DEBUG_PRINTF("Random HeatCurrent value: %d\n", zufallszahl);
+    //heating_power = zufallszahl * celldata.BatVol * 0.000001; // HeatCurrent in mA, BatVol in mV, result in W debug
+    snprintf(heating_power_str, sizeof(heating_power_str), "%.3f", heating_power);
+    publishIfChangedWithSuffix(heating_power_old, heating_power, heating_power_str, base_data, "heat_power");
+    heating_power_old = heating_power;
+
     // System run ticks, unit: 0.1s, range: 0~4294967295
     publishIfChangedWithSuffix(cdOld.SysRunTicks, celldata.SysRunTicks, celldata.SysRunTicks_fmt, base_data, "sys_run_ticks");
 
@@ -662,33 +717,16 @@ void readCellDataRecord(void *message, const char *devicename)
 
     if (millis() - parserPerfLastLogMs >= PARSER_PERF_LOG_INTERVAL_MS)
     {
-        char valueBuf[24];
-
-        snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(parserPerfFrameCount));
-        setState("parser_frames_30s", valueBuf, false);
-
-        snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(parserPerfHeapBeforeMin));
-        setState("parser_heap_before_min", valueBuf, false);
-
-        snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(parserPerfHeapAfterMin));
-        setState("parser_heap_after_min", valueBuf, false);
-
-        snprintf(valueBuf, sizeof(valueBuf), "%ld", static_cast<long>(parserPerfHeapDeltaMax));
-        setState("parser_heap_delta_max", valueBuf, false);
-
-        int32_t parserHeapDeltaAvg = (parserPerfFrameCount > 0)
-                                         ? static_cast<int32_t>(parserPerfHeapDeltaSum / static_cast<int64_t>(parserPerfFrameCount))
-                                         : 0;
-        snprintf(valueBuf, sizeof(valueBuf), "%ld", static_cast<long>(parserHeapDeltaAvg));
-        setState("parser_heap_delta_avg", valueBuf, false);
-
+        uint32_t perfLogIntervalSeconds = PARSER_PERF_LOG_INTERVAL_MS / 1000;
+        
         DEBUG_PRINTF(
-            "Parser perf 30s: frames=%lu heap_before_min=%lu heap_after_min=%lu heap_delta_max=%ld heap_delta_avg=%ld\n",
+            "Parser perf %lus: frames=%lu heap_before_min=%lu heap_after_min=%lu heap_delta_max=%ld heap_delta_avg=%ld\n",
+            static_cast<unsigned long>(perfLogIntervalSeconds),
             static_cast<unsigned long>(parserPerfFrameCount),
             static_cast<unsigned long>(parserPerfHeapBeforeMin),
             static_cast<unsigned long>(parserPerfHeapAfterMin),
             static_cast<long>(parserPerfHeapDeltaMax),
-            static_cast<long>(parserHeapDeltaAvg));
+            static_cast<long>(parserPerfHeapDeltaSum / static_cast<int64_t>(parserPerfFrameCount)));
 
         parserPerfLastLogMs = millis();
         parserPerfFrameCount = 0;
@@ -723,10 +761,11 @@ void readCellDataRecord(void *message, const char *devicename)
 ConfigInfo configinfo;
 bool has_config_info = false;
 
-void readConfigInfoRecord(void *message, const char *devicename)
+void readConfigInfoRecord(void *message, const char *devicename, int64_t timestamp)
 {
     // Startzeit für die Verarbeitung des Datensatzes
     // uint32_t start_time = millis();
+    currentRecordTimestamp = timestamp;
 
     // Kopiere die empfangenen Bytes in die ConfigInfo-Struktur
     memcpy(&configinfo, message, 300); // Kopiere 300 Bytes in die Struktur
@@ -738,103 +777,103 @@ void readConfigInfoRecord(void *message, const char *devicename)
 
     // Veröffentliche die Konfigurationsdaten auf MQTT
     // VolSmartSleep
-    toMqttQueueWithSuffixFloat(base_config, "vol_smart_sleep", static_cast<float>(configinfo.VolSmartSleep) * 0.001f, 3);
+    toMqttQueueWithSuffixFloat(base_config, "vol_smart_sleep", static_cast<float>(configinfo.VolSmartSleep) * 0.001f, 3, MQTT_RETAINED_MESSAGES);
     // VolCellUV
-    toMqttQueueWithSuffixFloat(base_config, "vol_cell_uv", static_cast<float>(configinfo.VolCellUV) * 0.001f, 3);
+    toMqttQueueWithSuffixFloat(base_config, "vol_cell_uv", static_cast<float>(configinfo.VolCellUV) * 0.001f, 3, MQTT_RETAINED_MESSAGES);
     // VolCellUVPR
-    toMqttQueueWithSuffixFloat(base_config, "vol_cell_uvpr", static_cast<float>(configinfo.VolCellUVPR) * 0.001f, 3);
+    toMqttQueueWithSuffixFloat(base_config, "vol_cell_uvpr", static_cast<float>(configinfo.VolCellUVPR) * 0.001f, 3, MQTT_RETAINED_MESSAGES);
     // VolCellOV
-    toMqttQueueWithSuffixFloat(base_config, "vol_cell_ov", static_cast<float>(configinfo.VolCellOV) * 0.001f, 3);
+    toMqttQueueWithSuffixFloat(base_config, "vol_cell_ov", static_cast<float>(configinfo.VolCellOV) * 0.001f, 3, MQTT_RETAINED_MESSAGES);
     // VolCellOVPR
-    toMqttQueueWithSuffixFloat(base_config, "vol_cell_ovpr", static_cast<float>(configinfo.VolCellOVPR) * 0.001f, 3);
+    toMqttQueueWithSuffixFloat(base_config, "vol_cell_ovpr", static_cast<float>(configinfo.VolCellOVPR) * 0.001f, 3, MQTT_RETAINED_MESSAGES);
     // VolBalanTrig
-    toMqttQueueWithSuffixFloat(base_config, "vol_balan_trig", static_cast<float>(configinfo.VolBalanTrig) * 0.001f, 3);
+    toMqttQueueWithSuffixFloat(base_config, "vol_balan_trig", static_cast<float>(configinfo.VolBalanTrig) * 0.001f, 3, MQTT_RETAINED_MESSAGES);
     // VolSOC100%
-    toMqttQueueWithSuffixFloat(base_config, "vol_100_percent", static_cast<float>(configinfo.VolSOC100percent) * 0.001f, 3);
+    toMqttQueueWithSuffixFloat(base_config, "vol_100_percent", static_cast<float>(configinfo.VolSOC100percent) * 0.001f, 3, MQTT_RETAINED_MESSAGES);
     // VolSOC0%
-    toMqttQueueWithSuffixFloat(base_config, "vol_0_percent", static_cast<float>(configinfo.VolSOC0percent) * 0.001f, 3);
+    toMqttQueueWithSuffixFloat(base_config, "vol_0_percent", static_cast<float>(configinfo.VolSOC0percent) * 0.001f, 3, MQTT_RETAINED_MESSAGES);
     // VolCellRCV
-    toMqttQueueWithSuffixFloat(base_config, "vol_cell_rcv", static_cast<float>(configinfo.VolCellRCV) * 0.001f, 3);
+    toMqttQueueWithSuffixFloat(base_config, "vol_cell_rcv", static_cast<float>(configinfo.VolCellRCV) * 0.001f, 3, MQTT_RETAINED_MESSAGES);
     // VolCellRFV
-    toMqttQueueWithSuffixFloat(base_config, "vol_cell_rfv", static_cast<float>(configinfo.VolCellRFV) * 0.001f, 3);
+    toMqttQueueWithSuffixFloat(base_config, "vol_cell_rfv", static_cast<float>(configinfo.VolCellRFV) * 0.001f, 3, MQTT_RETAINED_MESSAGES);
     // VolSysPwrOff
-    toMqttQueueWithSuffixFloat(base_config, "vol_sys_pwr_off", static_cast<float>(configinfo.VolSysPwrOff) * 0.001f, 3);
+    toMqttQueueWithSuffixFloat(base_config, "vol_sys_pwr_off", static_cast<float>(configinfo.VolSysPwrOff) * 0.001f, 3, MQTT_RETAINED_MESSAGES);
     // CurBatCOC
-    toMqttQueueWithSuffixFloat(base_config, "cur_bat_coc", static_cast<float>(configinfo.CurBatCOC) * 0.001f, 3);
+    toMqttQueueWithSuffixFloat(base_config, "cur_bat_coc", static_cast<float>(configinfo.CurBatCOC) * 0.001f, 3, MQTT_RETAINED_MESSAGES);
     // TIMBatCOCPDly
-    toMqttQueueWithSuffixNumber(base_config, "time_bat_cocp_delay", configinfo.TimBatCOCPDly);
+    toMqttQueueWithSuffixNumber(base_config, "time_bat_cocp_delay", configinfo.TimBatCOCPDly, MQTT_RETAINED_MESSAGES);
     // TIMBatCOCPRDDly
-    toMqttQueueWithSuffixNumber(base_config, "time_bat_cocprd_delay", configinfo.TimBatCOCPRDly);
+    toMqttQueueWithSuffixNumber(base_config, "time_bat_cocprd_delay", configinfo.TimBatCOCPRDly, MQTT_RETAINED_MESSAGES);
     // CurBatDcOC
-    toMqttQueueWithSuffixFloat(base_config, "cur_bat_dc_oc", static_cast<float>(configinfo.CurBatDcOC) * 0.001f, 3);
+    toMqttQueueWithSuffixFloat(base_config, "cur_bat_dc_oc", static_cast<float>(configinfo.CurBatDcOC) * 0.001f, 3, MQTT_RETAINED_MESSAGES);
     // TIMBatDcOCPDly
-    toMqttQueueWithSuffixNumber(base_config, "time_bat_dc_ocp_delay", configinfo.TimBatDcOCPDly);
+    toMqttQueueWithSuffixNumber(base_config, "time_bat_dc_ocp_delay", configinfo.TimBatDcOCPDly, MQTT_RETAINED_MESSAGES);
     // TIMBatDcOPRDDly
-    toMqttQueueWithSuffixNumber(base_config, "time_bat_dc_oprd_delay", configinfo.TimBatDcOCPRDly);
+    toMqttQueueWithSuffixNumber(base_config, "time_bat_dc_oprd_delay", configinfo.TimBatDcOCPRDly, MQTT_RETAINED_MESSAGES);
     // TIMBatSCPRDly
-    toMqttQueueWithSuffixNumber(base_config, "time_bat_scprd_delay", configinfo.TimBatSCPRDly);
+    toMqttQueueWithSuffixNumber(base_config, "time_bat_scprd_delay", configinfo.TimBatSCPRDly, MQTT_RETAINED_MESSAGES);
     // CurBalanMax
-    toMqttQueueWithSuffixFloat(base_config, "cur_balance_max", static_cast<float>(configinfo.CurBalanMax) * 0.001f, 3);
+    toMqttQueueWithSuffixFloat(base_config, "cur_balance_max", static_cast<float>(configinfo.CurBalanMax) * 0.001f, 3, MQTT_RETAINED_MESSAGES);
     // TMPBatCOT
-    toMqttQueueWithSuffixFloat(base_config, "tmp_bat_cot", static_cast<float>(configinfo.TmpBatCOT) * 0.1f, 1);
+    toMqttQueueWithSuffixFloat(base_config, "tmp_bat_cot", static_cast<float>(configinfo.TmpBatCOT) * 0.1f, 1, MQTT_RETAINED_MESSAGES);
     // TMPBatCOTPR
-    toMqttQueueWithSuffixFloat(base_config, "tmp_bat_cotpr", static_cast<float>(configinfo.TmpBatCOTPR) * 0.1f, 1);
+    toMqttQueueWithSuffixFloat(base_config, "tmp_bat_cotpr", static_cast<float>(configinfo.TmpBatCOTPR) * 0.1f, 1, MQTT_RETAINED_MESSAGES);
     // TMPBatDcOT
-    toMqttQueueWithSuffixFloat(base_config, "tmp_bat_dc_ot", static_cast<float>(configinfo.TmpBatDcOT) * 0.1f, 1);
+    toMqttQueueWithSuffixFloat(base_config, "tmp_bat_dc_ot", static_cast<float>(configinfo.TmpBatDcOT) * 0.1f, 1, MQTT_RETAINED_MESSAGES);
     // TMPBatDcOTPR
-    toMqttQueueWithSuffixFloat(base_config, "tmp_bat_dc_otpr", static_cast<float>(configinfo.TmpBatDcOTPR) * 0.1f, 1);
+    toMqttQueueWithSuffixFloat(base_config, "tmp_bat_dc_otpr", static_cast<float>(configinfo.TmpBatDcOTPR) * 0.1f, 1, MQTT_RETAINED_MESSAGES);
     // TMPBatCUT
-    toMqttQueueWithSuffixFloat(base_config, "tmp_bat_cut", static_cast<float>(configinfo.TmpBatCUT) * 0.1f, 1);
+    toMqttQueueWithSuffixFloat(base_config, "tmp_bat_cut", static_cast<float>(configinfo.TmpBatCUT) * 0.1f, 1, MQTT_RETAINED_MESSAGES);
     // TMPBatCUTPR
-    toMqttQueueWithSuffixFloat(base_config, "tmp_bat_cutpr", static_cast<float>(configinfo.TmpBatCUTPR) * 0.1f, 1);
+    toMqttQueueWithSuffixFloat(base_config, "tmp_bat_cutpr", static_cast<float>(configinfo.TmpBatCUTPR) * 0.1f, 1, MQTT_RETAINED_MESSAGES);
     // TMPMosOT
-    toMqttQueueWithSuffixFloat(base_config, "tmp_mos_ot", static_cast<float>(configinfo.TmpMosOT) * 0.1f, 1);
+    toMqttQueueWithSuffixFloat(base_config, "tmp_mos_ot", static_cast<float>(configinfo.TmpMosOT) * 0.1f, 1, MQTT_RETAINED_MESSAGES);
     // TMPMosOTPR
-    toMqttQueueWithSuffixFloat(base_config, "tmp_mos_otpr", static_cast<float>(configinfo.TmpMosOTPR) * 0.1f, 1);
+    toMqttQueueWithSuffixFloat(base_config, "tmp_mos_otpr", static_cast<float>(configinfo.TmpMosOTPR) * 0.1f, 1, MQTT_RETAINED_MESSAGES);
     // CellCount
-    toMqttQueueWithSuffixNumber(base_config, "cell_count", configinfo.CellCount[0]);
+    toMqttQueueWithSuffixNumber(base_config, "cell_count", configinfo.CellCount[0], MQTT_RETAINED_MESSAGES);
     // BatChargeEN
-    toMqttQueueWithSuffix(base_config, "switches/bat_charge_enabled", configinfo.BatChargeEN_fmt);
+    toMqttQueueWithSuffix(base_config, "switches/bat_charge_enabled", configinfo.BatChargeEN_fmt, MQTT_RETAINED_MESSAGES);
     // BatDisChargeEN
-    toMqttQueueWithSuffix(base_config, "switches/bat_discharge_enabled", configinfo.BatDisChargeEN_fmt);
+    toMqttQueueWithSuffix(base_config, "switches/bat_discharge_enabled", configinfo.BatDisChargeEN_fmt, MQTT_RETAINED_MESSAGES);
     // BalanEN
-    toMqttQueueWithSuffix(base_config, "switches/balancing_enabled", configinfo.BalanEN_fmt);
+    toMqttQueueWithSuffix(base_config, "switches/balancing_enabled", configinfo.BalanEN_fmt, MQTT_RETAINED_MESSAGES);
     // CapBatCell
-    toMqttQueueWithSuffixFloat(base_config, "cap_bat_cell", static_cast<float>(configinfo.CapBatCell) * 0.001f, 3);
+    toMqttQueueWithSuffixFloat(base_config, "cap_bat_cell", static_cast<float>(configinfo.CapBatCell) * 0.001f, 3, MQTT_RETAINED_MESSAGES);
     // SCPDelay
-    toMqttQueueWithSuffixNumber(base_config, "scp_delay", configinfo.ScpDelay);
+    toMqttQueueWithSuffixNumber(base_config, "scp_delay", configinfo.ScpDelay, MQTT_RETAINED_MESSAGES);
     // VolStartBalan
-    toMqttQueueWithSuffixFloat(base_config, "vol_start_balance", static_cast<float>(configinfo.VolStartBalan) * 0.001f, 3);
+    toMqttQueueWithSuffixFloat(base_config, "vol_start_balance", static_cast<float>(configinfo.VolStartBalan) * 0.001f, 3, MQTT_RETAINED_MESSAGES);
     // DevAddr
-    toMqttQueueWithSuffixNumber(base_config, "dev_address", configinfo.DevAddr);
+    toMqttQueueWithSuffixNumber(base_config, "dev_address", configinfo.DevAddr, MQTT_RETAINED_MESSAGES);
     // TIMProdischarge
-    toMqttQueueWithSuffixNumber(base_config, "tim_pro_discharge", configinfo.TimProdischarge);
+    toMqttQueueWithSuffixNumber(base_config, "tim_pro_discharge", configinfo.TimProdischarge, MQTT_RETAINED_MESSAGES);
     // HeatEN
-    toMqttQueueWithSuffix(base_config, "switches/heating_enabled", configinfo.HeatEN);
+    toMqttQueueWithSuffix(base_config, "switches/heating_enabled", configinfo.HeatEN, MQTT_RETAINED_MESSAGES);
     // Disable temp-sensor
-    toMqttQueueWithSuffix(base_config, "switches/temp_sensor_disabled", configinfo.DisableTempSensor);
+    toMqttQueueWithSuffix(base_config, "switches/temp_sensor_disabled", configinfo.DisableTempSensor, MQTT_RETAINED_MESSAGES);
     // GPS Heartbeat
-    toMqttQueueWithSuffix(base_config, "switches/gps_heartbeat", configinfo.GPSHeartbeat);
+    toMqttQueueWithSuffix(base_config, "switches/gps_heartbeat", configinfo.GPSHeartbeat, MQTT_RETAINED_MESSAGES);
     // Port Switch
-    toMqttQueueWithSuffix(base_config, "switches/port_switch", configinfo.PortSwitch);
+    toMqttQueueWithSuffix(base_config, "switches/port_switch", configinfo.PortSwitch, MQTT_RETAINED_MESSAGES);
     // LCD Always On
-    toMqttQueueWithSuffix(base_config, "switches/lcd_always_on", configinfo.LCDAlwaysOn);
+    toMqttQueueWithSuffix(base_config, "switches/lcd_always_on", configinfo.LCDAlwaysOn, MQTT_RETAINED_MESSAGES);
     // Special Charger
-    toMqttQueueWithSuffix(base_config, "switches/special_charger", configinfo.SpecialCharger);
+    toMqttQueueWithSuffix(base_config, "switches/special_charger", configinfo.SpecialCharger, MQTT_RETAINED_MESSAGES);
     // SmartSleep
-    toMqttQueueWithSuffix(base_config, "switches/smart_sleep", configinfo.SmartSleep);
+    toMqttQueueWithSuffix(base_config, "switches/smart_sleep", configinfo.SmartSleep, MQTT_RETAINED_MESSAGES);
     // DisablePCLModule
-    toMqttQueueWithSuffix(base_config, "switches/disable_pcl_module", configinfo.DisablePCLModule);
+    toMqttQueueWithSuffix(base_config, "switches/disable_pcl_module", configinfo.DisablePCLModule, MQTT_RETAINED_MESSAGES);
     // TimedStoredData
-    toMqttQueueWithSuffix(base_config, "switches/timed_stored_data", configinfo.TimedStoredData);
+    toMqttQueueWithSuffix(base_config, "switches/timed_stored_data", configinfo.TimedStoredData, MQTT_RETAINED_MESSAGES);
     // ChargingFloatMode
-    toMqttQueueWithSuffix(base_config, "switches/charging_float_mode", configinfo.ChargingFloatMode);
+    toMqttQueueWithSuffix(base_config, "switches/charging_float_mode", configinfo.ChargingFloatMode, MQTT_RETAINED_MESSAGES);
     // TMPHeatingStart
-    toMqttQueueWithSuffixNumber(base_config, "tmp_heating_start", configinfo.TmpHeatingStart);
+    toMqttQueueWithSuffixNumber(base_config, "tmp_heating_start", configinfo.TmpHeatingStart, MQTT_RETAINED_MESSAGES);
     // TMPHeatingStop
-    toMqttQueueWithSuffixNumber(base_config, "tmp_heating_stop", configinfo.TmpHeatingStop);
+    toMqttQueueWithSuffixNumber(base_config, "tmp_heating_stop", configinfo.TmpHeatingStop, MQTT_RETAINED_MESSAGES);
     // TIMSmartSleep
-    toMqttQueueWithSuffixNumber(base_config, "time_smart_sleep", configinfo.TimSmartSleep);
+    toMqttQueueWithSuffixNumber(base_config, "time_smart_sleep", configinfo.TimSmartSleep, MQTT_RETAINED_MESSAGES);
 }
 
 void republishCachedRecords(const char *devicename)
@@ -844,16 +883,18 @@ void republishCachedRecords(const char *devicename)
         return;
     }
 
+    int64_t republishTimestamp = currentEpochMillis(); // cached records have no frame timestamp of their own, use current time
+
     if (has_device_info)
     {
-        readDeviceInfoRecord(&deviceinfo, devicename);
+        readDeviceInfoRecord(&deviceinfo, devicename, republishTimestamp);
     }
     if (has_config_info)
     {
-        readConfigInfoRecord(&configinfo, devicename);
+        readConfigInfoRecord(&configinfo, devicename, republishTimestamp);
     }
     if (has_cell_data)
     {
-        readCellDataRecord(&celldata, devicename);
+        readCellDataRecord(&celldata, devicename, republishTimestamp);
     }
 }

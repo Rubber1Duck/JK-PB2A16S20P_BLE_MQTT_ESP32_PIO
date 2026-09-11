@@ -1,4 +1,6 @@
 #include "html.h"
+#include "mqtt_publish_config.h"
+#include "parser.h"
 
 String formatTime(time_t t)
 {
@@ -121,17 +123,13 @@ void handleBmsPage(WebServer &server)
         ".toolbar .ctrl{display:flex;align-items:center;gap:8px;background:#16213e;border-radius:8px;padding:6px 10px}"
         ".toolbar label{font-size:.78rem;color:#9fb3d1}"
         ".toolbar select{background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:2px 6px}"
-        ".grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}"
-        ".mini{background:#111a31;border-radius:8px;padding:8px;border:1px solid #27314a}"
-        ".mini .t{font-size:.72rem;color:#9fb3d1;margin-bottom:4px}"
-        ".mini canvas{width:100%;height:48px;display:block}"
         ".chip-wrap{display:flex;gap:8px;flex-wrap:wrap}"
         ".chip{display:inline-block;padding:6px 10px;border-radius:999px;font-size:.78rem;font-weight:600;border:1px solid #555;background:#2b2b2b;color:#d5d5d5}"
         ".chip-critical{background:#3a1111;color:#ff8d8d;border-color:#8c2d2d}"
         ".chip-warning{background:#3b280d;color:#ffc266;border-color:#8e5b16}"
         ".chip-neutral{background:#1c2538;color:#b9d3ff;border-color:#30486e}"
         ".muted{color:#93a4bf;font-size:.8rem}"
-        "@media (max-width:900px){.grid3{grid-template-columns:1fr}.g2{grid-template-columns:1fr}.status{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.sc{min-width:0}.cg{grid-template-columns:repeat(3,1fr)}}"
+        "@media (max-width:900px){.g2{grid-template-columns:1fr}.status{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.sc{min-width:0}.cg{grid-template-columns:repeat(3,1fr)}}"
         "@media (max-width:560px){.status{grid-template-columns:1fr}.cg{grid-template-columns:repeat(2,1fr)}.sv{font-size:1.25rem}}"
         "</style></head><body>");
 
@@ -142,19 +140,14 @@ void handleBmsPage(WebServer &server)
         "<div class='ctrl'><label for='refresh-ms'>Aktualisierung</label><select id='refresh-ms'><option value='1000'>1s</option><option value='2000' selected>2s</option><option value='5000'>5s</option><option value='10000'>10s</option></select></div>"
         "<div class='muted' id='alarm-summary'>Keine aktiven Alarme</div>"
         "</div>"
-        "<div class='card'><h2>Live-Trends</h2><div class='grid3'>"
-        "<div class='mini'><div class='t'>SOC %</div><canvas id='chart-soc' width='280' height='60'></canvas></div>"
-        "<div class='mini'><div class='t'>Batteriespannung V</div><canvas id='chart-vol' width='280' height='60'></canvas></div>"
-        "<div class='mini'><div class='t'>Batteriestrom A</div><canvas id='chart-cur' width='280' height='60'></canvas></div>"
-        "</div></div>"
         "<div class='card'><h2>Ger&#228;teinformationen</h2><div class='g2'>"
         "<div>"
         "<div class='kv'><span class='lbl'>Ger&#228;tename</span><span class='val' id='di-name'>--</span></div>"
         "<div class='kv'><span class='lbl'>Hersteller-ID</span><span class='val' id='di-vid'>--</span></div>"
         "<div class='kv'><span class='lbl'>BMS - Laufzeit</span><span class='val' id='di-bms-up'>--</span></div>"
+        "<div class='kv'><span class='lbl'>HW-Version / SW-Version</span><span class='val' id='di-hw-sw'>--</span></div>"
         "</div><div>"
-        "<div class='kv'><span class='lbl'>HW-Version</span><span class='val' id='di-hw'>--</span></div>"
-        "<div class='kv'><span class='lbl'>SW-Version</span><span class='val' id='di-sw'>--</span></div>"
+        "<div class='kv'><span class='lbl'>ESP32 Firmware</span><span class='val' id='di-fw'>--</span></div>"
         "<div class='kv'><span class='lbl'>ESP - Laufzeit</span><span class='val' id='di-esp-up'>--</span></div>"
         "<div class='kv'><span class='lbl'>Letzter Reset Grund</span><span class='val'><span id='di-reset-reason' class='reason-badge reason-unknown'>--</span></span></div>"
         "</div>"
@@ -222,25 +215,35 @@ void handleBmsPage(WebServer &server)
         "</div></div></div>");
 
     server.sendContent(
+        "<div class='card'><h2>MQTT Statistik</h2><div class='status'>"
+        "<div class='sc'><div class='sv' id='sv-msg-total'>--</div><div class='sl'>Messages gesamt</div></div>"
+        "<div class='sc'><div class='sv' id='sv-msg-min'>--</div><div class='sl'>Messages/min</div></div>"
+        "<div class='sc'><div class='sv' id='sv-queue-size'>--</div><div class='sl'>MQTT-Queue Größe</div></div>"
+        "<div class='sc'><div class='sv' id='sv-max-queue'>--</div><div class='sl'>Maximale Queue-Belegung</div></div>"
+        "<div class='sc'><div class='sv' id='sv-max-queue-percent'>--</div><div class='sl'>Maximale Belegung in %</div></div>"
+        "<div class='sc'><div class='sv' id='sv-buffer-time'>--</div><div class='sl'>Max. Pufferzeit (min)</div></div>"
+        "<div class='sc'><div class='sv' id='sv-drain-time'>--</div><div class='sl'>Leerung volle Queue (min)</div></div>"
+        "</div></div>");
+
+    server.sendContent(
         "<div class='footer-links'>"
+        "<a href='/mqtt_config'>MQTT Konfiguration</a>"
         "<a href='/reset_history'>Reset-Historie</a>"
         "<a href='/reset_esp' onclick=\"return confirm('ESP32 jetzt neu starten?');\">ESP32 neu starten</a>"
         "<a href='/update'>Firmware-Update</a>"
         "</div>");
 
     server.sendContent("<script>"
-        "var hist={soc:[],vol:[],cur:[]},histMax=60,pollTimer=null;"
+        "var pollTimer=null;"
         "function s(id,v){var e=document.getElementById(id);if(e)e.textContent=v;}"
         "function cidx(v){var n=parseInt(v,10);return isNaN(n)?-1:n;}"
         "function setReasonBadge(id,text,cls){var e=document.getElementById(id);if(!e)return;e.textContent=text;e.className='reason-badge '+(cls||'reason-unknown');}"
         "function setTemp(id,rowId,val){var row=document.getElementById(rowId);if(!row)return;var n=parseFloat(val);var hide=(n===-200);row.style.display=hide?'none':'flex';if(!hide)s(id,val+' C');}"
         "function cc(v,a){var d=Math.abs(v-a);if(d>0.050)return 'lo';if(d>0.020)return 'hi';return 'ok';}"
         "function buildCells(d){var g=document.getElementById('cg'),h='',a=parseFloat(d.cells.vol_ave),maxIdx=cidx(d.cells.max_cell),minIdx=cidx(d.cells.min_cell);for(var i=0;i<32;i++){var b=(d.cells.sta>>i)&1,v=parseFloat(d.cells.vol[i]);if(!b)continue;var c=b?cc(v,a):'off';if(i===maxIdx)c+=' mx';if(i===minIdx)c+=' mn';h+='<div class=\"cell '+c+'\"><div class=\"cn\">Z'+(i+1)+'</div><div class=\"cv\">'+d.cells.vol[i]+'</div></div>';}g.innerHTML=h;}"
-        "function pushTrend(k,v){if(isNaN(v))return;hist[k].push(v);if(hist[k].length>histMax)hist[k].shift();}"
-        "function drawSpark(id,data,color){var c=document.getElementById(id);if(!c||data.length<2)return;var x=c.getContext('2d'),w=c.width,h=c.height,p=4,min=Math.min.apply(null,data),max=Math.max.apply(null,data),span=(max-min)||1;x.clearRect(0,0,w,h);x.strokeStyle='rgba(148,163,184,.25)';x.beginPath();x.moveTo(p,h-p);x.lineTo(w-p,h-p);x.stroke();x.strokeStyle=color;x.lineWidth=2;x.beginPath();for(var i=0;i<data.length;i++){var px=p+(i*(w-2*p))/Math.max(1,data.length-1);var py=h-p-((data[i]-min)/span)*(h-2*p);if(i===0)x.moveTo(px,py);else x.lineTo(px,py);}x.stroke();}"
         "function renderAlarms(d){var list=document.getElementById('alarm-list'),summary=document.getElementById('alarm-summary');if(!list||!summary)return;var a=d.cells.alarms||[];s('alarm-count',d.cells.alarm_count);if(!a.length){list.innerHTML='<span class=\\\"chip chip-neutral\\\">Keine aktiven Alarme</span>';summary.textContent='Keine aktiven Alarme';return;}var html='';for(var i=0;i<a.length;i++){html+='<span class=\\\"chip chip-critical\\\">'+a[i]+'</span>';}list.innerHTML=html;summary.textContent=a.length+' Alarm(e) aktiv';}"
         "function updateConfig(d){if(!d.config_ready){s('cfg-cells','--');s('cfg-cap','--');s('cfg-port','--');s('cfg-charge','--');s('cfg-discharge','--');s('cfg-balance','--');s('cfg-sleep','--');return;}s('cfg-cells',d.config.cell_count);s('cfg-cap',d.config.capacity_ah);s('cfg-port',d.config.port_switch);s('cfg-charge',d.config.charge_en);s('cfg-discharge',d.config.discharge_en);s('cfg-balance',d.config.balance_en);s('cfg-sleep',d.config.smart_sleep);}"
-        "function upd(d){document.getElementById('dot').className=d.cells_ready?'on':'oo';s('ts','Zuletzt: '+d.ts);if(d.device_ready){s('di-name',d.device.name);s('di-vid',d.device.vendor_id);s('di-hw',d.device.hw_version);s('di-sw',d.device.sw_version);s('di-bms-up',d.device.bms_uptime);s('di-esp-up',d.device.esp_uptime);}setReasonBadge('di-reset-reason',d.device.last_reset_reason,d.device.last_reset_reason_class);if(d.cells_ready){s('sv-soc',d.cells.soc);s('sv-vol',d.cells.bat_vol);s('sv-cur',d.cells.bat_cur);s('sv-pwr',d.cells.bat_watt);var f=document.getElementById('soc-bar'),soc=parseInt(d.cells.soc),maxIdx=cidx(d.cells.max_cell),minIdx=cidx(d.cells.min_cell);f.style.width=soc+'%';f.style.background=soc>50?'#00cc66':soc>20?'#ffaa00':'#cc3300';s('cv-ave',d.cells.vol_ave);s('cv-dif',d.cells.vol_dif);s('cv-max',maxIdx>=0?(maxIdx+1):'--');s('cv-min',minIdx>=0?(minIdx+1):'--');s('cd-cap',d.cells.cap_remain+' Ah');s('cd-cyc',d.cells.cycles);s('cd-ccap',d.cells.cycle_cap+' Ah');setTemp('cd-t1','row-t1',d.cells.temp1);setTemp('cd-t2','row-t2',d.cells.temp2);setTemp('cd-t3','row-t3',d.cells.temp3);setTemp('cd-t4','row-t4',d.cells.temp4);setTemp('cd-t5','row-t5',d.cells.temp5);s('x-soh',d.cells.soh+' %');s('x-runtime',d.cells.runtime_fmt);s('x-balance',d.cells.balance_status);s('x-heat',d.cells.heating);s('x-charge',d.cells.charge_mos);s('x-discharge',d.cells.discharge_mos);s('x-precharge',d.cells.precharge);s('x-alarm-mask',d.cells.alarm_mask);renderAlarms(d);pushTrend('soc',parseFloat(d.cells.soc));pushTrend('vol',parseFloat(d.cells.bat_vol));pushTrend('cur',parseFloat(d.cells.bat_cur));drawSpark('chart-soc',hist.soc,'#00d084');drawSpark('chart-vol',hist.vol,'#38bdf8');drawSpark('chart-cur',hist.cur,'#f59e0b');buildCells(d);}updateConfig(d);}"
+        "function upd(d){document.getElementById('dot').className=d.cells_ready?'on':'oo';s('ts','Zuletzt: '+d.ts);if(d.device_ready){s('di-name',d.device.name);s('di-vid',d.device.vendor_id);s('di-hw-sw',d.device.hw_version+' / '+d.device.sw_version);s('di-fw',d.device.fw_version);s('di-bms-up',d.device.bms_uptime);s('di-esp-up',d.device.esp_uptime);}setReasonBadge('di-reset-reason',d.device.last_reset_reason,d.device.last_reset_reason_class);if(d.status){s('sv-msg-total',d.status.messages_total);s('sv-msg-min',d.status.messages_per_minute);s('sv-queue-size',d.status.publish_queue_size||'--');s('sv-max-queue',d.status.max_publish_queue||'--');s('sv-max-queue-percent',d.status.max_publish_queue_percent||'--');s('sv-buffer-time',d.status.max_buffer_time_min||'--');s('sv-drain-time',d.status.drain_time_min||'--');}if(d.cells_ready){s('sv-soc',d.cells.soc);s('sv-vol',d.cells.bat_vol);s('sv-cur',d.cells.bat_cur);s('sv-pwr',d.cells.bat_watt);var f=document.getElementById('soc-bar'),soc=parseInt(d.cells.soc),maxIdx=cidx(d.cells.max_cell),minIdx=cidx(d.cells.min_cell);f.style.width=soc+'%';f.style.background=soc>50?'#00cc66':soc>20?'#ffaa00':'#cc3300';s('cv-ave',d.cells.vol_ave);s('cv-dif',d.cells.vol_dif);s('cv-max',maxIdx>=0?(maxIdx+1):'--');s('cv-min',minIdx>=0?(minIdx+1):'--');s('cd-cap',d.cells.cap_remain+' Ah');s('cd-cyc',d.cells.cycles);s('cd-ccap',d.cells.cycle_cap+' Ah');setTemp('cd-t1','row-t1',d.cells.temp1);setTemp('cd-t2','row-t2',d.cells.temp2);setTemp('cd-t3','row-t3',d.cells.temp3);setTemp('cd-t4','row-t4',d.cells.temp4);setTemp('cd-t5','row-t5',d.cells.temp5);s('x-soh',d.cells.soh+' %');s('x-runtime',d.cells.runtime_fmt);s('x-balance',d.cells.balance_status);s('x-heat',d.cells.heating);s('x-charge',d.cells.charge_mos);s('x-discharge',d.cells.discharge_mos);s('x-precharge',d.cells.precharge);s('x-alarm-mask',d.cells.alarm_mask);renderAlarms(d);buildCells(d);}updateConfig(d);}"
         "function poll(){fetch('/api/bms').then(function(r){return r.json();}).then(function(d){upd(d);}).catch(function(){document.getElementById('dot').className='oo';});}"
         "function applyRefresh(){var sel=document.getElementById('refresh-ms');var ms=parseInt(sel.value)||2000;if(pollTimer)clearInterval(pollTimer);poll();pollTimer=setInterval(poll,ms);}"
         "document.getElementById('refresh-ms').addEventListener('change',applyRefresh);"
@@ -272,6 +275,51 @@ void handleResetHistoryPage(WebServer &server, const ResetEntry *history, size_t
     }
 
     server.sendContent("</table><div class='actions'><a href='/clear'>Log l&#246;schen</a><a href='/'>Zur&#252;ck zur Startseite</a></div></div></body></html>");
+    server.sendContent("");
+}
+
+void handleMqttConfigPage(WebServer &server)
+{
+    size_t categoryCount = 0;
+    const MqttPublishCategory *categories = getMqttPublishCategories(categoryCount);
+
+    server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    server.send(200, "text/html", "");
+    server.sendContent("<!DOCTYPE html><html lang='de'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>MQTT Konfiguration</title>");
+    server.sendContent("<style>body{font-family:sans-serif;background:#1a1a2e;color:#eee;padding:12px;margin:0}.wrap{max-width:1400px;margin:auto}h1{color:#00d4ff;font-size:1.4rem}.intro{color:#aab6cc;font-size:.9rem}.card{background:#16213e;border-radius:8px;padding:8px;margin:8px 0}.category-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:start}.category-grid .card{margin:0}.card h2{font-size:1rem;margin:2px 0 6px}.bar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.actions button{background:#263c60;color:#fff;border:1px solid #49658f;border-radius:6px;padding:7px 10px;cursor:pointer}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 8px}.field{display:flex;align-items:center;gap:5px;padding:3px 0;border-bottom:1px solid #263451;font-size:.76rem;line-height:1.15;min-width:0}.field span{overflow-wrap:anywhere}.field input{accent-color:#00cc66;width:15px;height:15px;flex:0 0 15px}.state{color:#00cc66;font-size:.8rem}.links{display:flex;justify-content:center;gap:18px;margin:18px 0}.links a{color:#00d4ff;text-decoration:none}@media(max-width:1050px){.category-grid{grid-template-columns:1fr}.category-grid .fields{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:700px){.category-grid .fields{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:420px){.category-grid .fields{grid-template-columns:1fr}}</style></head><body><div class='wrap'>");
+    server.sendContent("<h1>MQTT Konfiguration</h1><p class='intro'>Wähle aus, welche MQTT-Werte veröffentlicht werden. Standardmäßig sind alle Werte aktiviert.</p>");
+    server.sendContent("<div class='card'><div class='bar'><span class='state' id='state'>Gespeichert</span><div class='actions'><button type='button' onclick='setAll(true)'>Alle aktivieren</button><button type='button' onclick='setAll(false)'>Alle deaktivieren</button></div></div></div>");
+
+    server.sendContent("<div class='category-grid'>");
+    for (size_t categoryIndex = 0; categoryIndex < categoryCount; categoryIndex++)
+    {
+        const MqttPublishCategory &category = categories[categoryIndex];
+        String heading = "<div class='card'><h2>" + String(category.label) + "</h2><div class='fields'>";
+        server.sendContent(heading);
+        for (size_t fieldIndex = 0; fieldIndex < category.fieldCount; fieldIndex++)
+        {
+            const MqttPublishField &field = category.fields[fieldIndex];
+            if (has_config_info && configinfo.CellCount[0] > 0 && strcmp(category.id, "data") == 0)
+            {
+                String fieldSuffix = field.suffix;
+                int cellNumber = 0;
+                if (fieldSuffix.startsWith("cells/voltage/cell_v_") || fieldSuffix.startsWith("cells/resistance/cell_r_"))
+                    cellNumber = fieldSuffix.substring(fieldSuffix.length() - 2).toInt();
+                if (cellNumber > configinfo.CellCount[0])
+                    continue;
+            }
+            String fieldId = String(category.id) + ":" + field.suffix;
+            String row = "<label class='field'><input type='checkbox' data-field='" + fieldId + "'";
+            if (getMqttPublishFieldEnabled(category.id, field.suffix))
+                row += " checked";
+            row += "><span>" + String(field.label) + "</span></label>";
+            server.sendContent(row);
+        }
+        server.sendContent("</div></div>");
+    }
+    server.sendContent("</div>");
+
+    server.sendContent("<div class='links'><a href='/'>Zurück zur Startseite</a><a href='/reset_history'>Reset-Historie</a></div><script>function save(e){var p=new URLSearchParams();var f=e.dataset.field.split(':');p.set('field',e.dataset.field);p.set('enabled',e.checked?'1':'0');fetch('/api/mqtt_config',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:p.toString()}).then(function(r){document.getElementById('state').textContent=r.ok?'Gespeichert':'Fehler beim Speichern';});}function setAll(v){document.querySelectorAll('input[data-field]').forEach(function(e){if(e.checked!==v){e.checked=v;save(e);}});}document.querySelectorAll('input[data-field]').forEach(function(e){e.addEventListener('change',function(){save(e);});});</script></div></body></html>");
     server.sendContent("");
 }
 

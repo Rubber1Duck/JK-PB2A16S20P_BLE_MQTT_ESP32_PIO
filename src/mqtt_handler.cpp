@@ -1,5 +1,6 @@
 #include "mqtt_handler.h"
 #include "publish.h"
+#include "mqtt_publish_config.h"
 #include "parser.h"
 
 #include <ctype.h>
@@ -49,6 +50,7 @@ static uint32_t rawdata_drop_init_failed_count = 0;
 static uint32_t rawdata_drop_oversize_count = 0;
 static uint32_t rawdata_drop_pool_exhausted_count = 0;
 static uint32_t rawdata_drop_queue_full_count = 0;
+static uint32_t total_published_messages = 0;
 
 // Forward declaration: defined later in this file after PubSubClient constructor
 #ifdef USE_TLS
@@ -275,8 +277,13 @@ String formatUptime(time_t uptime)
     return String(buffer);
 }
 
-bool toMqttQueue(const char *topic, const char *payload)
+bool toMqttQueue(const char *topic, const char *payload, bool retain)
 {
+    if (!isMqttPublishFieldEnabled(topic))
+    {
+        return false;
+    }
+
     std::lock_guard<std::mutex> lock(mqttQueueMutex);
     {
         std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
@@ -296,6 +303,7 @@ bool toMqttQueue(const char *topic, const char *payload)
     queue_in.topic[sizeof(queue_in.topic) - 1] = '\0';
     strncpy(queue_in.payload, payload, sizeof(queue_in.payload) - 1);
     queue_in.payload[sizeof(queue_in.payload) - 1] = '\0';
+    queue_in.retain = retain;
     if (xQueueSend(publishQueue, &queue_in, 0) != pdTRUE)
     {
         String failMsg = "Failed to send message to queue: " + String(topic);
@@ -306,9 +314,9 @@ bool toMqttQueue(const char *topic, const char *payload)
     return true;
 }
 
-bool toMqttQueue(String topic, String payload)
+bool toMqttQueue(String topic, String payload, bool retain)
 {
-    return toMqttQueue(topic.c_str(), payload.c_str());
+    return toMqttQueue(topic.c_str(), payload.c_str(), retain);
 }
 
 void toMqttQueueRawData(String topic, const char *payload, size_t payloadLen)
@@ -385,7 +393,10 @@ void setState(const char *key, const char *value, bool publish)
         return;
     }
 
-    stateMap[key] = value;
+    {
+        std::lock_guard<std::mutex> lock(mqttQueueMutex);
+        stateMap[key] = value;
+    }
     if (publish)
     {
         char fullTopic[192];
@@ -399,6 +410,18 @@ void setState(String key, String value, bool publish)
     setState(key.c_str(), value.c_str(), publish);
 }
 
+String getState(const char *key)
+{
+    if (key == nullptr)
+    {
+        return "";
+    }
+
+    std::lock_guard<std::mutex> lock(mqttQueueMutex);
+    auto state = stateMap.find(key);
+    return state == stateMap.end() ? "" : state->second;
+}
+
 static void setStateU32(const char *key, uint32_t value, bool publish)
 {
     char valueBuf[16];
@@ -406,10 +429,41 @@ static void setStateU32(const char *key, uint32_t value, bool publish)
     setState(key, valueBuf, publish);
 }
 
+uint32_t getTotalPublishedMessages()
+{
+    return total_published_messages;
+}
+
+uint32_t getPublishedMessagesPerMinute()
+{
+    uint32_t uptimeSeconds = static_cast<uint32_t>(esp_timer_get_time() / 1000000ULL);
+    if (uptimeSeconds == 0 || total_published_messages == 0)
+    {
+        return 0;
+    }
+    return (total_published_messages * 60U) / uptimeSeconds;
+}
+
+void incrementPublishedMessageCounter()
+{
+    total_published_messages++;
+    setStateU32("messages_total", total_published_messages, false);
+    setStateU32("messages_per_minute", getPublishedMessagesPerMinute(), false);
+}
+
+static void trackPublishedMessage()
+{
+    incrementPublishedMessageCounter();
+}
+
 void publishStates()
 {
     for (const auto &kv : stateMap)
     {
+        if (kv.first == "uptime")
+        {
+            continue;
+        }
         char fullTopic[192];
         snprintf(fullTopic, sizeof(fullTopic), "%s/status/%s", mqttname.c_str(), kv.first.c_str());
         toMqttQueue(fullTopic, kv.second.c_str());
@@ -421,8 +475,6 @@ void publishStatesTask(void *pvParameters)
 {
     while (true)
     {
-        // update uptime before publishing states
-        setState("uptime", formatUptime(esp_timer_get_time() / 1000000), false);
         setStateU32("rawpool_free_slots", rawDataPoolFreeCount(), false);
         setStateU32("rawpool_capacity", RAWDATA_POOL_SLOT_COUNT, false);
         setStateU32("rawdata_enqueued", rawdata_enqueued_count, false);
@@ -430,6 +482,8 @@ void publishStatesTask(void *pvParameters)
         setStateU32("rawdata_drop_oversize", rawdata_drop_oversize_count, false);
         setStateU32("rawdata_drop_pool_exhausted", rawdata_drop_pool_exhausted_count, false);
         setStateU32("rawdata_drop_queue_full", rawdata_drop_queue_full_count, false);
+        setStateU32("messages_total", total_published_messages, false);
+        setStateU32("messages_per_minute", getPublishedMessagesPerMinute(), false);
         publishStates();
         // Publish parameter topics periodically
         toMqttQueue(topic_debug_active, debug_flg ? "true" : "false");
@@ -454,6 +508,29 @@ void publishStatesTask(void *pvParameters)
 //  is valid. (see pubsubclient example "mqtt_publish_in_callback")
 void MQTTCallback(char *topic, byte *payload, unsigned int length);
 
+static bool parseBoolPayload(const byte *payload, unsigned int length, bool fallback)
+{
+    if (payload == nullptr || length == 0)
+    {
+        return fallback;
+    }
+
+    String cmd = String((const char *)payload, length);
+    cmd.trim();
+    cmd.toLowerCase();
+
+    if (cmd == "true" || cmd == "1" || cmd == "on" || cmd == "yes")
+    {
+        return true;
+    }
+    if (cmd == "false" || cmd == "0" || cmd == "off" || cmd == "no")
+    {
+        return false;
+    }
+
+    return fallback;
+}
+
 #ifdef USE_TLS
 WiFiClientSecure secure_wifi_client;
 PubSubClient mqtt_client(mqtt_server, mqtt_tls_port, MQTTCallback, secure_wifi_client);
@@ -470,18 +547,18 @@ void MQTTCallback(char *topic, byte *payload, unsigned int length)
     // Check debugging_active
     if (strcmp(topic, topic_debug_active.c_str()) == 0)
     {
-        String cmd = String((char *)payload, length);
-        debug_flg = (cmd == "true");
+        debug_flg = parseBoolPayload(payload, length, debug_flg);
         write_setting("debug_flg", debug_flg);
+        DEBUG_PRINTLN(String("debug_flg set to: ") + (debug_flg ? "true" : "false"));
         return;
     }
 
     // Check debugging_active_full
     if (strcmp(topic, topic_debug_active_full.c_str()) == 0)
     {
-        String cmd = String((char *)payload, length);
-        debug_flg_full = (cmd == "true");
+        debug_flg_full = parseBoolPayload(payload, length, debug_flg_full);
         write_setting("debug_flg_full", debug_flg_full);
+        DEBUG_PRINTLN(String("debug_flg_full set to: ") + (debug_flg_full ? "true" : "false"));
         return;
     }
 
@@ -644,6 +721,8 @@ boolean mqtt_reconnect()
 void mqtt_loop()
 {
     static bool lastConnected = false;
+    static uint32_t lastUptimePublish = 0;
+    static bool uptimePublished = false;
 
     bool connected = false;
     {
@@ -697,6 +776,21 @@ void mqtt_loop()
             DEBUG_PRINTLN("MQTT loop failed, reconnect scheduled. state=" + String(mqtt_client.state()));
         }
     }
+
+    uint32_t nowMs = millis();
+    if (!uptimePublished || nowMs - lastUptimePublish >= 5000)
+    {
+        String uptimeValue = formatUptime(esp_timer_get_time() / 1000000);
+        setState("uptime", uptimeValue, false);
+        String uptimeTopic = mqttname + "/status/uptime";
+        char uptimePayload[160];
+        snprintf(uptimePayload, sizeof(uptimePayload), "{\"time\":%lld,\"value\":\"%s\"}", static_cast<long long>(currentEpochMillis()), uptimeValue.c_str());
+        if (toMqttQueue(uptimeTopic, uptimePayload))
+        {
+            lastUptimePublish = nowMs;
+            uptimePublished = true;
+        }
+    }
 }
 
 void mqtt_init()
@@ -718,6 +812,7 @@ void mqtt_init()
         setState("ipaddress", WiFi.localIP().toString(), false);
         setState("ble_connection", "startup", false);
         setState("status", "online", false);
+        setState("publishqueuesize", String(publishQueueCount), false);
                 
         // Create the task to call publishStates() every min_publish_time seconds
         // Stack erhöht von 2048 auf 4096 für Stabilität
