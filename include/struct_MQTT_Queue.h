@@ -13,7 +13,7 @@ constexpr size_t MQTT_DEVICENAME_LEN = cstrlen(DEVICENAME);
 
 // Longest category+suffix tail appended after TOPIC_BASE+DEVICENAME across all published topics
 // (see the field tables in mqtt_publish_config.cpp), e.g. "/data/temperatures/temp_sensor_absent_mask".
-constexpr size_t MQTT_LONGEST_TOPIC_TAIL_LEN = sizeof("/data/temperatures/temp_sensor_absent_mask") - 1;
+constexpr size_t MQTT_LONGEST_TOPIC_TAIL_LEN = sizeof("/data/cells/voltage/high_voltage_cell_voltage") - 1;
 
 // Buffer size for a full MQTT topic string, sized from the actually configured TOPIC_BASE/DEVICENAME
 // instead of a fixed guess, so it shrinks/grows automatically with the build configuration.

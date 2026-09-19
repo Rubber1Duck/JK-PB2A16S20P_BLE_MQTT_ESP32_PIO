@@ -2,6 +2,8 @@
 #include "mqtt_publish_config.h"
 #include "parser.h"
 
+const String dashboardNameSuffix = TEXTIFY(WEB_DASHBOARD_DEVICE_NAME);
+
 String formatTime(time_t t)
 {
     if (t == 0)
@@ -45,7 +47,6 @@ String get_reset_reason_string(esp_reset_reason_t reason)
 
 const char *get_reset_reason_class(esp_reset_reason_t reason)
 {
-#ifdef USE_WEBSERVER
     switch (reason)
     {
     case ESP_RST_PANIC:
@@ -64,12 +65,7 @@ const char *get_reset_reason_class(esp_reset_reason_t reason)
     default:
         return "reason-unknown";
     }
-#else
-    return "reason-unknown";
-#endif
 }
-
-#ifdef USE_WEBSERVER
 
 void handleBmsPage(WebServer &server)
 {
@@ -79,7 +75,7 @@ void handleBmsPage(WebServer &server)
     server.sendContent("<!DOCTYPE html><html lang='de'><head>"
         "<meta charset='UTF-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<title>JK-BMS Dashboard</title>"
+        "<title>JK-BMS Dashboard " + dashboardNameSuffix + "</title>"
         "<style>"
         "*{box-sizing:border-box;margin:0;padding:0}"
         "body{font-family:sans-serif;background:#1a1a2e;color:#eee;padding:12px}"
@@ -134,7 +130,7 @@ void handleBmsPage(WebServer &server)
         "</style></head><body>");
 
     server.sendContent(
-        "<h1><span id='dot'></span>JK-BMS Dashboard</h1>"
+        "<h1><span id='dot'></span>JK-BMS Dashboard " + dashboardNameSuffix + "</h1>"
         "<p id='ts'>Warte auf Daten...</p>"
         "<div class='toolbar'>"
         "<div class='ctrl'><label for='refresh-ms'>Aktualisierung</label><select id='refresh-ms'><option value='1000'>1s</option><option value='2000' selected>2s</option><option value='5000'>5s</option><option value='10000'>10s</option></select></div>"
@@ -258,9 +254,9 @@ void handleResetHistoryPage(WebServer &server, const ResetEntry *history, size_t
     server.setContentLength(CONTENT_LENGTH_UNKNOWN);
     server.send(200, "text/html", "");
 
-    server.sendContent("<html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>ESP32 Time Log</title>");
+    server.sendContent("<html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>ESP32 Time Log " + dashboardNameSuffix + "</title>");
     server.sendContent("<style>body{font-family:sans-serif;background:#0b0b12;color:#eee;padding:20px;}h1{color:#00d4ff;margin-bottom:16px;}table{width:100%;border-collapse:collapse;background:#16213e;border-radius:10px;overflow:hidden;}td,th{border-bottom:1px solid #24314f;padding:12px 10px;text-align:left;}th{background:#101a30;color:#9cb3d9;font-size:.85rem;text-transform:uppercase;letter-spacing:.04em;}tr:hover td{background:#1b2a49;}a{color:#00d4ff;text-decoration:none;}a:hover{text-decoration:underline;}.actions{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin-top:18px;}.wrap{max-width:1100px;margin:0 auto;}.reason-badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:.82rem;font-weight:600;border:1px solid transparent;}.reason-critical{background:#3a1111;color:#ff8d8d;border-color:#8c2d2d;}.reason-warning{background:#3b280d;color:#ffc266;border-color:#8e5b16;}.reason-neutral{background:#1c2538;color:#b9d3ff;border-color:#30486e;}.reason-unknown{background:#2b2b2b;color:#d5d5d5;border-color:#555;}</style></head><body><div class='wrap'>");
-    server.sendContent("<h1>Reset-Historie mit Zeitstempel</h1><table><tr><th>Nr.</th><th>Zeitpunkt</th><th>Grund</th></tr>");
+    server.sendContent("<h1>Reset-Historie mit Zeitstempel " + dashboardNameSuffix + "</h1><table><tr><th>Nr.</th><th>Zeitpunkt</th><th>Grund</th></tr>");
 
     char row[320];
     for (size_t i = 0; i < historyCount; i++)
@@ -285,9 +281,9 @@ void handleMqttConfigPage(WebServer &server)
 
     server.setContentLength(CONTENT_LENGTH_UNKNOWN);
     server.send(200, "text/html", "");
-    server.sendContent("<!DOCTYPE html><html lang='de'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>MQTT Konfiguration</title>");
+    server.sendContent("<!DOCTYPE html><html lang='de'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>MQTT Konfiguration " + dashboardNameSuffix + "</title>");
     server.sendContent("<style>body{font-family:sans-serif;background:#1a1a2e;color:#eee;padding:12px;margin:0}.wrap{max-width:1400px;margin:auto}h1{color:#00d4ff;font-size:1.4rem}.intro{color:#aab6cc;font-size:.9rem}.card{background:#16213e;border-radius:8px;padding:8px;margin:8px 0}.category-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:start}.category-grid .card{margin:0}.card h2{font-size:1rem;margin:2px 0 6px}.bar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.actions button{background:#263c60;color:#fff;border:1px solid #49658f;border-radius:6px;padding:7px 10px;cursor:pointer}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 8px}.field{display:flex;align-items:center;gap:5px;padding:3px 0;border-bottom:1px solid #263451;font-size:.76rem;line-height:1.15;min-width:0}.field span{overflow-wrap:anywhere}.field span.lbl{flex:1 1 auto}.field input{accent-color:#00cc66;width:15px;height:15px;flex:0 0 15px}.field input.rt{accent-color:#ff9900;margin-left:4px}.field span.rlbl{flex:0 0 auto;color:#aab6cc;font-size:.68rem}.state{color:#00cc66;font-size:.8rem}.links{display:flex;justify-content:center;gap:18px;margin:18px 0}.links a{color:#00d4ff;text-decoration:none}@media(max-width:1050px){.category-grid{grid-template-columns:1fr}.category-grid .fields{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:700px){.category-grid .fields{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:420px){.category-grid .fields{grid-template-columns:1fr}}</style></head><body><div class='wrap'>");
-    server.sendContent("<h1>MQTT Konfiguration</h1><p class='intro'>Wähle aus, welche MQTT-Werte veröffentlicht werden und ob sie als \"retained\" (R) gesendet werden sollen. Standardmäßig sind alle Werte aktiviert.</p>");
+    server.sendContent("<h1>MQTT Konfiguration " + dashboardNameSuffix + "</h1><p class='intro'>Wähle aus, welche MQTT-Werte veröffentlicht werden und ob sie als \"retained\" (R) gesendet werden sollen. Standardmäßig sind alle Werte aktiviert.</p>");
     server.sendContent("<div class='card'><div class='bar'><span class='state' id='state'>Gespeichert</span><div class='actions'><button type='button' onclick='setAll(true)'>Alle aktivieren</button><button type='button' onclick='setAll(false)'>Alle deaktivieren</button><button type='button' onclick='setAllRetain(true)'>Alle retained</button><button type='button' onclick='setAllRetain(false)'>Kein retained</button></div></div></div>");
 
     server.sendContent("<div class='category-grid'>");
@@ -299,11 +295,11 @@ void handleMqttConfigPage(WebServer &server)
         for (size_t fieldIndex = 0; fieldIndex < category.fieldCount; fieldIndex++)
         {
             const MqttPublishField &field = category.fields[fieldIndex];
-            if (has_config_info && configinfo.CellCount[0] > 0 && strcmp(category.id, "data") == 0)
+            if (has_config_info && configinfo.CellCount[0] > 0 && (strcmp(category.id, "data") == 0 || strcmp(category.id, "config") == 0))
             {
                 String fieldSuffix = field.suffix;
                 int cellNumber = 0;
-                if (fieldSuffix.startsWith("cells/voltage/cell_v_") || fieldSuffix.startsWith("cells/resistance/cell_r_"))
+                if (fieldSuffix.startsWith("cells/voltage/cell_v_") || fieldSuffix.startsWith("cells/wire_res/cell_wr_") || fieldSuffix.startsWith("cells/cell_cwr_"))
                     cellNumber = fieldSuffix.substring(fieldSuffix.length() - 2).toInt();
                 if (cellNumber > configinfo.CellCount[0])
                     continue;
@@ -327,4 +323,3 @@ void handleMqttConfigPage(WebServer &server)
     server.sendContent("");
 }
 
-#endif // USE_WEBSERVER

@@ -108,8 +108,10 @@ Stand: aus dem aktuellen Code in src/parser.cpp, src/mqtt_handler.cpp und src/mq
 - BASE/data/cells_used (nur wenn debug_flg)
 - BASE/data/cells/voltage/cell_avg_voltage
 - BASE/data/cells/voltage/cell_diff_voltage
-- BASE/data/cells/voltage/high_voltage_cell
-- BASE/data/cells/voltage/low_voltage_cell
+- BASE/data/cells/voltage/high_voltage_cell_nbr
+- BASE/data/cells/voltage/high_voltage_cell_voltage
+- BASE/data/cells/voltage/low_voltage_cell_nbr
+- BASE/data/cells/voltage/low_voltage_cell_voltage
 - BASE/data/temperatures/temp_mosfet
 - BASE/data/cell_resistance_alert (nur wenn debug_flg)
 - BASE/data/battery_voltage
@@ -162,7 +164,8 @@ Stand: aus dem aktuellen Code in src/parser.cpp, src/mqtt_handler.cpp und src/mq
 ## Data Topics (dynamische Reihen)
 
 - BASE/data/cells/voltage/cell_v_01 bis BASE/data/cells/voltage/cell_v_32
-- BASE/data/cells/resistance/cell_r_01 bis BASE/data/cells/resistance/cell_r_32
+- BASE/data/cells/wire_res/cell_wr_01 bis BASE/data/cells/wire_res/cell_wr_32
+- BASE/config/cells/cell_cwr_01 bis BASE/config/cells/cell_cwr_32
 - BASE/data/alarms/AlarmWireRes
 - BASE/data/alarms/AlarmMosOTP
 - BASE/data/alarms/AlarmCellQuantity

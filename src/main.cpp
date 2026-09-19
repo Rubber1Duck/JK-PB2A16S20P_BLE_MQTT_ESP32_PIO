@@ -1,7 +1,4 @@
 #include "main.h"
-#ifdef USE_WEBSERVER
-#include "app_webserver.h"
-#endif
 
 #ifdef USE_SYSLOG
 PicoSyslog::Logger syslog;
@@ -34,36 +31,14 @@ void setup()
     Serial.println("Starting ...");
     Serial.println("");
 
-#ifdef USE_TLS
-    const char *cert_flash = MQTT_ROOT_CA_CERT;
-    char *root_ca_cert_psram = nullptr;
-    if (psramFound())
-    {
-        size_t cert_len = strlen(cert_flash) + 1;
-        root_ca_cert_psram = (char *)ps_malloc(cert_len);
-        if (root_ca_cert_psram != nullptr)
-        {
-            memcpy(root_ca_cert_psram, cert_flash, cert_len);
-            Serial.println("Zertifikat erfolgreich in PSRAM kopiert.");
-        }
-        else
-        {
-            Serial.println("Fehler: Kein Speicher im PSRAM verfügbar.");
-        }
-    }
-    else
-    {
-        Serial.println("PSRAM nicht gefunden, Zertifikat bleibt im Flash.");
-    }
-    const char *root_ca_cert = root_ca_cert_psram ? root_ca_cert_psram : cert_flash;
-#endif
-
 #ifdef USELED
     init_led();
     set_led(LedState::LED_DOUBLE_FLASH);
 #endif
 
     init_wifi();
+
+    init_mdns_handler();
 
 #ifdef USE_SYSLOG
     syslog.server = SYSLOG_SERVER;
@@ -75,6 +50,7 @@ void setup()
 #endif
 
 #ifdef USE_TLS
+    const char *root_ca_cert = MQTT_ROOT_CA_CERT;
     secure_wifi_client.setTimeout(15000);
 #ifdef MQTT_SKIP_CERT_VERIFY
     // Debug mode: disable certificate validation completely.
@@ -132,9 +108,7 @@ void setup()
     }
     DEBUG_PRINTLN("---------------------------\n");
 
-#ifdef USE_WEBSERVER
     setupWebserver(history, MAX_RESET_REASONS, NVS_KEY);
-#endif
 
     publish_init();
     
@@ -145,9 +119,7 @@ void setup()
 
 void loop()
 {
-#ifdef USE_WEBSERVER
     webserverLoop();
-#endif
     
     wifi_loop();
     

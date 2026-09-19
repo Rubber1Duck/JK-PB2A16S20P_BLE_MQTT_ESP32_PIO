@@ -175,6 +175,8 @@ struct CellData
   char ChargeStatus_fmt[12];                                                                                         // Hilfsvariable für die Interpretation des ChargeStatus (0x00: Bulk ; 0x01: Absorption ; 0x02: Float)
   char Dry1Contact_fmt[7];                                                                                           // Hilfsvariable für die Interpretation des Dry1Contact Open/closed (0x00: DRY and DRY2 off ; 0x02: DRY1 on ; 0x04: DRY2 on ; 0x06: DRY1 and DRY2 on)
   char Dry2Contact_fmt[7];                                                                                           // Hilfsvariable für die Interpretation des Dry2Contact Open/closed (0x00: DRY and DRY2 off ; 0x02: DRY1 on ; 0x04: DRY2 on ; 0x06: DRY1 and DRY2 on)
+  char HighCellVoltage_fmt[8];                                                                                       // Hilfsvariable für die Formatierung der HighCellVoltage mit 3 Dezimalstellen eg. 1.234 V
+  char LowCellVoltage_fmt[8];                                                                                        // Hilfsvariable für die Formatierung der LowCellVoltage mit 3 Dezimalstellen eg. 1.234 V
   bool check_bit(uint8_t mask, uint8_t flag){ return (mask & flag) == flag; }
   const char* convertUnixTimeToString(uint32_t unixTime)
   {
@@ -345,6 +347,10 @@ struct CellData
     Dry1Contact_fmt[sizeof(Dry1Contact_fmt) - 1] = '\0';
     check_bit(DryContactMask, 0x04) ? strncpy(Dry2Contact_fmt, "closed", sizeof(Dry2Contact_fmt) - 1) : strncpy(Dry2Contact_fmt, "open", sizeof(Dry2Contact_fmt) - 1);
     Dry2Contact_fmt[sizeof(Dry2Contact_fmt) - 1] = '\0';
+    strncpy(HighCellVoltage_fmt, CellVol_fmt[MaxVolCellNbr], sizeof(HighCellVoltage_fmt) - 1);
+    HighCellVoltage_fmt[sizeof(HighCellVoltage_fmt) - 1] = '\0';
+    strncpy(LowCellVoltage_fmt, CellVol_fmt[MinVolCellNbr], sizeof(LowCellVoltage_fmt) - 1);
+    LowCellVoltage_fmt[sizeof(LowCellVoltage_fmt) - 1] = '\0';
   }
 } __attribute__((packed)); // Verhindert Padding und sorgt dafür, dass die Struktur genau so im Speicher liegt wie definiert;
 

@@ -51,7 +51,8 @@ struct CellTopicCache
     char base_device[MQTT_TOPIC_BUFFER_SIZE];
     char base_config[MQTT_TOPIC_BUFFER_SIZE];
     char cell_voltage[32][MQTT_TOPIC_BUFFER_SIZE];
-    char cell_resistance[32][MQTT_TOPIC_BUFFER_SIZE];
+    char cell_wire_res[32][MQTT_TOPIC_BUFFER_SIZE];
+    char cell_config_wire_res[32][MQTT_TOPIC_BUFFER_SIZE];
 };
 
 CellTopicCache cellTopicCache = {};
@@ -277,15 +278,16 @@ static void rebuildCellTopicCache(const char *devicename)
     cellTopicCache.valid = true;
     strncpy(cellTopicCache.devicename, devicename, sizeof(cellTopicCache.devicename) - 1);
 
-    snprintf(cellTopicCache.base_data, sizeof(cellTopicCache.base_data), "%s%s/data/", mqtt_main_topic.c_str(), devicename);
-    snprintf(cellTopicCache.base_debug, sizeof(cellTopicCache.base_debug), "%s%s/debug/", mqtt_main_topic.c_str(), devicename);
-    snprintf(cellTopicCache.base_device, sizeof(cellTopicCache.base_device), "%s%s/device/", mqtt_main_topic.c_str(), devicename);
-    snprintf(cellTopicCache.base_config, sizeof(cellTopicCache.base_config), "%s%s/config/", mqtt_main_topic.c_str(), devicename);
+    snprintf(cellTopicCache.base_data, sizeof(cellTopicCache.base_data), "%s%s/data/", mqtt_main_topic.c_str(), cellTopicCache.devicename);
+    snprintf(cellTopicCache.base_debug, sizeof(cellTopicCache.base_debug), "%s%s/debug/", mqtt_main_topic.c_str(), cellTopicCache.devicename);
+    snprintf(cellTopicCache.base_device, sizeof(cellTopicCache.base_device), "%s%s/device/", mqtt_main_topic.c_str(), cellTopicCache.devicename);
+    snprintf(cellTopicCache.base_config, sizeof(cellTopicCache.base_config), "%s%s/config/", mqtt_main_topic.c_str(), cellTopicCache.devicename);
 
     for (uint8_t i = 0; i < 32; ++i)
     {
         snprintf(cellTopicCache.cell_voltage[i], sizeof(cellTopicCache.cell_voltage[i]), "%scells/voltage/cell_v_%02d", cellTopicCache.base_data, i + 1);
-        snprintf(cellTopicCache.cell_resistance[i], sizeof(cellTopicCache.cell_resistance[i]), "%scells/resistance/cell_r_%02d", cellTopicCache.base_data, i + 1);
+        snprintf(cellTopicCache.cell_wire_res[i], sizeof(cellTopicCache.cell_wire_res[i]), "%scells/wire_res/cell_wr_%02d", cellTopicCache.base_data, i + 1);
+        snprintf(cellTopicCache.cell_config_wire_res[i], sizeof(cellTopicCache.cell_config_wire_res[i]), "%scells/cell_cwr_%02d", cellTopicCache.base_config, i + 1);
     }
 }
 
@@ -329,7 +331,7 @@ void readDeviceInfoRecord(void *message, const char *devicename, int64_t timesta
     // Startzeit für die Verarbeitung des Datensatzes
     // uint32_t start_time = millis();
     currentRecordTimestamp = timestamp;
-    memcpy(&deviceinfo, message, 300); // Kopiere 300 Bytes in die Struktur
+    memcpy(&deviceinfo, message, message_length); // Kopiere 300 Bytes in die Struktur
     has_device_info = true;
 
     // Ensure fixed-size text fields are null-terminated before downstream use.
@@ -459,7 +461,7 @@ void readCellDataRecord(void *message, const char *devicename, int64_t timestamp
     dtostrf(Q_charged_mAh, 0, 3, Q_charged_mAh_str);
     dtostrf(Q_discharged_mAh, 0, 3, Q_discharged_mAh_str);
         
-    memcpy(&celldata, message, 300); // Kopiere 300 Bytes message in die Struktur
+    memcpy(&celldata, message, message_length); // Kopiere 300 Bytes message in die Struktur
     has_cell_data = true;
     celldata.prepareOutValues(); // Bereite die formatierten Strings für die Ausgabe vor
 
@@ -477,9 +479,9 @@ void readCellDataRecord(void *message, const char *devicename, int64_t timestamp
 
     if (debug_flg_full)
     {
-        char message_base64[base64::encodeLength(300)];                   // Buffer für die Base64-kodierte Nachricht
+        char message_base64[base64::encodeLength(message_length)];                   // Buffer für die Base64-kodierte Nachricht
         uint8_t *rawDataPtr = (uint8_t *)&celldata;                       // Zeiger auf die Rohdaten der Struktur
-        base64::encode((const uint8_t *)rawDataPtr, 300, message_base64); // Base64-kodieren der Rohdaten);
+        base64::encode((const uint8_t *)rawDataPtr, message_length, message_base64); // Base64-kodieren der Rohdaten);
         char rawdata_topic[192];
         snprintf(rawdata_topic, sizeof(rawdata_topic), "%s%s", base_debug, "rawdata");
         toMqttQueueRawData(rawdata_topic, message_base64, strlen(message_base64));
@@ -488,10 +490,10 @@ void readCellDataRecord(void *message, const char *devicename, int64_t timestamp
     // Cell Voltages
     for (uint8_t i = 0; i < 32; i++)
     {
-        if (celldata.CellVol[i] != 0)
-        {
-            publishIfChanged(cdOld.CellVol[i], celldata.CellVol[i], celldata.CellVol_fmt[i], cellTopicCache.cell_voltage[i]);
+        if (i > configinfo.CellCount[0] - 1){
+            continue;
         }
+        publishIfChanged(cdOld.CellVol[i], celldata.CellVol[i], celldata.CellVol_fmt[i], cellTopicCache.cell_voltage[i]);
     }
 
     // CellSta as bitmask
@@ -506,19 +508,23 @@ void readCellDataRecord(void *message, const char *devicename, int64_t timestamp
     // Cell Voltage Difference
     publishIfChangedWithSuffix(cdOld.CellVdifMax, celldata.CellVdifMax, celldata.CellVdifMax_fmt, base_data, "cells/voltage/cell_diff_voltage");
 
-    // High Voltage Cell
-    publishIfChangedWithSuffix(cdOld.MaxVolCellNbr, celldata.MaxVolCellNbr, celldata.MaxVolCellNbr_fmt, base_data, "cells/voltage/high_voltage_cell");
+    // High Voltage Cell and High Cell Voltage
+    uint8_t oldMaxVolCellNbr = cdOld.MaxVolCellNbr; // store oldMaxVolCellNbr for second use in High Cell Voltage, afther first use cdOld.MaxVolCellNbr = celldata.MaxVolCellNbr!;
+    publishIfChangedWithSuffix(cdOld.MaxVolCellNbr, celldata.MaxVolCellNbr, celldata.MaxVolCellNbr_fmt, base_data, "cells/voltage/high_voltage_cell_Nbr");
+    publishIfChangedWithSuffix(oldMaxVolCellNbr, celldata.MaxVolCellNbr, celldata.HighCellVoltage_fmt, base_data, "cells/voltage/high_voltage_cell_voltage");
 
-    // Low Voltage Cell
-    publishIfChangedWithSuffix(cdOld.MinVolCellNbr, celldata.MinVolCellNbr, celldata.MinVolCellNbr_fmt, base_data, "cells/voltage/low_voltage_cell");
+    // Low Voltage Cell and Low Cell Voltage
+    uint8_t oldMinVolCellNbr = cdOld.MinVolCellNbr; // store old MinVolCellNbr for second use in Low Cell Voltage, afther first use cdOld.MinVolCellNbr = celldata.MinVolCellNbr!;
+    publishIfChangedWithSuffix(cdOld.MinVolCellNbr, celldata.MinVolCellNbr, celldata.MinVolCellNbr_fmt, base_data, "cells/voltage/low_voltage_cell_Nbr");
+    publishIfChangedWithSuffix(oldMinVolCellNbr, celldata.MinVolCellNbr, celldata.LowCellVoltage_fmt, base_data, "cells/voltage/low_voltage_cell_voltage");
 
     // Cell resistances
     for (uint8_t i = 0; i < 32; i++)
     {
-        if (celldata.CellWireRes[i] != 0)
-        {
-            publishIfChanged(cdOld.CellWireRes[i], celldata.CellWireRes[i], celldata.CellWireRes_fmt[i], cellTopicCache.cell_resistance[i]);
+        if (i > configinfo.CellCount[0] - 1){
+            continue;
         }
+        publishIfChanged(cdOld.CellWireRes[i], celldata.CellWireRes[i], celldata.CellWireRes_fmt[i], cellTopicCache.cell_wire_res[i]);
     }
 
     // Temp MOSFET
@@ -764,7 +770,7 @@ void readConfigInfoRecord(void *message, const char *devicename, int64_t timesta
     currentRecordTimestamp = timestamp;
 
     // Kopiere die empfangenen Bytes in die ConfigInfo-Struktur
-    memcpy(&configinfo, message, 300); // Kopiere 300 Bytes in die Struktur
+    memcpy(&configinfo, message, message_length); // Kopiere 300 Bytes in die Struktur
     has_config_info = true;
     configinfo.update_switches();
 
@@ -772,6 +778,8 @@ void readConfigInfoRecord(void *message, const char *devicename, int64_t timesta
     const char *base_config = cellTopicCache.base_config;
 
     // Veröffentliche die Konfigurationsdaten auf MQTT
+    // Frame Counter
+    toMqttQueueWithSuffixNumber(base_config, "read_count", configinfo.FrameCounter);
     // VolSmartSleep
     toMqttQueueWithSuffixFloat(base_config, "vol_smart_sleep", static_cast<float>(configinfo.VolSmartSleep) * 0.001f, 3);
     // VolCellUV
@@ -870,6 +878,13 @@ void readConfigInfoRecord(void *message, const char *devicename, int64_t timesta
     toMqttQueueWithSuffixNumber(base_config, "tmp_heating_stop", configinfo.TmpHeatingStop);
     // TIMSmartSleep
     toMqttQueueWithSuffixNumber(base_config, "time_smart_sleep", configinfo.TimSmartSleep);
+    // CellConWireRes
+    for (int i = 0; i < 32; ++i){
+        if (i > configinfo.CellCount[0] - 1){
+            continue;
+        }
+        toMqttQueue(cellTopicCache.cell_config_wire_res[i], configinfo.CellConWireRes_fmt[i]);
+    }
 }
 
 void republishCachedRecords(const char *devicename)

@@ -1,12 +1,10 @@
 #include "app_webserver.h"
 
-#ifdef USE_WEBSERVER
-
 #include <ArduinoOTA.h>
 #include <WebServer.h>
 #include <Preferences.h>
 #include <cstring>
-
+#include "config.h"
 #include "macros.h"
 #include "mqtt_handler.h"
 #include "mqtt_publish_config.h"
@@ -343,4 +341,3 @@ void webserverLoop()
     ArduinoOTA.handle();
 }
 
-#endif // USE_WEBSERVER

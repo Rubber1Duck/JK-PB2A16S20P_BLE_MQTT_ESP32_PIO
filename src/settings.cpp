@@ -9,8 +9,9 @@ const char *nvs_namespace = "system"; // NVS namespace for storing settings
 //       123456789012345
 uint16_t publish_delay;
 uint16_t min_pub_time;
-volatile bool     debug_flg = false;
-volatile bool     debug_flg_full = false;
+bool     debug_flg;
+bool     debug_flg_full;
+bool     rawLogEnabled;
 uint16_t publishInterval;
 
 static bool openSettingsPrefs(Preferences &localPrefs, bool readOnly)
@@ -141,7 +142,13 @@ void re_read_settings()
             Serial.println("ERROR: Failed to persist publishInterval");
         }
     }
-
+    if (!localPrefs.isKey("rawLogEnabled")) {
+        Serial.println("rawLogEnabled setting is missing in NVS. Re-initializing with default value.");
+        if (localPrefs.putUChar("rawLogEnabled", 0) != sizeof(uint8_t))
+        {
+            Serial.println("ERROR: Failed to persist rawLogEnabled");
+        }
+    }
     localPrefs.end();
     
     publish_delay = read_setting("publish_delay", (uint16_t)PUBLISH_DELAY);
@@ -152,6 +159,7 @@ void re_read_settings()
     min_pub_time = min_pub_time > 1000 ? (uint16_t)MIN_PUB_TIME : min_pub_time;
     debug_flg = read_setting("debug_flg", false);
     debug_flg_full = read_setting("debug_flg_full", false);
+    rawLogEnabled = read_setting("rawLogEnabled", false);
     publishInterval = read_setting("publishInterval", (uint16_t)PUBLISH_INTERVAL);
     // Limit to 200 milliseconds
     publishInterval = publishInterval > 200 ? (uint16_t)PUBLISH_INTERVAL : publishInterval;

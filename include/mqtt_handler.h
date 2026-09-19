@@ -47,8 +47,10 @@ extern QueueHandle_t publishQueue;
 extern QueueHandle_t rawPublishQueue;
 extern boolean isWifiConnected;
 extern uint16_t min_pub_time;
-extern volatile bool debug_flg;
-extern volatile bool debug_flg_full;
+extern bool debug_flg;
+extern bool debug_flg_full;
+extern bool rawLogEnabled;
+
 extern uint16_t publish_delay;
 extern uint16_t publishInterval;
 

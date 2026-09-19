@@ -7,6 +7,9 @@
 #define DEVICENAME "JK-PB2A16S20P"
 #endif
 
+// following will be added for the web dashboard device name (JK-BMS Dashboard "WEB_DASHBOARD_DEVICE_NAME")
+#define WEB_DASHBOARD_DEVICE_NAME "What ever you want to see on the web dashboard"
+
 // Uncomment to enable debug output to syslog server (UDP) and serial console
 // #define USE_SYSLOG
 #ifdef USE_SYSLOG
@@ -22,9 +25,6 @@
 // Number of reset reasons to store in history, adjust as needed but be careful with NVS storage limits
 // (see: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/storage/nvs_flash.html#nvs-flash)
 #define MAX_RESET_REASONS 10
-
-// Uncomment to enable webserver and OTA update functionality
-#define USE_WEBSERVER
 
 // WiFi credentials
 // #define USE_WIFI_STATIC_IP // uncomment to use static IP configuration instead of DHCP (see below for settings)

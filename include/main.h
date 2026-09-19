@@ -3,6 +3,7 @@
 #include "config.h"
 #include "wifi_handler.h"
 #include "mqtt_handler.h"
+#include "app_webserver.h"
 #include "ble_client.h"
 #include "led_control.h"
 #include "macros.h"
@@ -10,7 +11,7 @@
 #include <settings.h>
 #include <rom/rtc.h> // Erforderlich für detaillierte Reset-Infos
 #include "html.h"
-
+#include "mdns_handler.h"
 #ifdef USE_TLS
 extern WiFiClientSecure secure_wifi_client;
 #endif

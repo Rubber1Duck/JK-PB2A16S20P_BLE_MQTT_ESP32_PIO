@@ -28,8 +28,9 @@ const char *getDeviceInfo_str = "AA:55:90:EB:97:00:00:00:00:00:00:00:00:00:00:00
 const char *getConfigInfo_str = "AA:55:90:EB:96:00:00:00:00:00:00:00:00:00:00:00:00:00:00:10"; // hex string representation of getConfigInfo
 
 // Buffer
+const size_t message_length = BUFFER_SIZE;
 std::mutex bufferMutex;
-uint8_t ble_buffer[BUFFER_SIZE];
+uint8_t ble_buffer[message_length];
 uint16_t ble_buffer_index = 0;
 const uint8_t start_sequence[4] = {0x55, 0xaa, 0xeb, 0x90}; // Start sequence to detect the beginning of a message
 const uint8_t pos_of_FrameType = 4;       // position of FrameType in the message
@@ -41,6 +42,7 @@ time_t last_rssi_time = 0; // Variable to save the last time RSSI was checked
 time_t save_millis = 0; // Variable to save the last time millis() was called
 time_t time_CI_sent = 0; // Variable to save the time when the Config Info request was sent
 time_t lastRcvdCDTime = 0; // Variable to save the last time a cell data frame was received
+time_t time_DI_send = 0; // Variable to save the time when the Device Info request was sent
 
 #ifdef DUALCORE
 // Define the queue handle
@@ -234,10 +236,10 @@ void notifyCB(NimBLERemoteCharacteristic *pRemoteCharacteristic, uint8_t *pData,
         ble_buffer_index += bytes_to_copy;
 
         // if 300 bytes received and CRC_Check OK call parser
-        if (ble_buffer_index >= BUFFER_SIZE && CRC_Check(ble_buffer, BUFFER_SIZE)){
+        if (ble_buffer_index >= message_length && CRC_Check(ble_buffer, message_length)){
 
             int64_t frameTimestamp = currentEpochMillis(); // Zeitstempel (ms) unmittelbar nach vollstaendigem Empfang der Nachricht
-            std::vector<uint8_t> message(ble_buffer, ble_buffer + BUFFER_SIZE);
+            std::vector<uint8_t> message(ble_buffer, ble_buffer + message_length);
             ble_buffer_index = 0;
             capturing = false; // waiting for next start sequence
 
@@ -246,7 +248,7 @@ void notifyCB(NimBLERemoteCharacteristic *pRemoteCharacteristic, uint8_t *pData,
 #ifdef DUALCORE
             // Add message + timestamp to queue
             BleFrame frame;
-            memcpy(frame.data, message.data(), BUFFER_SIZE);
+            memcpy(frame.data, message.data(), message_length);
             frame.timestamp = frameTimestamp;
             if (xQueueSend(bleQueue, &frame, 0) != pdTRUE) DEBUG_PRINTLN("Failed to send message to queue");
 #else
@@ -409,18 +411,19 @@ void ble_loop() {
         // Send getDeviceInfo message if not already sent and SEND_INTERVAL seconds after Config Info is sent
         else if (!DI_send && CI_send && ((save_millis - time_CI_sent) >= SEND_INTERVAL) && pChr->writeValue(getDeviceInfo, 20, false)) {
             DEBUG_PRINTF("Sent getDeviceInfo message: %s\n.", getDeviceInfo_str);
+            time_DI_send = save_millis; // Update the time when we sent the device info request
             DI_send = true; // Mark that the Device Info is sent
         }
         
-        // After both messages have been sent, the device will send cell data frames continuously, so we will not send getDeviceInfo and getConfigInfo again
-        // but we will check if we receive them within the expected interval (4-5 times a second) and if not we will send DI and CI requests again,
-        // but only if the previous request has been answered
-        else if (CI_send && DI_send && CD_running && save_millis - lastRcvdCDTime > MAX_TIME_BETWEEN_CELL_DATA_MESSAGES) {
-            DEBUG_PRINTLN("No cell data received for more than 2 seconds, sending getDeviceInfo and getConfigInfo again.");
-            // Reset the flags to allow sending getDeviceInfo and getConfigInfo again in next loop iteration
+        // my V15 PB-BMS sends data frames only 5 hours after the last getDeviceInfo request!
+        // this is why we use the CI_AND_DI_INTERVAL to determine when to send the requests again after 4.5 hours.
+        // hopefully a resend of the requests will trigger the device to send data frames for the next 5 hours again
+        else if (CI_send && DI_send && ((save_millis - time_DI_send) >= CI_AND_DI_INTERVAL)) {
+            DEBUG_PRINTLN("CI and DI interval elapsed, sending getDeviceInfo and getConfigInfo again.");
             CI_send = false; // Reset the flag to allow sending getConfigInfo again
             DI_send = false; // Reset the flag to allow sending getDeviceInfo again
-            CD_running = false; // Reset the flag to indicate that we are no longer receiving cell data frames
+            time_DI_send = 0; // Update the time when we sent the device info request
+            time_CI_sent = 0; // Update the time when we sent the config info request
         }
         
         if (last_rssi_time == 0 || (save_millis - last_rssi_time) >= BLE_RSSI_INTERVAL) {
@@ -445,6 +448,17 @@ void parserTask(void *pvParameters) {
             lastParserTime = millis(); // Update the last parser time when a message is received
             // Call the parser function
             parser(frameFromQueue.data, frameFromQueue.timestamp);
+            if (rawLogEnabled) {
+                DEBUG_PRINTLN("FRAME:"); // Print the start of a new frame
+                for (size_t i = 0; i < message_length; i++) {
+                    DEBUG_PRINTF("%02X ", frameFromQueue.data[i]);
+                    // every 30 bytes, print a newline for better readability
+                    if ((i + 1) % 30 == 0) {
+                        DEBUG_PRINTLN();
+                    }
+                }
+                DEBUG_PRINTLN();
+            }
         }
         while (millis() - lastParserTime < 25) {
             // Wait until 25 milliseconds have passed since the last parser call

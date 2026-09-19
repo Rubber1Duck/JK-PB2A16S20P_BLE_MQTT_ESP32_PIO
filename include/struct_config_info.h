@@ -42,7 +42,7 @@ struct ConfigInfo
   uint32_t CapBatCell;             // 4     CapBatCell                    mAH        0.001 multiplier
   uint32_t ScpDelay;               // 4     ScpDelay                      microseconds
   uint32_t VolStartBalan;          // 4     VolStartBalan                 mV         0.001 multiplier
-  uint32_t CellConWireRes[32];     // 128   CellConWireRes                mΩ         0.001 multiplier, will not be published, just for information
+  uint32_t CellConWireRes[32];     // 128   CellConWireRes                µΩ         as raw values in micro-ohms
   uint32_t DevAddr;                // 4     DevAddr                       #          The address of the device
   uint32_t TimProdischarge;        // 4     TimProdischarge               s
   uint8_t Unknown1[4];             // 4     Unknown1                      #
@@ -84,8 +84,14 @@ struct ConfigInfo
   char DisablePCLModule[4];   // 4, wegen "On"/"Off", Länge von 3 + 1 für Nullterminierung
   char TimedStoredData[4];    // 4, wegen "On"/"Off", Länge von 3 + 1 für Nullterminierung
   char ChargingFloatMode[4];  // 4, wegen "On"/"Off", Länge von 3 + 1 für Nullterminierung
+  char CellConWireRes_fmt[32][10]; // Hilfsvariable für die Formatierung der CellConWireRes in µΩ als Rohwert
+  
   void update_switches()
   {
+    for (int i = 0; i < 32; ++i)
+    {
+      snprintf(CellConWireRes_fmt[i], sizeof(CellConWireRes_fmt[i]), "%lu", CellConWireRes[i]);
+    }
     snprintf(BatChargeEN_fmt, sizeof(BatChargeEN_fmt), "%s", (BatChargeEN[0] & 0x0001) ? "On" : "Off");
     snprintf(BatDisChargeEN_fmt, sizeof(BatDisChargeEN_fmt), "%s", (BatDisChargeEN[0] & 0x0001) ? "On" : "Off");
     snprintf(BalanEN_fmt, sizeof(BalanEN_fmt), "%s", (BalanEN[0] & 0x0001) ? "On" : "Off");
