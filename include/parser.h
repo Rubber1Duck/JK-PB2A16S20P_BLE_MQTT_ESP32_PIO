@@ -28,7 +28,7 @@ extern const size_t message_length;
 
 extern uint16_t min_pub_time;
 extern uint16_t publish_delay;
-extern volatile bool debug_flg_full;
-extern volatile bool debug_flg;
+extern bool debug_flg_full;
+extern bool debug_flg;
 
 #endif // PARSER_H
