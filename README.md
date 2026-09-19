@@ -5,7 +5,7 @@ This project is initaly made by Waldmensch1 (see [Waldmensch1/JK-PB2A16S20P_BLE_
 
 Thanks Waldmensch1 for your grat work!
 
-This project is inspired by the Akkudoktor.net forum and especially by this thread: [JKBMS auslesen über BLE Bluetooth oder RS485 Adapter mittels EPS IoBroker](https://akkudoktor.net/t/jkbms-auslesen-uber-ble-bluetooth-oder-rs485-adapter-mittels-eps-iobroker/722). As the the code there did not work properly with my JK-PB2A16S20P (these are delivered with a lot of DIY battery boxes), this project has been raised. For details on supported JK inverter BMS models see [table below](#supported-jk-bms-models).  
+This project is inspired by the Akkudoktor.net forum and especially by this thread: [JKBMS auslesen über BLE Bluetooth oder RS485 Adapter mittels EPS IoBroker](https://akkudoktor.net/t/jkbms-auslesen-uber-ble-bluetooth-oder-rs485-adapter-mittels-eps-iobroker/722). As the code there did not work properly with my JK-PB2A16S20P (these are delivered with a lot of DIY battery boxes), this project has been raised. For details on supported JK inverter BMS models see [table below](#supported-jk-bms-models).  
 The communication between the BMS and the ESP32 is primarily designed for bluetooth, thus an ESP32 model with BT support is required.  
 If you use more than one ESP32 it is shown as a structure in MQTT:  
 ```
@@ -14,6 +14,10 @@ jk_ble_listener
     |
     +---DEVICENAME2
 ```
+
+!!! ATTENTION !!!
+This projekt will READ all values only! I will not support writing values ​​to the BMS! Not now, and not in the future either. Feel free to fork this repo and try yourself!
+
 
 ## Table of Contents
 - [Installation](#installation)
@@ -43,10 +47,12 @@ across all environments.
 - Modify the platformio.ini for your needs. Especially set the `DEVICENAME` (e.g. `JK-PB2A16S20P-01`), which is the Bluetooth name **as shown by the JK-BMS smartphone app**. This overwrites the `DEVICENAME` specified in `/include/config.h`. This will allow you to build targets for multiple ESP32 boards
 - Specify COM ports in platformio.ini; may be deleted to enabled auto-detect (if you only have one ESP connected to your host)
 - Build and upload to your ESP32
+- a built-in Webserver is providing a simple startpage under http://xxx.xxx.xxx.xxx/. At the bottom are links to a MQTT config page, an ArduinoOTA status page and a page which shows the last reset reasons (to see if the ESP crashes some time). Firmware updates are performed with ArduinoOTA via PlatformIO from the same network.
 
 **Attention:**
 - because of using WIFI and BLE (witch is used over the same antenna on ESP32) a ESP32 with "good" quality is recommended
-- If you want to use MQTT with TLS a "normal" ESP32 is not suitable! Tests with an ESP32-S3-N16R8 were successful; the ESP run for several days with a TLS connection. No reboots or crashes occurred. ("Normal ESP32 the WIFI connection is very unstable!)
+- If you want to use MQTT with TLS a "normal" ESP32 is not suitable! Tests with an ESP32-S3-N16R8 were successful; the ESP run for several days with a TLS connection. No reboots or crashes occurred. (on "normal" ESP32 the WIFI connection is very unstable!)
+- using a ESP32 with additional PSRAM is also recommended if you are in a "unstable" Wifi environment, because then 3/4 of the PS RAM will be used to cache the MQTT values. On my esp32-S3-N16R8 with 8MB PSRAM 6MB is used for the publish queue, that is place for 36354 entrys. Depending on how many values ​​are selected for publishing (on the MQTT configuration webpage), the settings for `publish_delay` and `min_pub_time`, and the number of cells installed, the buffer lasts for up to three hours. For example, I am currently using a 4-cell battery setup where all device info and configuration info values ​​are published every 300 sec, along with 15 values ​​from the live data every 5 sec.(cell data). With the default settings of `publish_delay` = 5 and `min_pub_time` = 300, this results in an average of ~93 messages per minute. The cache is sufficient for approximately 391 minutes! Since all values ​​are published with a timestamp, they can be written to a database (e.g., InfluxDB) with the correct timestamps even after the connection is restored. (However, clearing a full cache takes over ~26 minutes, depending on the PUBLISH_INTERVAL value, which defaults to 40 (every 40 ms, ~25 entrys/sec. or ~1500 entrys/min). Do not lower this under 25 ms! this will result in instability issues!)
   
 **Attention:** Do note that you will not be able to connect to the BMS with your smartphone app while the ESP32 is communicating with your BMS.
 
@@ -65,7 +71,7 @@ Here is a list of currently evaluated BMS models along with the tested hard- and
 
 (*) for V19 BMS uncomment "//define V19" in config file
 
-Hardware rev. 14 of the JK inverter BMS will most probably also work with a recent firmware installed.  
+Hardware rev. 14 and 15 of the JK inverter BMS will most probably also work with a recent firmware installed.  
 **Note:** The most promising precondition to successfully use this project is probably by running a **recent firmware** on your BMS. You may check [Andy's homepage](https://off-grid-garage.com/battery-management-systems-bms/) for firmware updates for the JK inverter BMS series.
 
 ## Contributing

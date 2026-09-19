@@ -1,12 +1,10 @@
 #include "app_webserver.h"
 
-#ifdef USE_WEBSERVER
-
+#include <ArduinoOTA.h>
 #include <WebServer.h>
-#include <ElegantOTA.h>
 #include <Preferences.h>
 #include <cstring>
-
+#include "config.h"
 #include "macros.h"
 #include "mqtt_handler.h"
 #include "mqtt_publish_config.h"
@@ -82,16 +80,14 @@ void onOTAProgress(size_t current, size_t final)
     }
 }
 
-void onOTAEnd(bool success)
+void onOTAEnd()
 {
-    if (success)
-    {
-        DEBUG_PRINTLN("OTA update finished successfully!");
-    }
-    else
-    {
-        DEBUG_PRINTLN("There was an error during OTA update!");
-    }
+    DEBUG_PRINTLN("OTA update finished successfully!");
+}
+
+void onOTAError(ota_error_t error)
+{
+    DEBUG_PRINTF("OTA update failed with error %u!\n", static_cast<unsigned int>(error));
 }
 
 void handleBmsApi()
@@ -247,7 +243,7 @@ void handleRoot()
 
 void handleMqttConfig()
 {
-    if (!server.hasArg("field") || !server.hasArg("enabled"))
+    if (!server.hasArg("field") || (!server.hasArg("enabled") && !server.hasArg("retained")))
     {
         server.send(400, "text/plain", "Fehlende Parameter");
         return;
@@ -263,8 +259,17 @@ void handleMqttConfig()
 
     String category = field.substring(0, separator);
     String suffix = field.substring(separator + 1);
-    bool enabled = server.arg("enabled") == "1";
-    setMqttPublishFieldEnabled(category.c_str(), suffix.c_str(), enabled);
+
+    if (server.hasArg("enabled"))
+    {
+        bool enabled = server.arg("enabled") == "1";
+        setMqttPublishFieldEnabled(category.c_str(), suffix.c_str(), enabled);
+    }
+    if (server.hasArg("retained"))
+    {
+        bool retained = server.arg("retained") == "1";
+        setMqttPublishFieldRetained(category.c_str(), suffix.c_str(), retained);
+    }
     server.send(204, "text/plain", "");
 }
 
@@ -317,13 +322,15 @@ void setupWebserver(ResetEntry *history, size_t historyCount, const char *nvsKey
     server.on("/api/mqtt_config", HTTP_POST, handleMqttConfig);
     server.on("/api/bms", handleBmsApi);
     server.on("/ota", []() {
-        server.send(200, "text/plain", "Hi! This is ElegantOTA Demo 2.");
+        server.send(200, "text/plain", "ArduinoOTA ist aktiv. Verwende PlatformIO oder einen ArduinoOTA-kompatiblen Upload im gleichen Netzwerk.");
     });
 
-    ElegantOTA.begin(&server);
-    ElegantOTA.onStart(onOTAStart);
-    ElegantOTA.onProgress(onOTAProgress);
-    ElegantOTA.onEnd(onOTAEnd);
+    ArduinoOTA.setHostname(OTA_HOSTNAME);
+    ArduinoOTA.onStart(onOTAStart);
+    ArduinoOTA.onEnd(onOTAEnd);
+    ArduinoOTA.onProgress(onOTAProgress);
+    ArduinoOTA.onError(onOTAError);
+    ArduinoOTA.begin();
 
     server.begin();
 }
@@ -331,7 +338,6 @@ void setupWebserver(ResetEntry *history, size_t historyCount, const char *nvsKey
 void webserverLoop()
 {
     server.handleClient();
-    ElegantOTA.loop();
+    ArduinoOTA.handle();
 }
 
-#endif // USE_WEBSERVER

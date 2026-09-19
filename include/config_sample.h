@@ -7,6 +7,9 @@
 #define DEVICENAME "JK-PB2A16S20P"
 #endif
 
+// following will be added for the web dashboard device name (JK-BMS Dashboard "WEB_DASHBOARD_DEVICE_NAME")
+#define WEB_DASHBOARD_DEVICE_NAME "What ever you want to see on the web dashboard"
+
 // Uncomment to enable debug output to syslog server (UDP) and serial console
 // #define USE_SYSLOG
 #ifdef USE_SYSLOG
@@ -19,23 +22,9 @@
 // Uncomment if Hardware is V19
 // #define V19
 
-// set the following to "true" to publish the device data and the config data to MQTT as retained messages, so that the data is available after a restart of the broker or the device
-// be careful, this will increase the load on the broker
-// "true" will switch this on, "false" will switch this off. Default is "false" to reduce the load on the broker.
-#define MQTT_RETAINED_MESSAGES false
-
-// Uncomment to pulish protocol numbers and enable status from device info frame
-// #define PROTOCOL_NUMBERS_AND_ENABLE_STATUS
-
-// uncomment to publish trigger values for LCD buzzer and dry contacts from device info frame
-// #define LCD_AND_DRY_TRIGGER_VALUES
-
 // Number of reset reasons to store in history, adjust as needed but be careful with NVS storage limits
 // (see: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/storage/nvs_flash.html#nvs-flash)
 #define MAX_RESET_REASONS 10
-
-// Uncomment to enable webserver and OTA update functionality
-#define USE_WEBSERVER
 
 // WiFi credentials
 // #define USE_WIFI_STATIC_IP // uncomment to use static IP configuration instead of DHCP (see below for settings)

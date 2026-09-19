@@ -1,12 +1,18 @@
 # MQTT Topics
 
-Stand: aus dem aktuellen Code in src/parser.cpp und src/mqtt_handler.cpp.
+Stand: aus dem aktuellen Code in src/parser.cpp, src/mqtt_handler.cpp und src/mqtt_publish_config.cpp.
 
 ## Basis
 
 - Basis pro Geraet: TOPIC_BASE + DEVICENAME
 - In den Beispielen unten steht BASE = TOPIC_BASE + DEVICENAME
 - Last-Will Topic: BASE/status/status
+
+## Retained-Flag und Aktivierung pro Topic
+
+- Ob ein device/config/data-Topic ueberhaupt veroeffentlicht wird und ob es dabei als retained-Message gesendet wird, ist ueber die Web-Konfigurationsseite `/mqtt_config` pro Topic einstellbar (Checkboxen "aktiviert" und "R" fuer retained), gespeichert in NVS-Namespace `mqttcfg`.
+- Es gibt kein globales Compile-Time-Define mehr dafuer (das fruehere `MQTT_RETAINED_MESSAGES` in config.h wurde entfernt).
+- Standardwerte: device/config-Topics sind standardmaessig retained, data-Topics (Livedaten) standardmaessig nicht retained.
 
 ## Parameter Topics (Publish + Subscribe)
 
@@ -40,12 +46,16 @@ Stand: aus dem aktuellen Code in src/parser.cpp und src/mqtt_handler.cpp.
 - BASE/status/parser_heap_delta_avg
 - BASE/status/ble_device_mac
 - BASE/status/ble_device_rssi
+- BASE/status/messages_total
+- BASE/status/messages_per_minute
+- BASE/status/publishqueuesize
 
 ## Device Topics
 
 - BASE/device/read_count
 - BASE/device/vendor_id
 - BASE/device/hw_revision
+- BASE/device/hardware_options
 - BASE/device/sw_version
 - BASE/device/uptime
 - BASE/device/uptime_fmt
@@ -98,8 +108,10 @@ Stand: aus dem aktuellen Code in src/parser.cpp und src/mqtt_handler.cpp.
 - BASE/data/cells_used (nur wenn debug_flg)
 - BASE/data/cells/voltage/cell_avg_voltage
 - BASE/data/cells/voltage/cell_diff_voltage
-- BASE/data/cells/voltage/high_voltage_cell
-- BASE/data/cells/voltage/low_voltage_cell
+- BASE/data/cells/voltage/high_voltage_cell_nbr
+- BASE/data/cells/voltage/high_voltage_cell_voltage
+- BASE/data/cells/voltage/low_voltage_cell_nbr
+- BASE/data/cells/voltage/low_voltage_cell_voltage
 - BASE/data/temperatures/temp_mosfet
 - BASE/data/cell_resistance_alert (nur wenn debug_flg)
 - BASE/data/battery_voltage
@@ -136,16 +148,24 @@ Stand: aus dem aktuellen Code in src/parser.cpp und src/mqtt_handler.cpp.
 - BASE/data/temperatures/battery_heating
 - BASE/data/time_emergency
 - BASE/data/heat_current
+- BASE/data/heat_power
 - BASE/data/sys_run_ticks
 - BASE/data/temperatures/temp_sensor3
 - BASE/data/temperatures/temp_sensor4
 - BASE/data/temperatures/temp_sensor5
 - BASE/data/rtc_ticks
+- BASE/data/time_enter_sleep
+- BASE/data/pcl_module_status
+- BASE/data/charge_status_time
+- BASE/data/charge_status
+- BASE/data/dry_contact_1
+- BASE/data/dry_contact_2
 
 ## Data Topics (dynamische Reihen)
 
 - BASE/data/cells/voltage/cell_v_01 bis BASE/data/cells/voltage/cell_v_32
-- BASE/data/cells/resistance/cell_r_01 bis BASE/data/cells/resistance/cell_r_32
+- BASE/data/cells/wire_res/cell_wr_01 bis BASE/data/cells/wire_res/cell_wr_32
+- BASE/config/cells/cell_cwr_01 bis BASE/config/cells/cell_cwr_32
 - BASE/data/alarms/AlarmWireRes
 - BASE/data/alarms/AlarmMosOTP
 - BASE/data/alarms/AlarmCellQuantity
@@ -179,7 +199,6 @@ Stand: aus dem aktuellen Code in src/parser.cpp und src/mqtt_handler.cpp.
 
 ## Debug Topics
 
-- BASE/debug/enabled
 - BASE/debug/rawdata
 
 Hinweis: BASE/debug/rawdata wird bei debug_flg_full als Base64-Rohdaten publiziert, sonst als Text not published.

@@ -3,8 +3,10 @@
 
 #include <Arduino.h>
 #include "config.h"
+#include "macros.h"
 #include <rom/rtc.h>
 #include <time.h>
+#include <WebServer.h>
 
 struct ResetEntry
 {
@@ -12,19 +14,14 @@ struct ResetEntry
     time_t timestamp;
 };
 
+
 String formatTime(time_t t);
 String get_reset_reason_string(esp_reset_reason_t reason);
-
-#ifdef USE_WEBSERVER
-
-#include <WebServer.h>
 
 const char *get_reset_reason_class(esp_reset_reason_t reason);
 
 void handleBmsPage(WebServer &server);
 void handleResetHistoryPage(WebServer &server, const ResetEntry *history, size_t historyCount);
 void handleMqttConfigPage(WebServer &server);
-
-#endif // USE_WEBSERVER
 
 #endif // HTML_H

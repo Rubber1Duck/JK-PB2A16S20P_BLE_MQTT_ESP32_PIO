@@ -41,6 +41,7 @@ std::mutex mqttClientIoMutex;
 // Pre-computed MQTT topics to avoid repeated allocations
 String topic_debug_active;
 String topic_debug_active_full;
+String topic_raw_log_enabled;
 String topic_publish_delay;
 String topic_min_pub_time;
 String topic_publish_interval;
@@ -284,14 +285,10 @@ bool toMqttQueue(const char *topic, const char *payload, bool retain)
         return false;
     }
 
+    // per-field retained flag (configurable via the MQTT config web page) takes precedence
+    retain = retain || isMqttPublishFieldRetained(topic);
+
     std::lock_guard<std::mutex> lock(mqttQueueMutex);
-    {
-        std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
-        if (mqtt_client.state() != MQTT_CONNECTED || !isWifiConnected)
-        {
-            return false; // Wait until MQTT is connected before pushing topics to publish queue
-        }
-    }
 
     if (topic == nullptr || payload == nullptr)
     {
@@ -299,15 +296,17 @@ bool toMqttQueue(const char *topic, const char *payload, bool retain)
     }
 
     PublishMessage queue_in;
+    // Copy topic, payload and retain flag into the queue structure
     strncpy(queue_in.topic, topic, sizeof(queue_in.topic) - 1);
     queue_in.topic[sizeof(queue_in.topic) - 1] = '\0';
     strncpy(queue_in.payload, payload, sizeof(queue_in.payload) - 1);
     queue_in.payload[sizeof(queue_in.payload) - 1] = '\0';
     queue_in.retain = retain;
+
+    // Send the message to the publish queue
     if (xQueueSend(publishQueue, &queue_in, 0) != pdTRUE)
     {
-        String failMsg = "Failed to send message to queue: " + String(topic);
-        DEBUG_PRINTLN(failMsg);
+        DEBUG_PRINTLN("Failed to send message to queue: " + String(topic));
         return false;
     }
 
@@ -544,12 +543,19 @@ void MQTTCallback(char *topic, byte *payload, unsigned int length)
 {
     // Early return pattern - check each topic and return immediately after handling
 
+    // Check raw_log_enabled
+    if (strcmp(topic, topic_raw_log_enabled.c_str()) == 0)
+    {
+        rawLogEnabled = parseBoolPayload(payload, length, rawLogEnabled);
+        write_setting("rawLogEnabled", rawLogEnabled);
+        return;
+    }
+    
     // Check debugging_active
     if (strcmp(topic, topic_debug_active.c_str()) == 0)
     {
         debug_flg = parseBoolPayload(payload, length, debug_flg);
         write_setting("debug_flg", debug_flg);
-        DEBUG_PRINTLN(String("debug_flg set to: ") + (debug_flg ? "true" : "false"));
         return;
     }
 
@@ -558,7 +564,6 @@ void MQTTCallback(char *topic, byte *payload, unsigned int length)
     {
         debug_flg_full = parseBoolPayload(payload, length, debug_flg_full);
         write_setting("debug_flg_full", debug_flg_full);
-        DEBUG_PRINTLN(String("debug_flg_full set to: ") + (debug_flg_full ? "true" : "false"));
         return;
     }
 
@@ -664,9 +669,13 @@ boolean mqtt_reconnect()
     {
 
         int ErrorCnt = 0;
-        String debug_flg_status = debug_flg ? "true" : "false";
         {
             std::lock_guard<std::mutex> ioLock(mqttClientIoMutex);
+            String rawLogEnabledStatus = rawLogEnabled ? "true" : "false";
+            mqtt_client.publish(topic_raw_log_enabled.c_str(), rawLogEnabledStatus.c_str()) || ErrorCnt++;
+            mqtt_client.subscribe(topic_raw_log_enabled.c_str()) || ErrorCnt++; // rawLogEnabled
+                        
+            String debug_flg_status = debug_flg ? "true" : "false";
             mqtt_client.publish(topic_debug_active.c_str(), debug_flg_status.c_str()) || ErrorCnt++;
             mqtt_client.subscribe(topic_debug_active.c_str()) || ErrorCnt++; // debug_flg
 
@@ -801,6 +810,7 @@ void mqtt_init()
     // Initialize pre-computed topic strings once
     topic_debug_active = mqttname + "/parameter/debugging_active";
     topic_debug_active_full = mqttname + "/parameter/debugging_active_full";
+    topic_raw_log_enabled = mqttname + "/parameter/raw_log_enabled";
     topic_publish_delay = mqttname + "/parameter/publish_delay";
     topic_min_pub_time = mqttname + "/parameter/min_publish_time";
     topic_publish_interval = mqttname + "/parameter/publish_interval";

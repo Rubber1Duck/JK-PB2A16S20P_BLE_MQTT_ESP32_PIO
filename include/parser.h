@@ -24,10 +24,11 @@ extern ConfigInfo configinfo;
 extern bool has_device_info;
 extern bool has_cell_data;
 extern bool has_config_info;
+extern const size_t message_length;
 
 extern uint16_t min_pub_time;
 extern uint16_t publish_delay;
-extern volatile bool debug_flg_full;
-extern volatile bool debug_flg;
+extern bool debug_flg_full;
+extern bool debug_flg;
 
 #endif // PARSER_H
