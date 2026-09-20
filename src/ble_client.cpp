@@ -43,6 +43,24 @@ time_t save_millis = 0; // Variable to save the last time millis() was called
 time_t time_CI_sent = 0; // Variable to save the time when the Config Info request was sent
 time_t lastRcvdCDTime = 0; // Variable to save the last time a cell data frame was received
 time_t time_DI_send = 0; // Variable to save the time when the Device Info request was sent
+time_t CIandDIInterval = 0; // Variable to save the interval between Config Info and Device Info requests
+TimeSeparation CIandDIIntervalStruct; // Variable to save the interval between Config Info and Device Info requests in a structured format
+
+// Function for conversion
+TimeSeparation convertMillis(uint32_t millisToConvert) {
+    TimeSeparation time;
+
+    // 1 Sekunde = 1000 ms
+    // 1 Minute = 60 * 1000 = 60.000 ms
+    // 1 Stunde = 60 * 60 * 1000 = 3.600.000 ms
+
+    time.hours = millisToConvert / 3600000;
+    time.minutes = (millisToConvert % 3600000) / 60000;
+    time.seconds = (millisToConvert % 60000) / 1000;
+    time.milliseconds = millisToConvert % 1000;
+
+    return time;
+}
 
 #ifdef DUALCORE
 // Define the queue handle
@@ -153,6 +171,14 @@ const char *getDisconnectReasonText(int reason) {
         default:
             return "Unknown Reason";
     }
+}
+
+time_t getNewCIandDIInterval() {
+    uint32_t min_zeit = MIN_CI_AND_DI_INTERVAL;
+    uint32_t max_zeit = MAX_CI_AND_DI_INTERVAL;
+    uint32_t bereich = max_zeit - min_zeit + 1;
+    time_t interval = min_zeit + (esp_random() % bereich);
+    return interval; // Return a random interval between the minimum and maximum intervals for sending new Config Info and Device Info messages
 }
 
 class MyClientCallback : public NimBLEClientCallbacks {
@@ -418,14 +444,20 @@ void ble_loop() {
         // my V15 PB-BMS sends data frames only 5 hours after the last getDeviceInfo request!
         // this is why we use the CI_AND_DI_INTERVAL to determine when to send the requests again after 4.5 hours.
         // hopefully a resend of the requests will trigger the device to send data frames for the next 5 hours again
-        else if (CI_send && DI_send && ((save_millis - time_DI_send) >= CI_AND_DI_INTERVAL)) {
+        else if (CI_send && DI_send && ((save_millis - time_DI_send) >= CIandDIInterval)) {
             DEBUG_PRINTLN("CI and DI interval elapsed, sending getDeviceInfo and getConfigInfo again.");
             CI_send = false; // Reset the flag to allow sending getConfigInfo again
             DI_send = false; // Reset the flag to allow sending getDeviceInfo again
             time_DI_send = 0; // Update the time when we sent the device info request
             time_CI_sent = 0; // Update the time when we sent the config info request
+            CIandDIInterval = getNewCIandDIInterval();
+            CIandDIIntervalStruct = convertMillis(CIandDIInterval);
+            DEBUG_PRINTF("First CI and DI Interval: %02u hours %02u minutes %02u seconds %03u milliseconds\n",
+                CIandDIIntervalStruct.hours,
+                CIandDIIntervalStruct.minutes,
+                CIandDIIntervalStruct.seconds,
+                CIandDIIntervalStruct.milliseconds);
         }
-        
         if (last_rssi_time == 0 || (save_millis - last_rssi_time) >= BLE_RSSI_INTERVAL) {
             last_rssi_time = save_millis;
             char rssiVal[12];
@@ -469,7 +501,15 @@ void parserTask(void *pvParameters) {
 #endif
 
 void ble_setup() {
-    
+
+CIandDIInterval = getNewCIandDIInterval();
+CIandDIIntervalStruct = convertMillis(CIandDIInterval);
+DEBUG_PRINTF("First CI and DI Interval: %02u hours %02u minutes %02u seconds %03u milliseconds\n",
+    CIandDIIntervalStruct.hours,
+    CIandDIIntervalStruct.minutes,
+    CIandDIIntervalStruct.seconds,
+    CIandDIIntervalStruct.milliseconds);
+
 #ifdef DUALCORE
     // Create the queue
     bleQueue = xQueueCreate(20, sizeof(BleFrame));
@@ -478,8 +518,7 @@ void ble_setup() {
     // Create the parser task on core 1
     xTaskCreatePinnedToCore(parserTask, "Parser Task", 8192, NULL, 1, NULL, 1);
     DEBUG_PRINTLN("Parser Task created");
-
-#endif
+#endif // DUALCORE
 
     DEBUG_PRINTLN("Starting NimBLE Client\n");
     /** Initialize NimBLE and set the device name */

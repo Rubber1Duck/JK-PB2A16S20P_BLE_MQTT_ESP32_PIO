@@ -28,4 +28,7 @@ bool isMqttPublishFieldRetained(const char *topic);
 void setMqttPublishFieldRetained(const char *categoryId, const char *suffix, bool retained);
 bool getMqttPublishFieldRetained(const char *categoryId, const char *suffix);
 
+// True for fields that are only published while debug_flg is enabled
+bool isMqttPublishFieldDebugOnly(const char *categoryId, const char *suffix);
+
 #endif

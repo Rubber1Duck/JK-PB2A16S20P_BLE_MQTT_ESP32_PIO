@@ -173,12 +173,12 @@ const MqttPublishField CELL_FIELDS[] = {
     {"charging_mosfet_status", "Lade-MOSFET"},
     {"discharging_mosfet_status", "Entlade-MOSFET"},
     {"battery_user_alarm2", "Benutzeralarm 2"},
-    {"timeDcOCPR", "Discharge OCPR Rückkehrzeit"},
-    {"timeDcSCPR", "Discharge SCPR Rückkehrzeit"},
-    {"timeCOCPR", "Charge OCPR Rückkehrzeit"},
-    {"timeCSCPR", "Charge SCPR Rückkehrzeit"},
-    {"timeUVPR", "UVPR Rückkehrzeit"},
-    {"timeOVPR", "OVPR Rückkehrzeit"},
+    {"timeDcOCPR", "Discharge OCPR Delay"},
+    {"timeDcSCPR", "Discharge SCPR Delay"},
+    {"timeCOCPR", "Charge OCPR Delay"},
+    {"timeCSCPR", "Charge SCPR Delay"},
+    {"timeUVPR", "UVPR Delay"},
+    {"timeOVPR", "OVPR Delay"},
     {"temperatures/temp_sensor_absent", "Fehlende Temperatursensoren"},
     {"temperatures/temp_sensor_absent_mask", "Temperatursensor Bitmaske"},
     {"temperatures/battery_heating", "Batterieheizung"},
@@ -271,6 +271,13 @@ const MqttPublishCategory CATEGORIES[] = {
 uint8_t FIELD_ENABLED[3][160] = {};
 uint8_t FIELD_RETAINED[3][160] = {};
 bool SETTINGS_LOADED = false;
+
+// Fields that are only published when debug_flg is enabled (see parser.cpp)
+const MqttPublishField DEBUG_ONLY_FIELDS[] = {
+    {"cells_used", nullptr},
+    {"cell_resistance_alert", nullptr},
+    {"temperatures/temp_sensor_absent_mask", nullptr}
+};
 
 uint32_t fieldHash(const char *categoryId, const char *suffix)
 {
@@ -455,6 +462,20 @@ void setMqttPublishFieldRetained(const char *categoryId, const char *suffix, boo
     prefs.putUChar(key, retained ? 1 : 0);
     prefs.end();
     FIELD_RETAINED[categoryIndex][fieldIndex] = retained ? 1 : 0;
+}
+
+bool isMqttPublishFieldDebugOnly(const char *categoryId, const char *suffix)
+{
+    if (categoryId == nullptr || suffix == nullptr)
+        return false;
+    if (strcmp(categoryId, "data") != 0)
+        return false;
+    for (const MqttPublishField &field : DEBUG_ONLY_FIELDS)
+    {
+        if (strcmp(field.suffix, suffix) == 0)
+            return true;
+    }
+    return false;
 }
 
 bool isMqttPublishFieldRetained(const char *topic)

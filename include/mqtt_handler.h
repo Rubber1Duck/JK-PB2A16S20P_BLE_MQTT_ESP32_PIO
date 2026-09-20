@@ -24,6 +24,8 @@
 void setState(const char *key, const char *value, bool publish);
 void setState(String key, String value, bool publish);
 String getState(const char *key);
+String getLastPublishedValue(const char *topic);
+String getLastPublishedValueTruncated(const char *topic, uint8_t maxLen);
 String formatUptime(time_t uptime);
 void mqtt_loop();
 void mqtt_init();

@@ -273,6 +273,53 @@ void handleMqttConfig()
     server.send(204, "text/plain", "");
 }
 
+String jsonEscapeValue(const String &in)
+{
+    String out;
+    out.reserve(in.length() + 4);
+    for (size_t i = 0; i < in.length(); i++)
+    {
+        char ch = in[i];
+        if (ch == '\\')
+            out += "\\\\";
+        else if (ch == '"')
+            out += "\\\"";
+        else
+            out += ch;
+    }
+    return out;
+}
+
+void handleMqttConfigValues()
+{
+    size_t categoryCount = 0;
+    const MqttPublishCategory *categories = getMqttPublishCategories(categoryCount);
+
+    String json = "{";
+    bool first = true;
+    for (size_t c = 0; c < categoryCount; c++)
+    {
+        for (size_t f = 0; f < categories[c].fieldCount; f++)
+        {
+            const char *suffix = categories[c].fields[f].suffix;
+            if (strcmp(suffix, "alarms/*") == 0)
+                continue;
+
+            String topic = mqttname + "/" + categories[c].id + "/" + suffix;
+            String value = getLastPublishedValueTruncated(topic.c_str(), 10);
+            if (value.isEmpty())
+                continue;
+
+            if (!first)
+                json += ",";
+            first = false;
+            json += "\"" + String(categories[c].id) + ":" + suffix + "\":\"" + jsonEscapeValue(value) + "\"";
+        }
+    }
+    json += "}";
+    server.send(200, "application/json", json);
+}
+
 void handleResetHistory()
 {
     handleResetHistoryPage(server, g_history, g_historyCount);
@@ -320,6 +367,7 @@ void setupWebserver(ResetEntry *history, size_t historyCount, const char *nvsKey
     server.on("/bms", handleRoot);
     server.on("/mqtt_config", []() { handleMqttConfigPage(server); });
     server.on("/api/mqtt_config", HTTP_POST, handleMqttConfig);
+    server.on("/api/mqtt_config_values", handleMqttConfigValues);
     server.on("/api/bms", handleBmsApi);
     server.on("/ota", []() {
         server.send(200, "text/plain", "ArduinoOTA ist aktiv. Verwende PlatformIO oder einen ArduinoOTA-kompatiblen Upload im gleichen Netzwerk.");

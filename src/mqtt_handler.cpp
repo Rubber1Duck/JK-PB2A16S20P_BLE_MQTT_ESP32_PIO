@@ -34,6 +34,9 @@ uint32_t reconnect_attempts = 0;
 // Define the map to store key-value pairs
 std::map<String, String> stateMap;
 
+// Last published payload per topic (used to show current values on the MQTT config page)
+std::map<String, String> lastValueMap;
+
 // Define toMqttQueue mutex
 std::mutex mqttQueueMutex;
 std::mutex mqttClientIoMutex;
@@ -280,6 +283,17 @@ String formatUptime(time_t uptime)
 
 bool toMqttQueue(const char *topic, const char *payload, bool retain)
 {
+    std::lock_guard<std::mutex> lock(mqttQueueMutex);
+
+    if (topic == nullptr || payload == nullptr)
+    {
+        return false;
+    }
+
+    // Cache the latest value for every topic, even if publishing is filtered out,
+    // so the MQTT config page can show current values for disabled fields too.
+    lastValueMap[topic] = payload;
+
     if (!isMqttPublishFieldEnabled(topic))
     {
         return false;
@@ -287,13 +301,6 @@ bool toMqttQueue(const char *topic, const char *payload, bool retain)
 
     // per-field retained flag (configurable via the MQTT config web page) takes precedence
     retain = retain || isMqttPublishFieldRetained(topic);
-
-    std::lock_guard<std::mutex> lock(mqttQueueMutex);
-
-    if (topic == nullptr || payload == nullptr)
-    {
-        return false;
-    }
 
     PublishMessage queue_in;
     // Copy topic, payload and retain flag into the queue structure
@@ -419,6 +426,70 @@ String getState(const char *key)
     std::lock_guard<std::mutex> lock(mqttQueueMutex);
     auto state = stateMap.find(key);
     return state == stateMap.end() ? "" : state->second;
+}
+
+String getLastPublishedValue(const char *topic)
+{
+    if (topic == nullptr)
+    {
+        return "";
+    }
+
+    String payload;
+    {
+        std::lock_guard<std::mutex> lock(mqttQueueMutex);
+        auto entry = lastValueMap.find(topic);
+        if (entry == lastValueMap.end())
+        {
+            return "";
+        }
+        payload = entry->second;
+    }
+
+    // Payloads published by parser.cpp are JSON-wrapped: {"time":<ms>,"value":<value>}
+    // value is either a JSON number or a quoted string
+    const String marker = "\"value\":";
+    int valueStart = payload.indexOf(marker);
+    if (valueStart < 0)
+    {
+        return payload;
+    }
+    valueStart += marker.length();
+    while (valueStart < (int)payload.length() && payload[valueStart] == ' ')
+    {
+        valueStart++;
+    }
+    if (valueStart >= (int)payload.length())
+    {
+        return "";
+    }
+    if (payload[valueStart] == '"')
+    {
+        // quoted string
+        int valueEnd = payload.lastIndexOf('"');
+        if (valueEnd <= valueStart)
+        {
+            return "";
+        }
+        return payload.substring(valueStart + 1, valueEnd);
+    }
+    // number/bool: ends at the closing brace
+    int valueEnd = payload.lastIndexOf('}');
+    if (valueEnd <= valueStart)
+    {
+        return "";
+    }
+    return payload.substring(valueStart, valueEnd);
+}
+
+String getLastPublishedValueTruncated(const char *topic, uint8_t maxLen)
+{
+    String value = getLastPublishedValue(topic);
+    if (value.length() > maxLen)
+    {
+        return value.substring(0, maxLen) + "…";
+    }
+    return value;
 }
 
 static void setStateU32(const char *key, uint32_t value, bool publish)

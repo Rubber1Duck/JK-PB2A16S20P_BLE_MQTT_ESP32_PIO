@@ -1,5 +1,6 @@
 #include "html.h"
 #include "mqtt_publish_config.h"
+#include "mqtt_handler.h"
 #include "parser.h"
 
 const String dashboardNameSuffix = TEXTIFY(WEB_DASHBOARD_DEVICE_NAME);
@@ -12,6 +13,15 @@ String formatTime(time_t t)
     char buffer[20];
     strftime(buffer, sizeof(buffer), "%d.%m.%Y %H:%M:%S", timeinfo);
     return String(buffer);
+}
+
+static String htmlEscape(const String &in)
+{
+    String out = in;
+    out.replace("&", "&amp;");
+    out.replace("<", "&lt;");
+    out.replace("\"", "&quot;");
+    return out;
 }
 
 String get_reset_reason_string(esp_reset_reason_t reason)
@@ -282,8 +292,8 @@ void handleMqttConfigPage(WebServer &server)
     server.setContentLength(CONTENT_LENGTH_UNKNOWN);
     server.send(200, "text/html", "");
     server.sendContent("<!DOCTYPE html><html lang='de'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>MQTT Konfiguration " + dashboardNameSuffix + "</title>");
-    server.sendContent("<style>body{font-family:sans-serif;background:#1a1a2e;color:#eee;padding:12px;margin:0}.wrap{max-width:1400px;margin:auto}h1{color:#00d4ff;font-size:1.4rem}.intro{color:#aab6cc;font-size:.9rem}.card{background:#16213e;border-radius:8px;padding:8px;margin:8px 0}.category-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:start}.category-grid .card{margin:0}.card h2{font-size:1rem;margin:2px 0 6px}.bar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.actions button{background:#263c60;color:#fff;border:1px solid #49658f;border-radius:6px;padding:7px 10px;cursor:pointer}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 8px}.field{display:flex;align-items:center;gap:5px;padding:3px 0;border-bottom:1px solid #263451;font-size:.76rem;line-height:1.15;min-width:0}.field span{overflow-wrap:anywhere}.field span.lbl{flex:1 1 auto}.field input{accent-color:#00cc66;width:15px;height:15px;flex:0 0 15px}.field input.rt{accent-color:#ff9900;margin-left:4px}.field span.rlbl{flex:0 0 auto;color:#aab6cc;font-size:.68rem}.state{color:#00cc66;font-size:.8rem}.links{display:flex;justify-content:center;gap:18px;margin:18px 0}.links a{color:#00d4ff;text-decoration:none}@media(max-width:1050px){.category-grid{grid-template-columns:1fr}.category-grid .fields{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:700px){.category-grid .fields{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:420px){.category-grid .fields{grid-template-columns:1fr}}</style></head><body><div class='wrap'>");
-    server.sendContent("<h1>MQTT Konfiguration " + dashboardNameSuffix + "</h1><p class='intro'>Wähle aus, welche MQTT-Werte veröffentlicht werden und ob sie als \"retained\" (R) gesendet werden sollen. Standardmäßig sind alle Werte aktiviert.</p>");
+    server.sendContent("<style>body{font-family:sans-serif;background:#1a1a2e;color:#eee;padding:12px;margin:0}.wrap{max-width:1400px;margin:auto}h1{color:#00d4ff;font-size:1.4rem}.intro{color:#aab6cc;font-size:.9rem}.card{background:#16213e;border-radius:8px;padding:8px;margin:8px 0}.category-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:start}.category-grid .card{margin:0}.card h2{font-size:1rem;margin:2px 0 6px}.bar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.actions button{background:#263c60;color:#fff;border:1px solid #49658f;border-radius:6px;padding:7px 10px;cursor:pointer}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 8px}.field{display:flex;align-items:center;gap:5px;padding:3px 0;border-bottom:1px solid #263451;font-size:.76rem;line-height:1.15;min-width:0}.field span{overflow-wrap:anywhere}.field span.lbl{flex:1 1 auto}.field input{accent-color:#00cc66;width:15px;height:15px;flex:0 0 15px}.field input.rt{accent-color:#ff9900;margin-left:4px}.field span.rlbl{flex:0 0 auto;color:#aab6cc;font-size:.68rem}.field span.val{flex:0 0 auto;color:#5fb8ff;font-size:.68rem;font-weight:bold}.field span.dbg{flex:0 0 auto;color:#ff9900;font-size:.68rem;font-weight:bold;border:1px solid #ff9900;border-radius:3px;padding:0 2px}label.field.dbg-only span.lbl{color:#ffcc80}.state{color:#00cc66;font-size:.8rem}.links{display:flex;justify-content:center;gap:18px;margin:18px 0}.links a{color:#00d4ff;text-decoration:none}@media(max-width:1050px){.category-grid{grid-template-columns:1fr}.category-grid .fields{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:700px){.category-grid .fields{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:420px){.category-grid .fields{grid-template-columns:1fr}}</style></head><body><div class='wrap'>");
+    server.sendContent("<h1>MQTT Konfiguration " + dashboardNameSuffix + "</h1><p class='intro'>Wähle aus, welche MQTT-Werte veröffentlicht werden und ob sie als \"retained\" (R) gesendet werden sollen. Standardmäßig sind alle Werte aktiviert. Mit <span style='color:#ff9900;font-weight:bold'>D</span> markierte Felder werden nur bei aktivem Debug-Flag gesendet.</p>");
     server.sendContent("<div class='card'><div class='bar'><span class='state' id='state'>Gespeichert</span><div class='actions'><button type='button' onclick='setAll(true)'>Alle aktivieren</button><button type='button' onclick='setAll(false)'>Alle deaktivieren</button><button type='button' onclick='setAllRetain(true)'>Alle retained</button><button type='button' onclick='setAllRetain(false)'>Kein retained</button></div></div></div>");
 
     server.sendContent("<div class='category-grid'>");
@@ -305,10 +315,22 @@ void handleMqttConfigPage(WebServer &server)
                     continue;
             }
             String fieldId = String(category.id) + ":" + field.suffix;
-            String row = "<label class='field'><input type='checkbox' class='en' data-field='" + fieldId + "'";
+            bool debugOnly = isMqttPublishFieldDebugOnly(category.id, field.suffix);
+            String row = "<label class='field";
+            if (debugOnly)
+                row += " dbg-only";
+            row += "'><input type='checkbox' class='en' data-field='" + fieldId + "'";
             if (getMqttPublishFieldEnabled(category.id, field.suffix))
                 row += " checked";
             row += "><span class='lbl'>" + String(field.label) + "</span>";
+            if (debugOnly)
+                row += "<span class='dbg' title='Wird nur bei aktivem Debug-Flag gesendet'>D</span>";
+            if (strcmp(field.suffix, "alarms/*") != 0)
+            {
+                String fullTopic = mqttname + "/" + category.id + "/" + field.suffix;
+                String value = getLastPublishedValueTruncated(fullTopic.c_str(), 10);
+                row += "<span class='val' data-val='" + fieldId + "'>" + htmlEscape(value) + "</span>";
+            }
             row += "<input type='checkbox' class='rt' data-field='" + fieldId + "' title='Retained veröffentlichen'";
             if (getMqttPublishFieldRetained(category.id, field.suffix))
                 row += " checked";
@@ -319,7 +341,7 @@ void handleMqttConfigPage(WebServer &server)
     }
     server.sendContent("</div>");
 
-    server.sendContent("<div class='links'><a href='/'>Zurück zur Startseite</a><a href='/reset_history'>Reset-Historie</a></div><script>function save(e){var p=new URLSearchParams();var kind=e.classList.contains('rt')?'retained':'enabled';p.set('field',e.dataset.field);p.set(kind,e.checked?'1':'0');fetch('/api/mqtt_config',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:p.toString()}).then(function(r){document.getElementById('state').textContent=r.ok?'Gespeichert':'Fehler beim Speichern';});}function setAll(v){document.querySelectorAll('input.en').forEach(function(e){if(e.checked!==v){e.checked=v;save(e);}});}function setAllRetain(v){document.querySelectorAll('input.rt').forEach(function(e){if(e.checked!==v){e.checked=v;save(e);}});}document.querySelectorAll('input[data-field]').forEach(function(e){e.addEventListener('change',function(){save(e);});});</script></div></body></html>");
+    server.sendContent("<div class='links'><a href='/'>Zurück zur Startseite</a><a href='/reset_history'>Reset-Historie</a></div><script>function save(e){var p=new URLSearchParams();var kind=e.classList.contains('rt')?'retained':'enabled';p.set('field',e.dataset.field);p.set(kind,e.checked?'1':'0');fetch('/api/mqtt_config',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:p.toString()}).then(function(r){document.getElementById('state').textContent=r.ok?'Gespeichert':'Fehler beim Speichern';});}function setAll(v){document.querySelectorAll('input.en').forEach(function(e){if(e.checked!==v){e.checked=v;save(e);}});}function setAllRetain(v){document.querySelectorAll('input.rt').forEach(function(e){if(e.checked!==v){e.checked=v;save(e);}});}document.querySelectorAll('input[data-field]').forEach(function(e){e.addEventListener('change',function(){save(e);});});function pollValues(){fetch('/api/mqtt_config_values').then(function(r){return r.json();}).then(function(d){for(var k in d){var e=document.querySelector('span[data-val=\"'+k+'\"]');if(e)e.textContent=d[k];}}).catch(function(){});}pollValues();setInterval(pollValues,3000);</script></div></body></html>");
     server.sendContent("");
 }
 
