@@ -115,13 +115,13 @@ bool waitForTimeSync(uint32_t timeoutMs)
     // NTP not configured, proceed without waiting
     DEBUG_PRINTLN("NTP not configured, skipping time sync wait");
     return true;
-#endif
+#endif // NTPSERVER
 }
 
 #ifdef USE_HA_DISCOVERY
 #ifndef HA_DISCOVERY_PREFIX
 #define HA_DISCOVERY_PREFIX "homeassistant"
-#endif
+#endif // HA_DISCOVERY_PREFIX
 
 namespace
 {

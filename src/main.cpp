@@ -1,28 +1,11 @@
 #include "main.h"
 
-#ifdef USE_SYSLOG
-PicoSyslog::Logger syslog;
-#endif
-
-#ifdef NTPSERVER
-const char *ntpServer = NTPSERVER;
-#ifdef TIMEZONE
-const char *time_zone = TIMEZONE;
-#else
-const long gmtOffset_sec = GMTOFFSET;
-const int daylightOffset_sec = DLOFFSET;
-#endif
-#endif // NTPSERVER
-
-const char *NVS_KEY = "reset_history"; //limited to 15 characters due to NVS key length limit!
-ResetEntry history[MAX_RESET_REASONS];
-
 void setup()
 {
 #ifdef SERIAL_OUT
     Serial.begin(115200);
     delay(1000);
-#endif
+#endif // SERIAL_OUT
     init_settings();
 
     Serial.println("");
@@ -34,20 +17,15 @@ void setup()
 #ifdef USELED
     init_led();
     set_led(LedState::LED_DOUBLE_FLASH);
-#endif
+#endif // USELED
 
     init_wifi();
 
     init_mdns_handler();
 
 #ifdef USE_SYSLOG
-    syslog.server = SYSLOG_SERVER;
-    syslog.port = SYSLOG_PORT;
-    syslog.app = SYSLOG_APP;
-    syslog.default_loglevel = PicoSyslog::LogLevel::information;
-    syslog.host = SYSLOG_HOST;
-
-#endif
+    init_syslog_handler();
+#endif // USE_SYSLOG
 
 #ifdef USE_TLS
     const char *root_ca_cert = MQTT_ROOT_CA_CERT;
@@ -58,18 +36,16 @@ void setup()
     DEBUG_PRINTLN("WARNING: SSL/TLS certificate verification disabled!");
 #else
     secure_wifi_client.setCACert(root_ca_cert);
-#endif
-#endif
+#endif // MQTT_SKIP_CERT_VERIFY
+#endif // USE_TLS
 
 #ifdef NTPSERVER
 #ifdef TIMEZONE
     configTzTime(time_zone, ntpServer);
 #else
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-#endif
-    DEBUG_PRINTLN("NTP-Time synced");
-    DEBUG_PRINTLN("Current time: " + getLocalTimeString());
-#endif
+#endif // TIMEZONE
+#endif // NTPSERVER
 
     // Wait for NTP time synchronization before attempting MQTT connection
     // This prevents SSL certificate verification errors
@@ -78,37 +54,9 @@ void setup()
         DEBUG_PRINTLN("WARNING: Proceeding without confirmed NTP sync - SSL/TLS may fail");
     }
 
-    DEBUG_PRINTLN("\n--- ESP32 Reset History ---");
-    uint8_t currentReason = (uint8_t)esp_reset_reason();
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo))
-        DEBUG_PRINTLN("Zeit-Sync fehlgeschlagen");
+    debug_print_reset_history();
 
-    prefs.begin(nvs_namespace, false);
-    prefs.getBytes(NVS_KEY, history, sizeof(history));
-    memmove(&history[1], &history[0], sizeof(ResetEntry) * (MAX_RESET_REASONS - 1));
-    history[0].reason = currentReason;
-    time(&history[0].timestamp);
-    prefs.putBytes(NVS_KEY, history, sizeof(history));
-    prefs.end();
-
-    for (int i = 0; i < MAX_RESET_REASONS; i++)
-    {
-        if (history[i].reason == 0 && i > 0)
-            continue;
-        DEBUG_PRINT("Eintrag [");
-        DEBUG_PRINT(i);
-        DEBUG_PRINT("]: ");
-        DEBUG_PRINT(formatTime(history[i].timestamp));
-        DEBUG_PRINT(" - ");
-        DEBUG_PRINT(get_reset_reason_string((esp_reset_reason_t)history[i].reason));
-        DEBUG_PRINT(" (Code: ");
-        DEBUG_PRINT((int)history[i].reason);
-        DEBUG_PRINTLN(")");
-    }
-    DEBUG_PRINTLN("---------------------------\n");
-
-    setupWebserver(history, MAX_RESET_REASONS, NVS_KEY);
+    setupWebserver(history, MAX_RESET_REASONS, RESET_HISTORY_KEY);
 
     publish_init();
     
