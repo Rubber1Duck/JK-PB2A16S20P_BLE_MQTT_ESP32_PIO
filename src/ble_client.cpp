@@ -452,7 +452,7 @@ void ble_loop() {
             time_CI_sent = 0; // Update the time when we sent the config info request
             CIandDIInterval = getNewCIandDIInterval();
             CIandDIIntervalStruct = convertMillis(CIandDIInterval);
-            DEBUG_PRINTF("First CI and DI Interval: %02u hours %02u minutes %02u seconds %03u milliseconds\n",
+            DEBUG_PRINTF("Next CI and DI Interval: %02u hours %02u minutes %02u seconds %03u milliseconds\n",
                 CIandDIIntervalStruct.hours,
                 CIandDIIntervalStruct.minutes,
                 CIandDIIntervalStruct.seconds,
