@@ -1,4 +1,5 @@
 #include "mqtt_publish_config.h"
+#include "mqtt_handler.h"
 
 #include <Preferences.h>
 #include <cstring>
@@ -454,6 +455,8 @@ void setMqttPublishFieldRetained(const char *categoryId, const char *suffix, boo
     if (!findField(categoryId, suffix, categoryIndex, fieldIndex))
         return;
 
+    bool wasRetained = FIELD_RETAINED[categoryIndex][fieldIndex] != 0;
+
     char key[16];
     makeRetainKey(key, sizeof(key), categoryId, suffix);
     Preferences prefs;
@@ -462,6 +465,12 @@ void setMqttPublishFieldRetained(const char *categoryId, const char *suffix, boo
     prefs.putUChar(key, retained ? 1 : 0);
     prefs.end();
     FIELD_RETAINED[categoryIndex][fieldIndex] = retained ? 1 : 0;
+
+    // Wenn das Retained-Flag entfernt wird, auch die retained Nachricht auf dem Broker löschen
+    if (wasRetained && !retained)
+    {
+        clearRetainedMessagesOnBroker(categoryId, suffix);
+    }
 }
 
 bool isMqttPublishFieldDebugOnly(const char *categoryId, const char *suffix)

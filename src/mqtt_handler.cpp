@@ -325,6 +325,52 @@ bool toMqttQueue(String topic, String payload, bool retain)
     return toMqttQueue(topic.c_str(), payload.c_str(), retain);
 }
 
+// Stellt eine leere retained Nachricht in die Publish-Queue.
+// Ein Payload mit Länge 0 plus Retain-Flag löscht die retained Nachricht auf dem Broker.
+static void enqueueRetainedClear(const char *topic)
+{
+    PublishMessage msg;
+    strncpy(msg.topic, topic, sizeof(msg.topic) - 1);
+    msg.topic[sizeof(msg.topic) - 1] = '\0';
+    msg.payload[0] = '\0';
+    msg.retain = true;
+
+    if (xQueueSend(publishQueue, &msg, 0) != pdTRUE)
+    {
+        DEBUG_PRINTLN("Failed to queue retained delete for: " + String(topic));
+    }
+}
+
+void clearRetainedMessagesOnBroker(const char *categoryId, const char *suffix)
+{
+    if (categoryId == nullptr || suffix == nullptr || *suffix == '\0')
+        return;
+
+    String prefix = mqttname + "/" + categoryId + "/";
+
+    std::lock_guard<std::mutex> lock(mqttQueueMutex);
+
+    if (strcmp(suffix, "alarms/*") == 0)
+    {
+        // Wildcard-Feld: alle bisher gesehenen Alarm-Topics löschen,
+        // außer Topics mit eigenem Konfig-Feld (alarms/alarm_raw, alarms/alarms_mask)
+        String alarmsPrefix = prefix + "alarms/";
+        for (const auto &entry : lastValueMap)
+        {
+            const String &topic = entry.first;
+            if (!topic.startsWith(alarmsPrefix))
+                continue;
+            String tail = topic.substring(alarmsPrefix.length());
+            if (tail == "alarm_raw" || tail == "alarms_mask")
+                continue;
+            enqueueRetainedClear(topic.c_str());
+        }
+        return;
+    }
+
+    enqueueRetainedClear((prefix + suffix).c_str());
+}
+
 void toMqttQueueRawData(String topic, const char *payload, size_t payloadLen)
 {
     if (!ensureRawPublishInfraInitialized())

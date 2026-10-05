@@ -31,6 +31,9 @@ void mqtt_loop();
 void mqtt_init();
 bool toMqttQueue(const char *topic, const char *payload, bool retain = false);
 bool toMqttQueue(String topic, String payload, bool retain = false);
+// Löscht die retained Nachricht(en) eines Konfig-Feldes auf dem Broker,
+// indem eine leere Nachricht mit Retain-Flag auf das Topic publiziert wird
+void clearRetainedMessagesOnBroker(const char *categoryId, const char *suffix);
 void toMqttQueueRawData(String topic, const char *payload, size_t payloadLen);
 bool waitForTimeSync(uint32_t timeoutMs = 30000);
 void mqtt_tls_stop();
