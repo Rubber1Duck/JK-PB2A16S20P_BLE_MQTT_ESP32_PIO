@@ -440,17 +440,12 @@ void toMqttQueueRawData(String topic, const char *payload, size_t payloadLen)
 
 void setState(const char *key, const char *value, bool publish)
 {
-    if (key == nullptr || value == nullptr)
-    {
-        return;
-    }
+    if (key == nullptr || value == nullptr) return;
 
-    {
-        std::lock_guard<std::mutex> lock(mqttQueueMutex);
-        stateMap[key] = value;
-    }
+    stateMap[key] = value;
     if (publish)
     {
+        std::lock_guard<std::mutex> lock(mqttQueueMutex);
         char fullTopic[192];
         snprintf(fullTopic, sizeof(fullTopic), "%s/status/%s", mqttname.c_str(), key);
         toMqttQueue(fullTopic, value);
@@ -460,6 +455,13 @@ void setState(const char *key, const char *value, bool publish)
 void setState(String key, String value, bool publish)
 {
     setState(key.c_str(), value.c_str(), publish);
+}
+
+void setState(const char *key, uint32_t value, bool publish)
+{
+    char valueBuf[16];
+    snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(value));
+    setState(key, valueBuf, publish);
 }
 
 String getState(const char *key)
@@ -538,13 +540,6 @@ String getLastPublishedValueTruncated(const char *topic, uint8_t maxLen)
     return value;
 }
 
-static void setStateU32(const char *key, uint32_t value, bool publish)
-{
-    char valueBuf[16];
-    snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(value));
-    setState(key, valueBuf, publish);
-}
-
 uint32_t getTotalPublishedMessages()
 {
     return total_published_messages;
@@ -563,8 +558,8 @@ uint32_t getPublishedMessagesPerMinute()
 void incrementPublishedMessageCounter()
 {
     total_published_messages++;
-    setStateU32("messages_total", total_published_messages, false);
-    setStateU32("messages_per_minute", getPublishedMessagesPerMinute(), false);
+    setState("messages_total", total_published_messages, false);
+    setState("messages_per_minute", getPublishedMessagesPerMinute(), false);
 }
 
 static void trackPublishedMessage()
@@ -591,15 +586,15 @@ void publishStatesTask(void *pvParameters)
 {
     while (true)
     {
-        setStateU32("rawpool_free_slots", rawDataPoolFreeCount(), false);
-        setStateU32("rawpool_capacity", RAWDATA_POOL_SLOT_COUNT, false);
-        setStateU32("rawdata_enqueued", rawdata_enqueued_count, false);
-        setStateU32("rawdata_drop_init_failed", rawdata_drop_init_failed_count, false);
-        setStateU32("rawdata_drop_oversize", rawdata_drop_oversize_count, false);
-        setStateU32("rawdata_drop_pool_exhausted", rawdata_drop_pool_exhausted_count, false);
-        setStateU32("rawdata_drop_queue_full", rawdata_drop_queue_full_count, false);
-        setStateU32("messages_total", total_published_messages, false);
-        setStateU32("messages_per_minute", getPublishedMessagesPerMinute(), false);
+        setState("rawpool_free_slots", rawDataPoolFreeCount(), false);
+        setState("rawpool_capacity", RAWDATA_POOL_SLOT_COUNT, false);
+        setState("rawdata_enqueued", rawdata_enqueued_count, false);
+        setState("rawdata_drop_init_failed", rawdata_drop_init_failed_count, false);
+        setState("rawdata_drop_oversize", rawdata_drop_oversize_count, false);
+        setState("rawdata_drop_pool_exhausted", rawdata_drop_pool_exhausted_count, false);
+        setState("rawdata_drop_queue_full", rawdata_drop_queue_full_count, false);
+        setState("messages_total", total_published_messages, false);
+        setState("messages_per_minute", getPublishedMessagesPerMinute(), false);
         publishStates();
         // Publish parameter topics periodically
         toMqttQueue(topic_debug_active, debug_flg ? "true" : "false");
@@ -932,19 +927,19 @@ void mqtt_init()
     topic_min_pub_time = mqttname + "/parameter/min_publish_time";
     topic_publish_interval = mqttname + "/parameter/publish_interval";
 
+    setState("version", VERSION, false);
+    setState("ipaddress", WiFi.localIP().toString(), false);
+    setState("ble_connection", "startup", false);
+    setState("status", "online", false);
+    setState("publishqueuesize", String(publishQueueCount), false);
+    
+    // Create the task to call publishStates() every min_publish_time seconds
+    // Stack erhöht von 2048 auf 4096 für Stabilität
+    xTaskCreate(publishStatesTask, "Publish States Task", 4096, NULL, 1, NULL);
+
     if (mqtt_reconnect())
     {
         DEBUG_PRINTLN("MQTT Connected.");
-        setState("version", VERSION, false);
-        setState("ipaddress", WiFi.localIP().toString(), false);
-        setState("ble_connection", "startup", false);
-        setState("status", "online", false);
-        setState("publishqueuesize", String(publishQueueCount), false);
-                
-        // Create the task to call publishStates() every min_publish_time seconds
-        // Stack erhöht von 2048 auf 4096 für Stabilität
-        xTaskCreate(publishStatesTask, "Publish States Task", 4096, NULL, 1, NULL);
-
     }
     else
     {

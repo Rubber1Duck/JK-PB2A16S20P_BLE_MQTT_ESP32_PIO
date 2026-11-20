@@ -5,7 +5,7 @@
 // if devicename is not defined in platformio.ini, use this default
 #ifndef DEVICENAME
 #define DEVICENAME "JK-PB2A16S20P"
-#endif
+#endif // DEVICENAME
 
 // following will be added for the web dashboard device name (JK-BMS Dashboard "WEB_DASHBOARD_DEVICE_NAME")
 #define WEB_DASHBOARD_DEVICE_NAME "What ever you want to see on the web dashboard"
@@ -17,7 +17,7 @@
 #define SYSLOG_PORT 514
 #define SYSLOG_APP "what ever you want to see in the syslog message as app name"
 #define SYSLOG_HOST "what ever you want to see in the syslog message as hostname"
-#endif
+#endif // USE_SYSLOG
 
 // Uncomment if Hardware is V19
 // #define V19
@@ -38,7 +38,7 @@
 #define SUBNET ""     // optional subnet mask for static IP, leave empty for DHCP
 #define DNS ""        // optional DNS server for static IP, leave empty for DHCP
 #define DNS2 ""       // optional secondary DNS server for static IP, leave empty for DHCP
-#endif
+#endif // USE_WIFI_STATIC_IP
 
 // MQTT Settings
 // #define USE_TLS // uncomment to enable TLS support for MQTT
@@ -89,7 +89,12 @@
   "mRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57d\n" \
   "emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=\n" \
   "-----END CERTIFICATE-----\n";
-#endif
+
+// SSL/TLS Configuration for MQTT
+// Uncomment if you have SSL certificate verification issues (e.g., "SSL - Verification of the message MAC failed")
+// Debug only: this disables certificate verification entirely (insecure)
+// #define MQTT_SKIP_CERT_VERIFY
+#endif // USE_TLS
 
 // MQTT Topic configuration
 #define TOPIC_BASE "jk_ble_listener/" // Base topic tree used for all MQTT communication; ATTN: must end with a "/"!
@@ -129,11 +134,6 @@
 #define TIMEZONE "CET-1CEST,M3.5.0,M10.5.0/3" // Germany Timezone including DST rules (see: https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html)
 // #define GMTOFFSET 3600  // OPTIONAL config w/o TIMEZONE (CET, UTC+1)
 // #define DLOFFSET 3600   // OPTIONAL config w/o TIMEZONE (CEST, UTC+2)
-
-// SSL/TLS Configuration for MQTT
-// Uncomment if you have SSL certificate verification issues (e.g., "SSL - Verification of the message MAC failed")
-// Debug only: this disables certificate verification entirely (insecure)
-// #define MQTT_SKIP_CERT_VERIFY
 
 ///////////////////////////// End Settings //////////////////////////////////
 #endif // CONFIG_H

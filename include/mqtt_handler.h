@@ -23,6 +23,7 @@
 
 void setState(const char *key, const char *value, bool publish);
 void setState(String key, String value, bool publish);
+void setState(const char *key, uint32_t value, bool publish);
 String getState(const char *key);
 String getLastPublishedValue(const char *topic);
 String getLastPublishedValueTruncated(const char *topic, uint8_t maxLen);
