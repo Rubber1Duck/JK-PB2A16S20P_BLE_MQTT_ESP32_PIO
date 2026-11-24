@@ -9,6 +9,7 @@
 #include "mqtt_handler.h"
 #include "mqtt_publish_config.h"
 #include "parser.h"
+#include "publish.h"
 
 extern Preferences prefs;
 
@@ -188,6 +189,7 @@ void handleBmsApi()
     uint32_t totalPublishedMessages = getTotalPublishedMessages();
     uint32_t messagesPerMinute = (uptimeSeconds > 0 && totalPublishedMessages > 0) ? (totalPublishedMessages * 60U) / uptimeSeconds : 0;
     String publishQueueSize = getState("publishqueuesize");
+    UBaseType_t currentPublishQueue = publishQueue != nullptr ? uxQueueMessagesWaiting(publishQueue) : 0;
     String maxPublishQueue = getState("maxpubqueue");
     String maxPublishQueuePercent = "";
     uint32_t queueSize = static_cast<uint32_t>(publishQueueSize.toInt());
@@ -217,6 +219,7 @@ void handleBmsApi()
     j += "\"messages_total\":" + String(totalPublishedMessages) + ",";
     j += "\"messages_per_minute\":" + String(messagesPerMinute) + ",";
     j += "\"publish_queue_size\":\"" + jsonEscape(publishQueueSize) + "\",";
+    j += "\"current_publish_queue\":" + String(currentPublishQueue) + ",";
     j += "\"max_publish_queue\":\"" + jsonEscape(maxPublishQueue) + "\",";
     j += "\"max_publish_queue_percent\":\"" + jsonEscape(maxPublishQueuePercent) + "\",";
     j += "\"max_buffer_time_min\":\"" + jsonEscape(maxBufferTimeMinutes) + "\",";

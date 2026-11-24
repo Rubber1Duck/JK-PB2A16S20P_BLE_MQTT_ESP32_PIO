@@ -442,10 +442,13 @@ void setState(const char *key, const char *value, bool publish)
 {
     if (key == nullptr || value == nullptr) return;
 
-    stateMap[key] = value;
-    if (publish)
     {
         std::lock_guard<std::mutex> lock(mqttQueueMutex);
+        stateMap[key] = value;
+    }
+
+    if (publish)
+    {
         char fullTopic[192];
         snprintf(fullTopic, sizeof(fullTopic), "%s/status/%s", mqttname.c_str(), key);
         toMqttQueue(fullTopic, value);
@@ -569,7 +572,13 @@ static void trackPublishedMessage()
 
 void publishStates()
 {
-    for (const auto &kv : stateMap)
+    std::map<String, String> states;
+    {
+        std::lock_guard<std::mutex> lock(mqttQueueMutex);
+        states = stateMap;
+    }
+
+    for (const auto &kv : states)
     {
         if (kv.first == "uptime")
         {
