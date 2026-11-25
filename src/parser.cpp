@@ -652,7 +652,9 @@ void readCellDataRecord(void *message, const char *devicename, int64_t timestamp
     publishIfChangedWithSuffix(cdOld.HeatCurrent, celldata.HeatCurrent, celldata.HeatCurrent_fmt, base_data, "heat_current");
 
     // calculate Heating Power (HeatCurrent is in mA and BatVol is in mV!)
-    heating_power = (float)celldata.HeatCurrent * celldata.BatVol * 0.000001; // HeatCurrent in mA, BatVol in mV, result in W
+    // some bms report negative heating power, we only consider positive values !
+    celldata.HeatCurrent < 0 ? heating_power = (float)celldata.HeatCurrent * celldata.BatVol * -0.000001 :
+        heating_power = (float)celldata.HeatCurrent * celldata.BatVol * 0.000001; // HeatCurrent in mA, BatVol in mV, result in W
     // debug calculation for heating power
     // int zufallszahl = distrib(gen);
     // DEBUG_PRINTF("Random HeatCurrent value: %d\n", zufallszahl);
